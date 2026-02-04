@@ -44,8 +44,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-#agent
-.agent
 
 #data
 data/

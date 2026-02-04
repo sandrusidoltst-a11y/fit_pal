@@ -66,14 +66,17 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 ### Directory Structure
 ```ascii
 fit_pal/
+├── commit_logs/             # History of commits
 ├── data/
-│   ├── food_db.csv          # Nutritional database
+│   ├── nutrition.db         # Nutritional database (SQLite)
 │   ├── meal_plan.txt        # User's targets
 │   └── logs/                 # Historical daily logs
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py   # LangGraph definition
 │   │   └── state.py         # Schema and TypedDict
+│   ├── scripts/
+│   │   └── ingest_db.py     # ETL script
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
 │   ├── main.py              # Entry point
