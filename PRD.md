@@ -1,0 +1,130 @@
+# Product Requirements Document: FitPal AI Agent
+
+## 1. Executive Summary
+FitPal is an intelligent AI fitness and nutrition coach designed to bridge the gap between traditional meal planning and the friction of daily logging. Built on the **LangGraph** framework, the agent acts as a stateful companion that understands natural language, tracks macronutrients (Protein, Carbs, Fats) and Calories in real-time, and provides personalized feedback based on a user's specific meal plan.
+
+The MVP focuses on the core utility: accurately parsing natural language food intake, looking up nutritional values from a local database, and maintaining a session-based state of daily totals.
+
+## 2. Mission & Core Principles
+**Mission**: To make rigid nutrition plans flexible and easy to follow through effortless natural language interaction.
+
+**Core Principles**:
+- **Zero Friction**: Logging food should feel like texting a friend.
+- **Accuracy**: Base calculations on structured data, not LLM "hallucinations" of calories.
+- **Context Awareness**: The agent must know what you've already eaten and what your target is.
+- **Transparency**: Clear feedback on how values were calculated.
+
+## 3. Target Users
+### Persona: The Disciplined Tracker
+- **Goals**: Stay within macros to hit weight/muscle targets.
+- **Pain Points**: Manual search in calorie tracking apps is tedious and time-consuming.
+- **Needs**: A quick way to log complex meals (e.g., "50g chicken and 200g rice") and get immediate totals.
+
+## 4. MVP Scope
+
+### In-Scope (✅)
+- **LangGraph Orchestration**: Core logic for food intake tracking and reasoning.
+- **Natural Language Parsing**: Converting "I ate 50g of chicken" into structured JSON using LLM and Pydantic.
+- **Stateful Tracking**: Maintaining daily totals within a LangGraph session (short-term memory).
+- **Core Reasoning**: Answering questions based on the current state.
+
+### Out-of-Scope (❌)
+- **User Interface (UI)**: No Web or Desktop UI in this phase.
+- **API (REST/GraphQL)**: No external API endpoints.
+- **Image Recognition**: Photo-to-macros conversion.
+- **Multi-User Support**: Initial version is a local, single-user logic instance.
+
+## 5. User Stories
+1. **As a user**, I want to type "I had a 200g steak" so that the agent automatically finds the protein and fat content.
+2. **As a user**, I want to ask "How much protein do I have left?" so I can decide if I should eat more.
+3. **As a user**, I want to correct my entry if I made a mistake so my daily stats remain accurate.
+
+## 6. Core Architecture & Patterns
+
+### High-Level Architecture
+```ascii
++-----------------------------------------------------------+
+|                     LangGraph Orchestrator                |
+|  +-----------------------------------------------------+  |
+|  |  [State: Messages, DailyTotals, LastEntry]          |  |
+|  +-----------------------------------------------------+  |
+|          |                   |                   |        |
+|          v                   v                   v        |
+|  +--------------+    +--------------+    +--------------+ |
+|  | Parse Node   |--->| Lookup Tool  |--->| Update State | |
+|  | (LLM + Pyd)  |    | (Pending DB) |    | (Logic)      | |
+|  +--------------+    +--------------+    +--------------+ |
++-----------------------------------------------------------+
+                             |
+                             v
++----------------------------+------------------------------+
+|                    Persistence / Checkpointer             |
+|                  (SQLite / MemorySaver)                   |
++-----------------------------------------------------------+
+```
+
+### Directory Structure
+```ascii
+fit_pal/
+├── data/
+│   ├── food_db.csv          # Nutritional database
+│   ├── meal_plan.txt        # User's targets
+│   └── logs/                 # Historical daily logs
+├── src/
+│   ├── agents/
+│   │   ├── nutritionist.py   # LangGraph definition
+│   │   └── state.py         # Schema and TypedDict
+│   ├── tools/
+│   │   └── food_lookup.py   # Database search logic
+│   ├── main.py              # Entry point
+│   └── config.py            # Environment & LLM setup
+├── tests/                   # Integration & Unit tests
+├── PRD.md
+└── README.md
+```
+
+## 7. Technology Stack
+- **Orchestration**: LangGraph.
+- **LLM Framework**: LangChain 1.x.
+- **Schema Validation**: Pydantic v2.
+- **LLM Model**: Claude 3.5 Sonnet or GPT-4o.
+- **Data Processing**: Pandas (for CSV/Database lookup).
+- **Storage**: SQLite (Checkpointer for state).
+- **Language**: Python 3.10+.
+- **Package Manager**: uv (Required for dependency management).
+
+## 8. Database Schema & Data Source
+
+### Food Database (TBD)
+*The food database is currently pending import. It will likely be a structured format (CSV/JSON/Parquet) containing nutritional values per 100g.*
+
+| Column (Expected) | Type | Unit |
+| :--- | :--- | :--- |
+| `item` | String | Name of the food |
+| `calories_100g`| Float | kcal |
+| `protein_100g` | Float | grams |
+| `carbs_100g` | Float | grams |
+| `fat_100g` | Float | grams |
+
+## 9. Implementation Phases
+
+### Phase 1: MVP Logic Foundations
+- Setup LangGraph environment and base development structure.
+- Implementation of `FoodIntake` Pydantic models for extraction.
+- Create placeholder `Food_Lookup_Tool` (to be integrated once DB is imported).
+- Build and test core LangGraph flow: Input -> Parse -> State Update.
+
+### Phase 2: Knowledge Integration
+- Add RAG/File-loading for the `Meal Plan`.
+- Implement "Remaining Macros" logic.
+- Support for target-based questions ("Can I eat this?").
+
+### Phase 3: Persistence & Reliability
+- Integrate SQLite `Checkpointer` for persistent sessions.
+- Implement **Correction Flow** (delete/update entries).
+- Add structured logging to `daily_log.json`.
+
+### Phase 4: Polish & Intelligence
+- Enable LangSmith tracing.
+- Upgrade to Semantic Search for food lookup.
+- Proactive coaching logic (suggestions for ending the day).
