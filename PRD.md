@@ -42,25 +42,50 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 ## 6. Core Architecture & Patterns
 
 ### High-Level Architecture
-```ascii
-+-----------------------------------------------------------+
-|                     LangGraph Orchestrator                |
-|  +-----------------------------------------------------+  |
-|  |  [State: Messages, DailyTotals, LastEntry]          |  |
-|  +-----------------------------------------------------+  |
-|          |                   |                   |        |
-|          v                   v                   v        |
-|  +--------------+    +--------------+    +--------------+ |
-|  | Parse Node   |--->| Lookup Tool  |--->| Update State | |
-|  | (LLM + Pyd)  |    | (Pending DB) |    | (Logic)      | |
-|  +--------------+    +--------------+    +--------------+ |
-+-----------------------------------------------------------+
-                             |
-                             v
-+----------------------------+------------------------------+
-|                    Persistence / Checkpointer             |
-|                  (SQLite / MemorySaver)                   |
-+-----------------------------------------------------------+
+### Graph Flow Diagram
+
+```mermaid
+flowchart TD
+    START((START)) --> InputNode[Input Parser Node]
+    
+    subgraph Core_Logic [Core Logic]
+        InputNode --> ToolCall{Need Macros?}
+        ToolCall -- Yes --> SearchTool[1. Search Food Tool]
+        SearchTool --> SelectNode[Agent Selection]
+        SelectNode --> CalcTool[2. Calculate Macros Tool]
+        CalcTool --> UpdateState[Update State Node]
+        ToolCall -- No --> ResponseNode
+    end
+    
+    UpdateState --> ResponseNode[Response Node]
+    ResponseNode --> END((END))
+
+    subgraph State_Store [LangGraph State]
+        DailyTotals[(Daily Totals)]
+        MsgHistory[(Message History)]
+    end
+
+    InputNode -.-> MsgHistory
+    UpdateState -.-> DailyTotals
+    ResponseNode -.-> MsgHistory
+```
+
+### Node Responsibilities
+
+| Node | Responsibility | Input | Output |
+| :--- | :--- | :--- | :--- |
+| **Input Parser** | Extract structured data from natural language. | User Text | `FoodIntake` Pydantic Model |
+| **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
+| **Calculate Macros** | Calculate exact macros for ID and Amount. | Food ID, Amount (g) | Total Macros (P, C, F, Cal) |
+| **Update State** | Accumulate values into the global daily state. | Macro Values | Updated `NutritionState` |
+| **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
+
+### State Schema (TypedDict)
+```python
+class NutritionState(TypedDict):
+    messages: Annotated[list, add_messages]
+    totals: dict # {calories, protein, carbs, fat}
+    last_processed: dict # Info about the last tool call
 ```
 
 ### Directory Structure

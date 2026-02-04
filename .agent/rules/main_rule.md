@@ -36,6 +36,7 @@ fit_pal/
 │   └── config.py            # Environment & LLM setup
 ├── tests/                   # Integration & Unit tests
 ├── PRD.md
+├── prompts/             # System prompts and tool specs
 └── README.md
 ```
 
