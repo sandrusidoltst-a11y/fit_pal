@@ -16,12 +16,11 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 - **Package Manager**: uv (Required for dependency management).
 
 ## 3. Project Structure
-```ascii
 fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/
 │   ├── nutrition.db         # Nutritional database (SQLite)
-│   ├── MyFoodData...xlsx    # Source data
+│   ├── nutrients_csvfile.csv # Source data (Simple CSV)
 │   ├── meal_plan.txt        # User's targets
 │   └── logs/                 # Historical daily logs
 ├── src/
@@ -29,12 +28,16 @@ fit_pal/
 │   │   ├── nutritionist.py   # LangGraph definition
 │   │   └── state.py         # Schema and TypedDict
 │   ├── scripts/
-│   │   └── ingest_db.py     # ETL script (Excel -> SQLite)
+│   │   └── ingest_simple_db.py # ETL script (CSV -> SQLite)
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
+│   ├── database.py          # Database connection
+│   ├── models.py            # SQLAlchemy models
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
 ├── tests/                   # Integration & Unit tests
+├── notebooks/
+│   └── evaluate_lookup.ipynb # Analysis notebook
 ├── PRD.md
 ├── prompts/             # System prompts and tool specs
 └── README.md

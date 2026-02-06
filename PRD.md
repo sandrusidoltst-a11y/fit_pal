@@ -89,11 +89,11 @@ class NutritionState(TypedDict):
 ```
 
 ### Directory Structure
-```ascii
 fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/
 │   ├── nutrition.db         # Nutritional database (SQLite)
+│   ├── nutrients_csvfile.csv # Source data
 │   ├── meal_plan.txt        # User's targets
 │   └── logs/                 # Historical daily logs
 ├── src/
@@ -101,12 +101,16 @@ fit_pal/
 │   │   ├── nutritionist.py   # LangGraph definition
 │   │   └── state.py         # Schema and TypedDict
 │   ├── scripts/
-│   │   └── ingest_db.py     # ETL script
+│   │   └── ingest_simple_db.py # ETL script
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
+│   ├── database.py          # Database connection
+│   ├── models.py            # SQLAlchemy models
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
 ├── tests/                   # Integration & Unit tests
+├── notebooks/
+│   └── evaluate_lookup.ipynb # Analysis notebook
 ├── PRD.md
 └── README.md
 ```
@@ -123,16 +127,18 @@ fit_pal/
 
 ## 8. Database Schema & Data Source
 
-### Food Database (TBD)
-*The food database is currently pending import. It will likely be a structured format (CSV/JSON/Parquet) containing nutritional values per 100g.*
+### Food Database
+The food database is populated from a simplified CSV dataset (`nutrients_csvfile.csv`) containing ~335 common items.
+All values are normalized to **100g**.
 
-| Column (Expected) | Type | Unit |
-| :--- | :--- | :--- |
-| `item` | String | Name of the food |
-| `calories_100g`| Float | kcal |
-| `protein_100g` | Float | grams |
-| `carbs_100g` | Float | grams |
-| `fat_100g` | Float | grams |
+| Column | Type | Unit | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | Integer | - | Primary Key |
+| `name` | String | - | Food Name (e.g., "Rice", "Breads... - White") |
+| `calories`| Float | kcal | per 100g |
+| `protein` | Float | grams | per 100g |
+| `carbs` | Float | grams | per 100g |
+| `fat` | Float | grams | per 100g |
 
 ## 9. Implementation Phases
 
