@@ -48,11 +48,5 @@ Thumbs.db
 #data
 data/
 
-#db
+# db
 *.db
-
-# Commit Logs
-commit_logs/
-
-#prompts
-prompts/
