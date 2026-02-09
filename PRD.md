@@ -42,7 +42,7 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 ## 6. Core Architecture & Patterns
 
 ### High-Level Architecture
-### Graph Flow Diagram
+#### Graph Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -89,6 +89,7 @@ class NutritionState(TypedDict):
 ```
 
 ### Directory Structure
+```text
 fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/

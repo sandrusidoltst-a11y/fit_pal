@@ -16,6 +16,7 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 - **Package Manager**: uv (Required for dependency management).
 
 ## 3. Project Structure
+```text
 fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/

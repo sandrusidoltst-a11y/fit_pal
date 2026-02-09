@@ -17,3 +17,6 @@ class AgentState(TypedDict):
     daily_protein: float
     daily_carbs: float
     daily_fat: float
+    pending_food_items: List[dict]
+    daily_totals: dict
+    last_action: str
