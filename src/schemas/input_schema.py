@@ -1,7 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import date, time
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 class ActionType(str, Enum):
     LOG_FOOD = "LOG_FOOD"
@@ -11,7 +11,8 @@ class ActionType(str, Enum):
 
 class SingleFoodItem(BaseModel):
     food_name: str = Field(..., description="Normalized name for DB lookup")
-    quantity: str = Field(..., description="Quantity of the food item, e.g. '200g'")
+    amount: float = Field(..., description="Estimated weight of the food")
+    unit: Literal["g"] = Field(default="g", description="Unit of measurement, strictly 'g'")
     original_text: str = Field(..., description="The original text description of the food item")
 
 class FoodIntakeEvent(BaseModel):

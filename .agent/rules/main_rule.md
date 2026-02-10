@@ -36,7 +36,10 @@ fit_pal/
 │   ├── models.py            # SQLAlchemy models
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
-├── tests/                   # Integration & Unit tests
+├── tests/
+│   ├── unit/                # Unit tests (pytest)
+│   ├── conftest.py          # Pytest fixtures
+│   └── test_food_lookup.py  # Legacy/Integration tests
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
 ├── PRD.md
@@ -55,4 +58,6 @@ fit_pal/
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
 | [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph/LangChain patterns | Implementing agent logic or graph flows |
 | [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | Testing & Logging standards | Writing tests or debugging code |
+| [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
+| [skills/skill-creator](../skills/skill-creator/SKILL.md) | Skill | Create new skills | Adding new capabilities to the agent |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |

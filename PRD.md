@@ -77,15 +77,20 @@ flowchart TD
 | **Input Parser** | Extract structured data from natural language. | User Text | `FoodIntake` Pydantic Model |
 | **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
 | **Calculate Macros** | Calculate exact macros for ID and Amount. | Food ID, Amount (g) | Total Macros (P, C, F, Cal) |
-| **Update State** | Accumulate values into the global daily state. | Macro Values | Updated `NutritionState` |
+| **Update State** | Accumulate values into the global daily state. | Macro Values | Updated `AgentState` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
 ```python
-class NutritionState(TypedDict):
+class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
-    totals: dict # {calories, protein, carbs, fat}
-    last_processed: dict # Info about the last tool call
+    daily_calories: float
+    daily_protein: float
+    daily_carbs: float
+    daily_fat: float
+    pending_food_items: List[dict]
+    daily_totals: dict
+    last_action: str
 ```
 
 ### Directory Structure
@@ -109,12 +114,20 @@ fit_pal/
 │   ├── models.py            # SQLAlchemy models
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
-├── tests/                   # Integration & Unit tests
+│   ├── config.py            # Environment & LLM setup
+├── tests/
+│   ├── unit/                # Unit tests (pytest)
+│   ├── conftest.py          # Pytest fixtures
+│   └── test_food_lookup.py  # Legacy/Integration tests
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
 ├── PRD.md
 └── README.md
 ```
+
+### Data Standards (New)
+- **Units**: All food quantities must be normalized to **grams** (`g`) by the LLM.
+- **Schema**: Inputs are strictly validated as `amount` (float) and `unit` (Literal["g"]).
 
 ## 7. Technology Stack
 - **Orchestration**: LangGraph.
