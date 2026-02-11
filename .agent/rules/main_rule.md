@@ -27,13 +27,18 @@ fit_pal/
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py   # LangGraph definition
-│   │   └── state.py         # Schema and TypedDict
+│   │   ├── state.py         # Schema and TypedDict
+│   │   └── nodes/           # Node implementations
+│   ├── services/            # Business logic layer
+│   │   └── daily_log_service.py # CRUD for daily logs
 │   ├── scripts/
 │   │   └── ingest_simple_db.py # ETL script (CSV -> SQLite)
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
+│   ├── schemas/             # Pydantic models
+│   │   └── input_schema.py  # FoodIntakeEvent schema
 │   ├── database.py          # Database connection
-│   ├── models.py            # SQLAlchemy models
+│   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
 ├── tests/
@@ -50,14 +55,18 @@ fit_pal/
 ## 4. MCP Servers
 - **playwright**: Browser automation and interaction tools.
 
-## 5. Reference Table
+## 5. Architectural Patterns
+- **Service Layer**: Business logic in `src/services/` (e.g., `daily_log_service.py`)
+- **Write-Through Pattern**: DB is source of truth; write immediately, then query for state updates
+- **State Management**: `AgentState.daily_totals` populated from DB, not accumulated in memory
+
+## 6. Reference Table
 | File / Resource | Type | Purpose | When to Read |
 | :--- | :--- | :--- | :--- |
 | [PRD.md](../../PRD.md) | Documentation | Requirements, features, and specs | Start of project / Feature planning |
+| [plans/daily-log-persistence.md](../plans/daily-log-persistence.md) | Plan | Daily Log DB schema and architecture | Implementing persistence layer |
 | [venv-enforcement.md](venv-enforcement.md) | Rule | Python environment management | Before installing packages or running scripts |
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
-| [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph/LangChain patterns | Implementing agent logic or graph flows |
 | [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | Testing & Logging standards | Writing tests or debugging code |
 | [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
-| [skills/skill-creator](../skills/skill-creator/SKILL.md) | Skill | Create new skills | Adding new capabilities to the agent |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |

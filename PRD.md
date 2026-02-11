@@ -49,25 +49,29 @@ flowchart TD
     START((START)) --> InputNode[Input Parser Node]
     
     subgraph Core_Logic [Core Logic]
-        InputNode --> ToolCall{Need Macros?}
-        ToolCall -- Yes --> SearchTool[1. Search Food Tool]
+        InputNode --> ToolCall{Need Macros or History?}
+        
+        ToolCall -- Need Macros --> SearchTool[1. Search Food Tool]
         SearchTool --> SelectNode[Agent Selection]
-        SelectNode --> CalcTool[2. Calculate Macros Tool]
+        SelectNode --> CalcTool[2. Calculate Macros & Log]
+        
+        ToolCall -- Need History --> ReadLog[3. Read Daily Logs]
+        
         CalcTool --> UpdateState[Update State Node]
+        ReadLog --> UpdateState
+        
         ToolCall -- No --> ResponseNode
     end
     
     UpdateState --> ResponseNode[Response Node]
     ResponseNode --> END((END))
 
-    subgraph State_Store [LangGraph State]
-        DailyTotals[(Daily Totals)]
-        MsgHistory[(Message History)]
+    subgraph Database [SQLite DB]
+        DailyLogsTable[(Daily Logs Table)]
     end
 
-    InputNode -.-> MsgHistory
-    UpdateState -.-> DailyTotals
-    ResponseNode -.-> MsgHistory
+    CalcTool -.-> DailyLogsTable
+    ReadLog -.-> DailyLogsTable
 ```
 
 ### Node Responsibilities
@@ -76,22 +80,22 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Input Parser** | Extract structured data from natural language. | User Text | `FoodIntake` Pydantic Model |
 | **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
-| **Calculate Macros** | Calculate exact macros for ID and Amount. | Food ID, Amount (g) | Total Macros (P, C, F, Cal) |
-| **Update State** | Accumulate values into the global daily state. | Macro Values | Updated `AgentState` |
+| **Agent Selection** | Intelligent selection of best match from search results. | User Msg + Results | Selected Food ID / "No Match" |
+| **Calc & Log** | Calculate macros, log to DB, and update daily state. | Food ID, Amount (g) | Updated `AgentState` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
 ```python
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
-    daily_calories: float
-    daily_protein: float
-    daily_carbs: float
-    daily_fat: float
     pending_food_items: List[dict]
-    daily_totals: dict
+    daily_totals: dict  # Populated from DB: {calories, protein, carbs, fat}
+    current_date: date  # Track which day we're logging
     last_action: str
+    search_results: List[dict]  # For agent selection node
 ```
+
+**Note**: Individual macro fields (`daily_calories`, `daily_protein`, etc.) removed in favor of querying DB directly using write-through pattern.
 
 ### Directory Structure
 ```text
@@ -154,13 +158,37 @@ All values are normalized to **100g**.
 | `carbs` | Float | grams | per 100g |
 | `fat` | Float | grams | per 100g |
 
+### Daily Log Database
+Stores confirmed food entries for long-term tracking.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key |
+| `food_id` | Integer | Foreign Key (FoodItem) |
+| `amount_g` | Float | Quantity Consumed |
+| `calories` | Float | Calculated Calories |
+| `protein` | Float | Calculated Protein |
+| `carbs` | Float | Calculated Carbs |
+| `fat` | Float | Calculated Fat |
+| `timestamp` | DateTime(TZ) | When food was eaten (UTC) |
+| `meal_type` | String | breakfast/lunch/dinner/snack (nullable) |
+| `created_at` | DateTime(TZ) | When entry was created |
+| `updated_at` | DateTime(TZ) | When entry was last modified |
+| `original_text` | String | User's original input (nullable) |
+
 ## 9. Implementation Phases
 
 ### Phase 1: MVP Logic Foundations
-- Setup LangGraph environment and base development structure.
-- Implementation of `FoodIntake` Pydantic models for extraction.
-- Create placeholder `Food_Lookup_Tool` (to be integrated once DB is imported).
-- Build and test core LangGraph flow: Input -> Parse -> State Update.
+- ✅ Setup LangGraph environment and base development structure.
+- ✅ Implementation of `FoodIntakeEvent` Pydantic models for extraction.
+- ✅ Create `search_food` and `calculate_food_macros` tools.
+- 🚧 Implement **Daily Log Persistence** with service layer pattern:
+  - Create `DailyLog` SQLAlchemy model with full schema
+  - Create `src/services/daily_log_service.py` for CRUD operations
+  - Update `AgentState` schema (remove individual macro fields)
+  - Implement write-through pattern (DB as source of truth)
+- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response.
+- 🚧 Implement **Agent Selection Node** for intelligent ambiguity handling.
 
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.
