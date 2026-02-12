@@ -67,6 +67,7 @@ fit_pal/
 | [plans/daily-log-persistence.md](../plans/daily-log-persistence.md) | Plan | Daily Log DB schema and architecture | Implementing persistence layer |
 | [venv-enforcement.md](venv-enforcement.md) | Rule | Python environment management | Before installing packages or running scripts |
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
+| [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management & type safety | **BEFORE** implementing any LangGraph features |
 | [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | Testing & Logging standards | Writing tests or debugging code |
 | [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |

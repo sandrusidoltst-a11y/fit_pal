@@ -85,15 +85,48 @@ flowchart TD
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
+
+**Note**: As of 2026-02-12, the state schema is being refactored to use proper nested TypedDict definitions for type safety. See [refactor-state-schema-and-multi-item-loop.md](../.agent/plans/refactor-state-schema-and-multi-item-loop.md) for details.
+
 ```python
+from typing import TypedDict, List, Annotated, Optional
+from datetime import date
+from langgraph.graph import add_messages
+
+class PendingFoodItem(TypedDict):
+    """Single food item waiting to be processed."""
+    food_name: str
+    amount: float
+    unit: str
+    original_text: str
+
+class SearchResult(TypedDict):
+    """Result from food database search."""
+    id: int
+    name: str
+
+class DailyTotals(TypedDict):
+    """Aggregated nutritional totals from database."""
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
 class AgentState(TypedDict):
+    """Main graph state with type-safe nested structures."""
     messages: Annotated[list, add_messages]
-    pending_food_items: List[dict]
-    daily_totals: dict  # Populated from DB: {calories, protein, carbs, fat}
-    current_date: date  # Track which day we're logging
-    last_action: str
-    search_results: List[dict]  # For agent selection node
+    pending_food_items: List[PendingFoodItem]  # ✅ Type-safe (refactored from List[dict])
+    daily_totals: DailyTotals                   # ✅ Type-safe (refactored from dict)
+    current_date: date                          # Track which day we're logging
+    last_action: str                            # Last node action (for routing)
+    search_results: List[SearchResult]          # ✅ Type-safe (refactored from List[dict])
+    selected_food_id: Optional[int]             # Selected food ID from agent selection
 ```
+
+**Architectural Decision**: 
+- **TypedDict for state**: Ensures type safety, IDE autocomplete, and proper serialization to SQLite checkpointer
+- **Pydantic for LLM output**: Used with `.with_structured_output()` for validation, then converted to dict via `.model_dump()`
+- **Nested TypedDict structures**: Replaces vague `List[dict]` types with explicit schemas
 
 **Note**: Individual macro fields (`daily_calories`, `daily_protein`, etc.) removed in favor of querying DB directly using write-through pattern.
 
@@ -192,8 +225,16 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Create `src/services/daily_log_service.py` for CRUD operations
   - ✅ Update `AgentState` schema (remove individual macro fields)
   - ✅ Implement write-through pattern (DB as source of truth)
+- ✅ Implement **Agent Selection Node** for intelligent ambiguity handling.
+- 🚧 **Refactor State Schema** for type safety (In Progress):
+  - 🚧 Replace `List[dict]` with proper TypedDict definitions
+  - 🚧 Add validation for LLM responses
+  - 🚧 Update system prompts (cooked over raw preference)
+- 🚧 **Multi-Item Loop Processing** (In Progress):
+  - 🚧 Implement graph routing to handle multiple food items
+  - 🚧 Create placeholder calculate_log_node
+  - 🚧 Add loop-back logic for sequential processing
 - 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response.
-- 🚧 Implement **Agent Selection Node** for intelligent ambiguity handling.
 
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.
