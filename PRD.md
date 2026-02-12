@@ -109,16 +109,21 @@ fit_pal/
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py   # LangGraph definition
-│   │   └── state.py         # Schema and TypedDict
+│   │   ├── state.py         # Schema and TypedDict
+│   │   └── nodes/           # Node implementations
+│   │       └── input_node.py  # Input parser node
+│   ├── services/            # Business logic layer
+│   │   └── daily_log_service.py  # CRUD for daily logs
 │   ├── scripts/
 │   │   └── ingest_simple_db.py # ETL script
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
+│   ├── schemas/             # Pydantic models
+│   │   └── input_schema.py  # FoodIntakeEvent schema
 │   ├── database.py          # Database connection
-│   ├── models.py            # SQLAlchemy models
+│   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
-│   ├── config.py            # Environment & LLM setup
 ├── tests/
 │   ├── unit/                # Unit tests (pytest)
 │   ├── conftest.py          # Pytest fixtures
@@ -182,11 +187,11 @@ Stores confirmed food entries for long-term tracking.
 - ✅ Setup LangGraph environment and base development structure.
 - ✅ Implementation of `FoodIntakeEvent` Pydantic models for extraction.
 - ✅ Create `search_food` and `calculate_food_macros` tools.
-- 🚧 Implement **Daily Log Persistence** with service layer pattern:
-  - Create `DailyLog` SQLAlchemy model with full schema
-  - Create `src/services/daily_log_service.py` for CRUD operations
-  - Update `AgentState` schema (remove individual macro fields)
-  - Implement write-through pattern (DB as source of truth)
+- ✅ Implement **Daily Log Persistence** with service layer pattern:
+  - ✅ Create `DailyLog` SQLAlchemy model with full schema
+  - ✅ Create `src/services/daily_log_service.py` for CRUD operations
+  - ✅ Update `AgentState` schema (remove individual macro fields)
+  - ✅ Implement write-through pattern (DB as source of truth)
 - 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response.
 - 🚧 Implement **Agent Selection Node** for intelligent ambiguity handling.
 
