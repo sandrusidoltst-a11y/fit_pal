@@ -4,7 +4,7 @@ from src.agents.nodes.food_search_node import food_search_node
 def test_food_search_basic(basic_state):
     """Test basic food search functionality."""
     basic_state["pending_food_items"] = [
-        {"food_name": "chicken", "original_text": "100g chicken"}
+        {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"}
     ]
 
     result = food_search_node(basic_state)

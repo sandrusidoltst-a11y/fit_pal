@@ -4,7 +4,7 @@ from src.agents.nodes.selection_node import agent_selection_node
 def test_selection_no_results(basic_state):
     """Test handling of empty search results."""
     basic_state["search_results"] = []
-    basic_state["pending_food_items"] = [{"food_name": "xyz", "original_text": "xyz"}]
+    basic_state["pending_food_items"] = [{"food_name": "xyz", "amount": 100.0, "unit": "g", "original_text": "xyz"}]
 
     result = agent_selection_node(basic_state)
 
@@ -16,7 +16,7 @@ def test_selection_single_result(basic_state):
     """Test auto-selection with single search result."""
     basic_state["search_results"] = [{"id": 45, "name": "Beef"}]
     basic_state["pending_food_items"] = [
-        {"food_name": "beef", "original_text": "100g beef"}
+        {"food_name": "beef", "amount": 100.0, "unit": "g", "original_text": "100g beef"}
     ]
 
     result = agent_selection_node(basic_state)
@@ -33,7 +33,7 @@ def test_selection_multiple_results_clear_match(basic_state):
         {"id": 163, "name": "Apple juice canned"},
     ]
     basic_state["pending_food_items"] = [
-        {"food_name": "apple", "original_text": "I ate an apple"}
+        {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "I ate an apple"}
     ]
 
     result = agent_selection_node(basic_state)
@@ -50,14 +50,13 @@ def test_selection_multiple_results_ambiguous(basic_state):
         {"id": 45, "name": "Beef"},
     ]
     basic_state["pending_food_items"] = [
-        {"food_name": "meat", "original_text": "some meat"}
+        {"food_name": "meat", "amount": 100.0, "unit": "g", "original_text": "some meat"}
     ]
 
     result = agent_selection_node(basic_state)
 
-    # LLM should recognize ambiguity or select one with reasoning
-    # Accept either SELECTED (with reasoning) or AMBIGUOUS
-    assert result["last_action"] in ["SELECTED", "AMBIGUOUS"]
+    # LLM should always select one; AMBIGUOUS is handled as NO_MATCH in code
+    assert result["last_action"] in ["SELECTED", "NO_MATCH"]
 
 
 def test_selection_empty_pending_items(basic_state):

@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import date
 
 # Ensure project root is in python path - MUST be before src imports
 sys.path.append(os.getcwd())
@@ -19,7 +20,12 @@ def basic_state():
     """Returns a basic AgentState structure for testing."""
     return {
         "messages": [],
-        "daily_totals": {},
+        "pending_food_items": [],
+        "daily_totals": {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0},
+        "current_date": date.today(),
+        "last_action": "",
+        "search_results": [],
+        "selected_food_id": None,
     }
 
 

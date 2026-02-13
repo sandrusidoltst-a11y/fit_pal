@@ -4,14 +4,50 @@ from typing import Annotated, List, Optional, TypedDict
 from langgraph.graph.message import add_messages
 
 
-class AgentState(TypedDict):
+class PendingFoodItem(TypedDict):
+    """Single food item waiting to be processed.
+
+    Mirrors the structure of SingleFoodItem Pydantic model
+    from src/schemas/input_schema.py (converted via model_dump()).
     """
-    State definition for the FitPal agent.
+
+    food_name: str
+    amount: float
+    unit: str
+    original_text: str
+
+
+class SearchResult(TypedDict):
+    """Result from food database search.
+
+    Mirrors the return type of search_food tool
+    from src/tools/food_lookup.py.
+    """
+
+    id: int
+    name: str
+
+
+class DailyTotals(TypedDict):
+    """Aggregated nutritional totals from database.
+
+    Mirrors the return type of get_daily_totals
+    from src/services/daily_log_service.py.
+    """
+
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
+
+class AgentState(TypedDict):
+    """State definition for the FitPal agent.
 
     Attributes:
         messages: List of messages in the conversation history.
         pending_food_items: Food items extracted from user input, pending processing.
-        daily_totals: Aggregated nutritional totals from DB {calories, protein, carbs, fat}.
+        daily_totals: Aggregated nutritional totals from DB.
         current_date: The date being tracked (for multi-day conversations).
         last_action: The last action type determined by input parser.
         search_results: Food search results for agent selection node.
@@ -19,9 +55,9 @@ class AgentState(TypedDict):
     """
 
     messages: Annotated[List, add_messages]
-    pending_food_items: List[dict]
-    daily_totals: dict
+    pending_food_items: List[PendingFoodItem]
+    daily_totals: DailyTotals
     current_date: date
     last_action: str
-    search_results: List[dict]
+    search_results: List[SearchResult]
     selected_food_id: Optional[int]

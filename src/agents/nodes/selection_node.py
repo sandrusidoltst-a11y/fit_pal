@@ -4,7 +4,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from src.agents.state import AgentState
-from src.schemas.selection_schema import FoodSelectionResult
+from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
 
 
 def get_selection_llm():
@@ -63,6 +63,15 @@ def agent_selection_node(state: AgentState) -> dict:
     ]
 
     result = structured_llm.invoke(messages)
+
+    # Validate LLM response consistency
+    if result.status == SelectionStatus.SELECTED and result.food_id is None:
+        print("Warning: LLM returned SELECTED without food_id, treating as NO_MATCH")
+        return {"selected_food_id": None, "last_action": "NO_MATCH"}
+
+    if result.status == SelectionStatus.AMBIGUOUS:
+        print("Warning: LLM returned AMBIGUOUS (not supported in MVP), treating as NO_MATCH")
+        return {"selected_food_id": None, "last_action": "NO_MATCH"}
 
     return {
         "selected_food_id": result.food_id,

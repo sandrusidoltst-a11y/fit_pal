@@ -3,6 +3,7 @@ import sqlite3
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 
+from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.nodes.food_search_node import food_search_node
 from src.agents.nodes.input_node import input_parser_node
 from src.agents.nodes.selection_node import agent_selection_node
@@ -18,7 +19,14 @@ def define_graph():
         return {"messages": ["Calculating daily statistics..."]}
 
     def response_node(state: AgentState):
-        return {"messages": ["Response placeholder"]}
+        """Generate response based on current state."""
+        action = state.get("last_action")
+        if action == "LOGGED":
+            return {"messages": ["Food logged successfully!"]}
+        elif action == "NO_MATCH":
+            return {"messages": ["Could not find matching food item."]}
+        else:
+            return {"messages": ["Response placeholder"]}
 
     def route_parser(state: AgentState):
         action = state.get("last_action")
@@ -28,9 +36,25 @@ def define_graph():
             return "stats_lookup"
         return "response"
 
+    def route_after_selection(state: AgentState):
+        """Route based on selection result."""
+        action = state.get("last_action")
+        if action == "SELECTED":
+            return "calculate_log"
+        else:  # NO_MATCH
+            return "response"
+
+    def route_after_calculate(state: AgentState):
+        """Route back to food_search if more items pending, else to response."""
+        if state.get("pending_food_items", []):
+            return "food_search"  # Process next item
+        else:
+            return "response"  # All items processed
+
     workflow.add_node("input_parser", input_parser_node)
     workflow.add_node("food_search", food_search_node)
     workflow.add_node("agent_selection", agent_selection_node)
+    workflow.add_node("calculate_log", calculate_log_node)
     workflow.add_node("stats_lookup", stats_lookup_node)
     workflow.add_node("response", response_node)
 
@@ -47,7 +71,25 @@ def define_graph():
     )
 
     workflow.add_edge("food_search", "agent_selection")
-    workflow.add_edge("agent_selection", "response")
+
+    workflow.add_conditional_edges(
+        "agent_selection",
+        route_after_selection,
+        {
+            "calculate_log": "calculate_log",
+            "response": "response",
+        },
+    )
+
+    workflow.add_conditional_edges(
+        "calculate_log",
+        route_after_calculate,
+        {
+            "food_search": "food_search",
+            "response": "response",
+        },
+    )
+
     workflow.add_edge("stats_lookup", "response")
     workflow.add_edge("response", END)
 

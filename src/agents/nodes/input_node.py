@@ -39,7 +39,7 @@ def input_parser_node(state: AgentState):
 
     # Return update to state
     # We return the new values for the keys we want to update.
-    # pending_food_items needs to be convertible to the type in State (List[dict])
+    # pending_food_items: model_dump() returns dicts matching List[PendingFoodItem]
     return {
         "pending_food_items": [item.model_dump() for item in result.items],
         "last_action": result.action.value
