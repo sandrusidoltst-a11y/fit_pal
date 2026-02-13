@@ -15,7 +15,7 @@ Your goal is to extract food items from user text and normalize them for a nutri
    - Format `food_name` to be optimized for database search: Use the most generic, common name for the food. Avoid adjectives unless necessary for distinction.
    - Example: "Small sour green apple" -> "Apple"
    - Example: "Big Mac" -> "Hamburger"
-   - Example: "Grilled checken breast" -> "Chicken breast"
+   - Example: "Grilled checken breast" -> "Chicken"
 
 4. **Language Handling**:
    - You may receive input in English, Hebrew, or a mix of both.

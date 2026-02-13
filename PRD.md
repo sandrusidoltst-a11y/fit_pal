@@ -226,15 +226,15 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Update `AgentState` schema (remove individual macro fields)
   - ✅ Implement write-through pattern (DB as source of truth)
 - ✅ Implement **Agent Selection Node** for intelligent ambiguity handling.
-- 🚧 **Refactor State Schema** for type safety (In Progress):
-  - 🚧 Replace `List[dict]` with proper TypedDict definitions
-  - 🚧 Add validation for LLM responses
-  - 🚧 Update system prompts (cooked over raw preference)
-- 🚧 **Multi-Item Loop Processing** (In Progress):
-  - 🚧 Implement graph routing to handle multiple food items
-  - 🚧 Create placeholder calculate_log_node
-  - 🚧 Add loop-back logic for sequential processing
-- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response.
+- ✅ **Refactor State Schema** for type safety (Completed 2026-02-13):
+  - ✅ Replace `List[dict]` with proper TypedDict definitions (PendingFoodItem, SearchResult, DailyTotals)
+  - ✅ Add validation for LLM responses
+  - ✅ Update system prompts (cooked over raw preference)
+- ✅ **Multi-Item Loop Processing** (Completed 2026-02-13):
+  - ✅ Implement graph routing to handle multiple food items
+  - ✅ Create placeholder calculate_log_node
+  - ✅ Add loop-back logic for sequential processing
+- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response (Calculate node needs full implementation).
 
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.
