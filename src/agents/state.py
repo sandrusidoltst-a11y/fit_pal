@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated, List, Optional, TypedDict
+from typing import Annotated, List, Literal, Optional, TypedDict
 
 from langgraph.graph.message import add_messages
 
@@ -41,6 +41,19 @@ class DailyTotals(TypedDict):
     fat: float
 
 
+
+GraphAction = Literal[
+    "LOG_FOOD",
+    "QUERY_FOOD_INFO",
+    "QUERY_DAILY_STATS",
+    "CHITCHAT",
+    "SELECTED",
+    "NO_MATCH",
+    "AMBIGUOUS",
+    "LOGGED",
+]
+
+
 class AgentState(TypedDict):
     """State definition for the FitPal agent.
 
@@ -58,6 +71,6 @@ class AgentState(TypedDict):
     pending_food_items: List[PendingFoodItem]
     daily_totals: DailyTotals
     current_date: date
-    last_action: str
+    last_action: GraphAction
     search_results: List[SearchResult]
     selected_food_id: Optional[int]
