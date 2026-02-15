@@ -118,7 +118,7 @@ class AgentState(TypedDict):
     pending_food_items: List[PendingFoodItem]  # ✅ Type-safe (refactored from List[dict])
     daily_totals: DailyTotals                   # ✅ Type-safe (refactored from dict)
     current_date: date                          # Track which day we're logging
-    last_action: str                            # Last node action (for routing)
+    last_action: "GraphAction"                  # ✅ Strictly typed Literal (was str)
     search_results: List[SearchResult]          # ✅ Type-safe (refactored from List[dict])
     selected_food_id: Optional[int]             # Selected food ID from agent selection
 ```
@@ -127,6 +127,7 @@ class AgentState(TypedDict):
 - **TypedDict for state**: Ensures type safety, IDE autocomplete, and proper serialization to SQLite checkpointer
 - **Pydantic for LLM output**: Used with `.with_structured_output()` for validation, then converted to dict via `.model_dump()`
 - **Nested TypedDict structures**: Replaces vague `List[dict]` types with explicit schemas
+- **Strict Literal types**: `GraphAction` enforces valid state transitions across the graph
 
 **Note**: Individual macro fields (`daily_calories`, `daily_protein`, etc.) removed in favor of querying DB directly using write-through pattern.
 

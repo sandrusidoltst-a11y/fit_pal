@@ -1,3 +1,4 @@
+from datetime import date
 from langchain_core.messages import HumanMessage
 from src.agents.nodes.input_node import input_parser_node
 
@@ -43,6 +44,7 @@ def test_complex_meal_decomposition(basic_state):
     basic_state["messages"] = [HumanMessage(content="I had pasta with cheese and a tomato")]
     result = input_parser_node(basic_state)
     
+    assert result["last_action"] == "LOG_FOOD"
     items = result.get("pending_food_items", [])
     assert len(items) >= 3
     
@@ -65,3 +67,19 @@ def test_nonsense_input(basic_state):
     result = input_parser_node(basic_state)
     
     assert result["last_action"] == "CHITCHAT"
+
+def test_query_daily_stats(basic_state):
+    """Test detection of daily stats query."""
+    basic_state["messages"] = [HumanMessage(content="How much protein have I eaten today?")]
+    result = input_parser_node(basic_state)
+    
+    assert result["last_action"] == "QUERY_DAILY_STATS"
+    assert len(result.get("pending_food_items", [])) == 0
+
+def test_query_food_info(basic_state):
+    """Test detection of generic food info query."""
+    basic_state["messages"] = [HumanMessage(content="How many calories in an apple?")]
+    result = input_parser_node(basic_state)
+    
+    assert result["last_action"] == "QUERY_FOOD_INFO"
+    assert len(result.get("pending_food_items", [])) == 0
