@@ -41,7 +41,7 @@ def ingest_data():
         
         for row in reader:
             name = row.get("Food")
-            measure = row.get("Measure")
+            row.get("Measure")
             grams_str = row.get("Grams")
             calories_str = row.get("Calories")
             protein_str = row.get("Protein")

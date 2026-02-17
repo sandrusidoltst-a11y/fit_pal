@@ -42,5 +42,6 @@ def input_parser_node(state: AgentState):
     # pending_food_items: model_dump() returns dicts matching List[PendingFoodItem]
     return {
         "pending_food_items": [item.model_dump() for item in result.items],
-        "last_action": result.action.value
+        "last_action": result.action.value,
+        "processing_results": []
     }

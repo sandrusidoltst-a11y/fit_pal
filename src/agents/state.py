@@ -74,3 +74,15 @@ class AgentState(TypedDict):
     last_action: GraphAction
     search_results: List[SearchResult]
     selected_food_id: Optional[int]
+    processing_results: List["ProcessingResult"]
+
+
+class ProcessingResult(PendingFoodItem):
+    """Result of processing a single food item.
+
+    Inherits all fields from PendingFoodItem (food_name, amount, unit, original_text)
+    and adds status/message for user feedback.
+    """
+
+    status: Literal["LOGGED", "FAILED"]
+    message: str

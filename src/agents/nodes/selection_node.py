@@ -26,9 +26,21 @@ def agent_selection_node(state: AgentState) -> dict:
 
     # Edge case: No search results
     if not search_results:
+        current_item = pending_items[0] if pending_items else {}
+        if current_item:
+            fail_item = {
+                **current_item,
+                "status": "FAILED",
+                "message": f"No search results found for {current_item.get('food_name', 'item')}"
+            }
+            updated_results = state.get("processing_results", []) + [fail_item]
+        else:
+            updated_results = state.get("processing_results", [])
+
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
+            "processing_results": updated_results
         }
 
     # Edge case: Single result - auto-select
@@ -64,14 +76,35 @@ def agent_selection_node(state: AgentState) -> dict:
 
     result = structured_llm.invoke(messages)
 
+    current_item = pending_items[0]
+    processing_results = state.get("processing_results", [])
+
     # Validate LLM response consistency
     if result.status == SelectionStatus.SELECTED and result.food_id is None:
         print("Warning: LLM returned SELECTED without food_id, treating as NO_MATCH")
-        return {"selected_food_id": None, "last_action": "NO_MATCH"}
+        fail_item = {
+            **current_item,
+            "status": "FAILED",
+            "message": f"Could not select match for {current_item['food_name']}"
+        }
+        return {
+            "selected_food_id": None,
+            "last_action": "NO_MATCH",
+            "processing_results": processing_results + [fail_item]
+        }
 
     if result.status == SelectionStatus.AMBIGUOUS:
         print("Warning: LLM returned AMBIGUOUS (not supported in MVP), treating as NO_MATCH")
-        return {"selected_food_id": None, "last_action": "NO_MATCH"}
+        fail_item = {
+            **current_item,
+            "status": "FAILED",
+            "message": f"Ambiguous match for {current_item['food_name']}"
+        }
+        return {
+            "selected_food_id": None,
+            "last_action": "NO_MATCH",
+            "processing_results": processing_results + [fail_item]
+        }
 
     return {
         "selected_food_id": result.food_id,

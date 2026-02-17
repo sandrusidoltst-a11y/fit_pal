@@ -1,4 +1,3 @@
-from datetime import date
 
 from src.agents.nodes.calculate_log_node import calculate_log_node
 

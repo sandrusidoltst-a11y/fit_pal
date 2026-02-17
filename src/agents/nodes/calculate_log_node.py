@@ -32,7 +32,7 @@ def calculate_log_node(state: AgentState) -> dict:
         amount = current_item.get("amount", 0.0)
         
         # Calculate macros
-        macros = calculate_food_macros(selected_food_id, amount)
+        macros = calculate_food_macros.invoke({"food_id": selected_food_id, "amount_g": amount})
         
         if "error" not in macros:
             # Prepare timestamp
@@ -62,6 +62,17 @@ def calculate_log_node(state: AgentState) -> dict:
                 if current_date:
                     updated_totals = daily_log_service.get_daily_totals(session, current_date)
 
+                # Create success result
+                result_item = {
+                    **current_item,
+                    "status": "LOGGED",
+                    "message": f"Logged {current_item['food_name']} ({macros['calories']}kcal)"
+                }
+                
+                # Append to existing results
+                current_results = state.get("processing_results", [])
+                updated_results = current_results + [result_item]
+
     # Remove first item (processed)
     remaining_items = pending_items[1:]
 
@@ -70,4 +81,5 @@ def calculate_log_node(state: AgentState) -> dict:
         "daily_totals": updated_totals,
         "last_action": "LOGGED",
         "selected_food_id": None,  # Reset selection
+        "processing_results": updated_results if 'updated_results' in locals() else state.get("processing_results", [])
     }

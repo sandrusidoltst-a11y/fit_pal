@@ -20,6 +20,14 @@ def define_graph():
 
     def response_node(state: AgentState):
         """Generate response based on current state."""
+        processing_results = state.get("processing_results", [])
+
+        if processing_results:
+            # Generate summary for processed items
+            summary = "\n".join([r["message"] for r in processing_results])
+            return {"messages": [summary]}
+
+        # Fallback for actions without processing results (e.g. general queries)
         action = state.get("last_action")
         if action == "LOGGED":
             return {"messages": ["Food logged successfully!"]}

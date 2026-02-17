@@ -9,7 +9,7 @@ from src.agents.nutritionist import define_graph
 def main():
     print("Initializing FitPal Agent...")
     try:
-        graph = define_graph()
+        define_graph()
         print("Graph compiled successfully.")
         print("FitPal Agent is ready.")
     except Exception as e:
