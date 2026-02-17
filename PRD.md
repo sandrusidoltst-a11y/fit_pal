@@ -250,6 +250,11 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Create placeholder calculate_log_node -> Implemented fully with DB write
   - ✅ Add loop-back logic for sequential processing
   - ✅ **Implement Structured Feedback**: `ProcessingResult` tracks success/failure per item
+- ✅ **Implement Stats Lookup Node** (Completed 2026-02-18):
+  - ✅ Implement `stats_lookup_node` to query daily logs
+  - ✅ Support date range queries in `DailyLogService`
+  - ✅ Update `AgentState` with `start_date` / `end_date`
+  - ✅ Integrate into main graph flow
 - 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response (Active).
 
 ### Phase 2: Knowledge Integration

@@ -74,7 +74,6 @@ fit_pal/
 | File / Resource | Type | Purpose | When to Read |
 | :--- | :--- | :--- | :--- |
 | [PRD.md](../../PRD.md) | Documentation | Requirements, features, and specs | Start of project / Feature planning |
-| [plans/daily-log-persistence.md](../plans/daily-log-persistence.md) | Plan | Daily Log DB schema and architecture | Implementing persistence layer |
 | [venv-enforcement.md](venv-enforcement.md) | Rule | Python environment management | Before installing packages or running scripts |
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
 | [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management & type safety | **BEFORE** implementing any LangGraph features |
