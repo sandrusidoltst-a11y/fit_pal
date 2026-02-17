@@ -112,6 +112,11 @@ class DailyTotals(TypedDict):
     carbs: float
     fat: float
 
+class ProcessingResult(PendingFoodItem):
+    """Result of processing a single food item."""
+    status: "Literal['LOGGED', 'FAILED']"
+    message: str
+
 class AgentState(TypedDict):
     """Main graph state with type-safe nested structures."""
     messages: Annotated[list, add_messages]
@@ -121,6 +126,7 @@ class AgentState(TypedDict):
     last_action: "GraphAction"                  # ✅ Strictly typed Literal (was str)
     search_results: List[SearchResult]          # ✅ Type-safe (refactored from List[dict])
     selected_food_id: Optional[int]             # Selected food ID from agent selection
+    processing_results: List[ProcessingResult]  # ✅ Track per-item status for multi-item feedback
 ```
 
 **Architectural Decision**: 
@@ -231,11 +237,12 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Replace `List[dict]` with proper TypedDict definitions (PendingFoodItem, SearchResult, DailyTotals)
   - ✅ Add validation for LLM responses
   - ✅ Update system prompts (cooked over raw preference)
-- ✅ **Multi-Item Loop Processing** (Completed 2026-02-13):
+- ✅ **Multi-Item Loop Processing** (Completed 2026-02-17):
   - ✅ Implement graph routing to handle multiple food items
-  - ✅ Create placeholder calculate_log_node
+  - ✅ Create placeholder calculate_log_node -> Implemented fully with DB write
   - ✅ Add loop-back logic for sequential processing
-- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response (Calculate node needs full implementation).
+  - ✅ **Implement Structured Feedback**: `ProcessingResult` tracks success/failure per item
+- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response (Active).
 
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.

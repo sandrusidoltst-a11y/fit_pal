@@ -28,6 +28,7 @@ Compare the **Documented State** (Step 1) with the **Actual State** (Step 2). Lo
 ## 4. Update Documentation (Only if Needed)
 1.  **If GAP FOUND**:
     - **Update `main_rule.md`**: Add missing rows, update structure, or add critical rules.
+        > **Constraint**: Do NOT add implementation plans (e.g., `plans/*.md`) to the Reference Table. These are transient and serve only the execution phase. Only add Skills, Rules, or major Documentation (PRD).
     - **Update Referenced Files**: If a specific rule file (like `venv-enforcement.md`) needs an update.
 2.  **If NO GAPS**:
     - Do NOT modify any files.
