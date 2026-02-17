@@ -42,32 +42,36 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 ## 6. Core Architecture & Patterns
 
 ### High-Level Architecture
-### Graph Flow Diagram
+#### Graph Flow Diagram
 
 ```mermaid
 flowchart TD
     START((START)) --> InputNode[Input Parser Node]
     
     subgraph Core_Logic [Core Logic]
-        InputNode --> ToolCall{Need Macros?}
-        ToolCall -- Yes --> SearchTool[1. Search Food Tool]
+        InputNode --> ToolCall{Need Macros or History?}
+        
+        ToolCall -- Need Macros --> SearchTool[1. Search Food Tool]
         SearchTool --> SelectNode[Agent Selection]
-        SelectNode --> CalcTool[2. Calculate Macros Tool]
+        SelectNode --> CalcTool[2. Calculate Macros & Log]
+        
+        ToolCall -- Need History --> ReadLog[3. Read Daily Logs]
+        
         CalcTool --> UpdateState[Update State Node]
+        ReadLog --> UpdateState
+        
         ToolCall -- No --> ResponseNode
     end
     
     UpdateState --> ResponseNode[Response Node]
     ResponseNode --> END((END))
 
-    subgraph State_Store [LangGraph State]
-        DailyTotals[(Daily Totals)]
-        MsgHistory[(Message History)]
+    subgraph Database [SQLite DB]
+        DailyLogsTable[(Daily Logs Table)]
     end
 
-    InputNode -.-> MsgHistory
-    UpdateState -.-> DailyTotals
-    ResponseNode -.-> MsgHistory
+    CalcTool -.-> DailyLogsTable
+    ReadLog -.-> DailyLogsTable
 ```
 
 ### Node Responsibilities
@@ -76,40 +80,97 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Input Parser** | Extract structured data from natural language. | User Text | `FoodIntake` Pydantic Model |
 | **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
-| **Calculate Macros** | Calculate exact macros for ID and Amount. | Food ID, Amount (g) | Total Macros (P, C, F, Cal) |
-| **Update State** | Accumulate values into the global daily state. | Macro Values | Updated `NutritionState` |
+| **Agent Selection** | Intelligent selection of best match from search results. | User Msg + Results | Selected Food ID / "No Match" |
+| **Calc & Log** | Calculate macros, log to DB, and update daily state. | Food ID, Amount (g) | Updated `AgentState` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
+
+**Note**: As of 2026-02-12, the state schema is being refactored to use proper nested TypedDict definitions for type safety. See [refactor-state-schema-and-multi-item-loop.md](../.agent/plans/refactor-state-schema-and-multi-item-loop.md) for details.
+
 ```python
-class NutritionState(TypedDict):
+from typing import TypedDict, List, Annotated, Optional
+from datetime import date
+from langgraph.graph import add_messages
+
+class PendingFoodItem(TypedDict):
+    """Single food item waiting to be processed."""
+    food_name: str
+    amount: float
+    unit: str
+    original_text: str
+
+class SearchResult(TypedDict):
+    """Result from food database search."""
+    id: int
+    name: str
+
+class DailyTotals(TypedDict):
+    """Aggregated nutritional totals from database."""
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
+class AgentState(TypedDict):
+    """Main graph state with type-safe nested structures."""
     messages: Annotated[list, add_messages]
-    totals: dict # {calories, protein, carbs, fat}
-    last_processed: dict # Info about the last tool call
+    pending_food_items: List[PendingFoodItem]  # ✅ Type-safe (refactored from List[dict])
+    daily_totals: DailyTotals                   # ✅ Type-safe (refactored from dict)
+    current_date: date                          # Track which day we're logging
+    last_action: "GraphAction"                  # ✅ Strictly typed Literal (was str)
+    search_results: List[SearchResult]          # ✅ Type-safe (refactored from List[dict])
+    selected_food_id: Optional[int]             # Selected food ID from agent selection
 ```
 
+**Architectural Decision**: 
+- **TypedDict for state**: Ensures type safety, IDE autocomplete, and proper serialization to SQLite checkpointer
+- **Pydantic for LLM output**: Used with `.with_structured_output()` for validation, then converted to dict via `.model_dump()`
+- **Nested TypedDict structures**: Replaces vague `List[dict]` types with explicit schemas
+- **Strict Literal types**: `GraphAction` enforces valid state transitions across the graph
+
+**Note**: Individual macro fields (`daily_calories`, `daily_protein`, etc.) removed in favor of querying DB directly using write-through pattern.
+
 ### Directory Structure
-```ascii
+```text
 fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/
 │   ├── nutrition.db         # Nutritional database (SQLite)
+│   ├── nutrients_csvfile.csv # Source data
 │   ├── meal_plan.txt        # User's targets
 │   └── logs/                 # Historical daily logs
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py   # LangGraph definition
-│   │   └── state.py         # Schema and TypedDict
+│   │   ├── state.py         # Schema and TypedDict
+│   │   └── nodes/           # Node implementations
+│   │       └── input_node.py  # Input parser node
+│   ├── services/            # Business logic layer
+│   │   └── daily_log_service.py  # CRUD for daily logs
 │   ├── scripts/
-│   │   └── ingest_db.py     # ETL script
+│   │   └── ingest_simple_db.py # ETL script
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
+│   ├── schemas/             # Pydantic models
+│   │   └── input_schema.py  # FoodIntakeEvent schema
+│   ├── database.py          # Database connection
+│   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
-├── tests/                   # Integration & Unit tests
+├── tests/
+│   ├── unit/                # Unit tests (pytest)
+│   ├── conftest.py          # Pytest fixtures
+│   └── test_food_lookup.py  # Legacy/Integration tests
+├── notebooks/
+│   └── evaluate_lookup.ipynb # Analysis notebook
 ├── PRD.md
 └── README.md
 ```
+
+### Data Standards (New)
+- **Units**: All food quantities must be normalized to **grams** (`g`) by the LLM.
+- **Schema**: Inputs are strictly validated as `amount` (float) and `unit` (Literal["g"]).
 
 ## 7. Technology Stack
 - **Orchestration**: LangGraph.
@@ -123,24 +184,58 @@ fit_pal/
 
 ## 8. Database Schema & Data Source
 
-### Food Database (TBD)
-*The food database is currently pending import. It will likely be a structured format (CSV/JSON/Parquet) containing nutritional values per 100g.*
+### Food Database
+The food database is populated from a simplified CSV dataset (`nutrients_csvfile.csv`) containing ~335 common items.
+All values are normalized to **100g**.
 
-| Column (Expected) | Type | Unit |
+| Column | Type | Unit | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | Integer | - | Primary Key |
+| `name` | String | - | Food Name (e.g., "Rice", "Breads... - White") |
+| `calories`| Float | kcal | per 100g |
+| `protein` | Float | grams | per 100g |
+| `carbs` | Float | grams | per 100g |
+| `fat` | Float | grams | per 100g |
+
+### Daily Log Database
+Stores confirmed food entries for long-term tracking.
+
+| Column | Type | Description |
 | :--- | :--- | :--- |
-| `item` | String | Name of the food |
-| `calories_100g`| Float | kcal |
-| `protein_100g` | Float | grams |
-| `carbs_100g` | Float | grams |
-| `fat_100g` | Float | grams |
+| `id` | Integer | Primary Key |
+| `food_id` | Integer | Foreign Key (FoodItem) |
+| `amount_g` | Float | Quantity Consumed |
+| `calories` | Float | Calculated Calories |
+| `protein` | Float | Calculated Protein |
+| `carbs` | Float | Calculated Carbs |
+| `fat` | Float | Calculated Fat |
+| `timestamp` | DateTime(TZ) | When food was eaten (UTC) |
+| `meal_type` | String | breakfast/lunch/dinner/snack (nullable) |
+| `created_at` | DateTime(TZ) | When entry was created |
+| `updated_at` | DateTime(TZ) | When entry was last modified |
+| `original_text` | String | User's original input (nullable) |
 
 ## 9. Implementation Phases
 
 ### Phase 1: MVP Logic Foundations
-- Setup LangGraph environment and base development structure.
-- Implementation of `FoodIntake` Pydantic models for extraction.
-- Create placeholder `Food_Lookup_Tool` (to be integrated once DB is imported).
-- Build and test core LangGraph flow: Input -> Parse -> State Update.
+- ✅ Setup LangGraph environment and base development structure.
+- ✅ Implementation of `FoodIntakeEvent` Pydantic models for extraction.
+- ✅ Create `search_food` and `calculate_food_macros` tools.
+- ✅ Implement **Daily Log Persistence** with service layer pattern:
+  - ✅ Create `DailyLog` SQLAlchemy model with full schema
+  - ✅ Create `src/services/daily_log_service.py` for CRUD operations
+  - ✅ Update `AgentState` schema (remove individual macro fields)
+  - ✅ Implement write-through pattern (DB as source of truth)
+- ✅ Implement **Agent Selection Node** for intelligent ambiguity handling.
+- ✅ **Refactor State Schema** for type safety (Completed 2026-02-13):
+  - ✅ Replace `List[dict]` with proper TypedDict definitions (PendingFoodItem, SearchResult, DailyTotals)
+  - ✅ Add validation for LLM responses
+  - ✅ Update system prompts (cooked over raw preference)
+- ✅ **Multi-Item Loop Processing** (Completed 2026-02-13):
+  - ✅ Implement graph routing to handle multiple food items
+  - ✅ Create placeholder calculate_log_node
+  - ✅ Add loop-back logic for sequential processing
+- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response (Calculate node needs full implementation).
 
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.

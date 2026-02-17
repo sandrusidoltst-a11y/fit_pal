@@ -83,7 +83,16 @@ def ingest_data():
         
         # 6. Insert Data
         print(f"Inserting {len(df_clean)} rows...")
-        df_clean.to_sql('food_items', conn, if_exists='replace', index=False) 
+        # 6. Insert Data
+        print(f"Inserting {len(df_clean)} rows...")
+        # Add explicit ID column
+        df_clean.insert(0, 'id', range(1, 1 + len(df_clean)))
+        
+        # Use simple integer for ID in pandas, but specify PK in SQL via dtype if possible, 
+        # or just let it be an integer and rely on index. 
+        # Better: Write to a temp table or use the dtype dict.
+        # from sqlalchemy.types import Integer
+        df_clean.to_sql('food_items', conn, if_exists='replace', index=False, dtype={'id': "INTEGER PRIMARY KEY"}) 
         # Note: 'replace' drops the table, so we lose the index if we aren't careful, 
         # but to_sql replace is cleaner for a script. Let's re-add index after.
         

@@ -16,25 +16,42 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 - **Package Manager**: uv (Required for dependency management).
 
 ## 3. Project Structure
-```ascii
+```text
 fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/
 │   ├── nutrition.db         # Nutritional database (SQLite)
-│   ├── MyFoodData...xlsx    # Source data
+│   ├── nutrients_csvfile.csv # Source data (Simple CSV)
 │   ├── meal_plan.txt        # User's targets
 │   └── logs/                 # Historical daily logs
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py   # LangGraph definition
-│   │   └── state.py         # Schema and TypedDict
+│   │   ├── state.py         # Schema and TypedDict
+│   │   └── nodes/           # Node implementations
+│   │       ├── input_node.py      # Input parser node
+│   │       ├── food_search_node.py # Food search node
+│   │       ├── selection_node.py   # Agent selection node
+│   │       └── calculate_log_node.py # Calculate & log node (placeholder)
+│   ├── services/            # Business logic layer
+│   │   └── daily_log_service.py # CRUD for daily logs
 │   ├── scripts/
-│   │   └── ingest_db.py     # ETL script (Excel -> SQLite)
+│   │   └── ingest_simple_db.py # ETL script (CSV -> SQLite)
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
+│   ├── schemas/             # Pydantic models
+│   │   ├── input_schema.py  # FoodIntakeEvent schema
+│   │   └── selection_schema.py # FoodSelectionResult schema
+│   ├── database.py          # Database connection
+│   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
-├── tests/                   # Integration & Unit tests
+├── tests/
+│   ├── unit/                # Unit tests (pytest)
+│   ├── conftest.py          # Pytest fixtures
+│   └── test_food_lookup.py  # Legacy/Integration tests
+├── notebooks/
+│   └── evaluate_lookup.ipynb # Analysis notebook
 ├── PRD.md
 ├── prompts/             # System prompts and tool specs
 └── README.md
@@ -43,12 +60,24 @@ fit_pal/
 ## 4. MCP Servers
 - **playwright**: Browser automation and interaction tools.
 
-## 5. Reference Table
+## 5. Architectural Patterns
+- **TypedDict for State**: `AgentState` uses nested TypedDict schemas (PendingFoodItem, SearchResult, DailyTotals) for type safety
+- **Pydantic for LLM Output**: Structured output validation with `.with_structured_output()`, then `.model_dump()` to dict
+- **Service Layer**: Business logic in `src/services/` (e.g., `daily_log_service.py`)
+- **Write-Through Pattern**: DB is source of truth; write immediately, then query for state updates
+- **State Management**: `AgentState.daily_totals` populated from DB, not accumulated in memory
+- **LLM Response Validation**: Code-level validation catches inconsistent LLM responses (e.g., SELECTED without food_id)
+- **Multi-Item Loop**: Graph conditional routing processes food items sequentially with loop-back edges
+
+## 6. Reference Table
 | File / Resource | Type | Purpose | When to Read |
 | :--- | :--- | :--- | :--- |
 | [PRD.md](../../PRD.md) | Documentation | Requirements, features, and specs | Start of project / Feature planning |
+| [plans/daily-log-persistence.md](../plans/daily-log-persistence.md) | Plan | Daily Log DB schema and architecture | Implementing persistence layer |
+| [plans/refactor-state-schema-and-multi-item-loop.md](../plans/refactor-state-schema-and-multi-item-loop.md) | Plan | Type-safe state schemas and multi-item loop | Understanding state management architecture |
 | [venv-enforcement.md](venv-enforcement.md) | Rule | Python environment management | Before installing packages or running scripts |
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
-| [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph/LangChain patterns | Implementing agent logic or graph flows |
+| [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management & type safety | **BEFORE** implementing any LangGraph features |
 | [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | Testing & Logging standards | Writing tests or debugging code |
+| [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |

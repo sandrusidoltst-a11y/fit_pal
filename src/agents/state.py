@@ -1,19 +1,88 @@
-from typing import TypedDict, Annotated, List
+from datetime import date
+from typing import Annotated, List, Literal, Optional, TypedDict
+
 from langgraph.graph.message import add_messages
 
-class AgentState(TypedDict):
+
+class PendingFoodItem(TypedDict):
+    """Single food item waiting to be processed.
+
+    Mirrors the structure of SingleFoodItem Pydantic model
+    from src/schemas/input_schema.py (converted via model_dump()).
     """
-    State definition for the FitPal agent.
-    
+
+    food_name: str
+    amount: float
+    unit: str
+    original_text: str
+
+
+class SearchResult(TypedDict):
+    """Result from food database search.
+
+    Mirrors the return type of search_food tool
+    from src/tools/food_lookup.py.
+    """
+
+    id: int
+    name: str
+
+
+class DailyTotals(TypedDict):
+    """Aggregated nutritional totals from database.
+
+    Mirrors the return type of get_daily_totals
+    from src/services/daily_log_service.py.
+    """
+
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
+
+
+GraphAction = Literal[
+    "LOG_FOOD",
+    "QUERY_FOOD_INFO",
+    "QUERY_DAILY_STATS",
+    "CHITCHAT",
+    "SELECTED",
+    "NO_MATCH",
+    "AMBIGUOUS",
+    "LOGGED",
+]
+
+
+class AgentState(TypedDict):
+    """State definition for the FitPal agent.
+
     Attributes:
         messages: List of messages in the conversation history.
-        daily_calories: Total calories parsed for the current day.
-        daily_protein: Total protein (g) for the current day.
-        daily_carbs: Total carbs (g) for the current day.
-        daily_fat: Total fat (g) for the current day.
+        pending_food_items: Food items extracted from user input, pending processing.
+        daily_totals: Aggregated nutritional totals from DB.
+        current_date: The date being tracked (for multi-day conversations).
+        last_action: The last action type determined by input parser.
+        search_results: Food search results for agent selection node.
+        selected_food_id: Selected food ID from agent selection node.
     """
+
     messages: Annotated[List, add_messages]
-    daily_calories: float
-    daily_protein: float
-    daily_carbs: float
-    daily_fat: float
+    pending_food_items: List[PendingFoodItem]
+    daily_totals: DailyTotals
+    current_date: date
+    last_action: GraphAction
+    search_results: List[SearchResult]
+    selected_food_id: Optional[int]
+    processing_results: List["ProcessingResult"]
+
+
+class ProcessingResult(PendingFoodItem):
+    """Result of processing a single food item.
+
+    Inherits all fields from PendingFoodItem (food_name, amount, unit, original_text)
+    and adds status/message for user feedback.
+    """
+
+    status: Literal["LOGGED", "FAILED"]
+    message: str

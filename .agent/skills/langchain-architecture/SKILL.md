@@ -72,6 +72,8 @@ class CustomState(TypedDict):
     results: list
 ```
 
+**Critical**: For type-safe state schemas, Pydantic vs TypedDict guidance, nested structures, and anti-patterns, see [references/state-management-best-practices.md](references/state-management-best-practices.md).
+
 ### 3. Memory Systems
 
 Modern memory implementations:
