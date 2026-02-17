@@ -53,6 +53,16 @@ GraphAction = Literal[
     "LOGGED",
 ]
 
+class ProcessingResult(PendingFoodItem):
+    """Result of processing a single food item.
+
+    Inherits all fields from PendingFoodItem (food_name, amount, unit, original_text)
+    and adds status/message for user feedback.
+    """
+
+    status: Literal["LOGGED", "FAILED"]
+    message: str
+
 
 class AgentState(TypedDict):
     """State definition for the FitPal agent.
@@ -77,12 +87,3 @@ class AgentState(TypedDict):
     processing_results: List["ProcessingResult"]
 
 
-class ProcessingResult(PendingFoodItem):
-    """Result of processing a single food item.
-
-    Inherits all fields from PendingFoodItem (food_name, amount, unit, original_text)
-    and adds status/message for user feedback.
-    """
-
-    status: Literal["LOGGED", "FAILED"]
-    message: str
