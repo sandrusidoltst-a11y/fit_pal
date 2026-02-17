@@ -82,6 +82,7 @@ flowchart TD
 | **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
 | **Agent Selection** | Intelligent selection of best match from search results. | User Msg + Results | Selected Food ID / "No Match" |
 | **Calc & Log** | Calculate macros, log to DB, and update daily state. | Food ID, Amount (g) | Updated `AgentState` |
+| **Stats Lookup** | Retrieve historical log data (single day or range). | Current Date / Range | `daily_log_report` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
@@ -105,12 +106,18 @@ class SearchResult(TypedDict):
     id: int
     name: str
 
-class DailyTotals(TypedDict):
-    """Aggregated nutritional totals from database."""
+class QueriedLog(TypedDict):
+    """Mirrors DailyLog model for reporting in state."""
+    id: int
+    food_id: int
+    amount_g: float
     calories: float
     protein: float
     carbs: float
     fat: float
+    timestamp: datetime
+    meal_type: Optional[str]
+    original_text: Optional[str]
 
 class ProcessingResult(PendingFoodItem):
     """Result of processing a single food item."""
@@ -121,8 +128,10 @@ class AgentState(TypedDict):
     """Main graph state with type-safe nested structures."""
     messages: Annotated[list, add_messages]
     pending_food_items: List[PendingFoodItem]  # ✅ Type-safe (refactored from List[dict])
-    daily_totals: DailyTotals                   # ✅ Type-safe (refactored from dict)
+    daily_log_report: List[QueriedLog]          # ✅ Raw logs for detailed reasoning (replaces DailyTotals)
     current_date: date                          # Track which day we're logging
+    start_date: Optional[date]                  # Start date for range queries
+    end_date: Optional[date]                    # End date for range queries
     last_action: "GraphAction"                  # ✅ Strictly typed Literal (was str)
     search_results: List[SearchResult]          # ✅ Type-safe (refactored from List[dict])
     selected_food_id: Optional[int]             # Selected food ID from agent selection
@@ -134,8 +143,7 @@ class AgentState(TypedDict):
 - **Pydantic for LLM output**: Used with `.with_structured_output()` for validation, then converted to dict via `.model_dump()`
 - **Nested TypedDict structures**: Replaces vague `List[dict]` types with explicit schemas
 - **Strict Literal types**: `GraphAction` enforces valid state transitions across the graph
-
-**Note**: Individual macro fields (`daily_calories`, `daily_protein`, etc.) removed in favor of querying DB directly using write-through pattern.
+- **Row-Level Reporting**: `daily_log_report` replaces `daily_totals` to allow LLM to perform complex reasoning (averages, distributions) on raw data.
 
 ### Directory Structure
 ```text
