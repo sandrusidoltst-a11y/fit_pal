@@ -7,6 +7,7 @@ from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.nodes.food_search_node import food_search_node
 from src.agents.nodes.input_node import input_parser_node
 from src.agents.nodes.selection_node import agent_selection_node
+from src.agents.nodes.stats_node import stats_lookup_node
 from src.agents.state import AgentState
 
 
@@ -15,8 +16,6 @@ def define_graph():
     workflow = StateGraph(AgentState)
 
     # Placeholder nodes (to be replaced in future phases)
-    def stats_lookup_node(state: AgentState):
-        return {"messages": ["Calculating daily statistics..."]}
 
     def response_node(state: AgentState):
         """Generate response based on current state."""

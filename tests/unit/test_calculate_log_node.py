@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import date
+from datetime import date, datetime
 from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.state import AgentState
 
@@ -32,28 +32,38 @@ def test_calculate_log_node_success(mock_db_session, mock_daily_log_service, moc
         "fat": 5
     }
     
-    # Mock return of get_daily_totals
-    mock_daily_log_service.get_daily_totals.return_value = {
-        "calories": 500.0,
-        "protein": 50.0,
-        "carbs": 30.0,
-        "fat": 15.0
-    }
+    # Mock return of get_logs_by_date
+    log_mock = MagicMock()
+    log_mock.id = 1
+    log_mock.food_id = 123
+    log_mock.amount_g = 100.0
+    log_mock.calories = 200.0
+    log_mock.protein = 20.0
+    log_mock.carbs = 10.0
+    log_mock.fat = 5.0
+    log_mock.timestamp = datetime(2023, 10, 26, 12, 0)
+    log_mock.meal_type = "Lunch"
+    log_mock.original_text = "100g test food"
+    
+    mock_daily_log_service.get_logs_by_date.return_value = [log_mock]
 
-    state: AgentState = {
-        "pending_food_items": [{
+    state = AgentState(
+        pending_food_items=[{
             "food_name": "Test Food",
             "amount": 100.0,
             "unit": "g",
             "original_text": "100g test food"
         }],
-        "selected_food_id": 123,
-        "daily_totals": {"calories": 300.0, "protein": 30.0, "carbs": 20.0, "fat": 10.0},
-        "current_date": date(2023, 10, 26),
-        "last_action": "SELECTED",
-        "search_results": [],
-        "messages": [],
-    }
+        selected_food_id=123,
+        daily_log_report=[],
+        current_date=date(2023, 10, 26),
+        start_date=None,
+        end_date=None,
+        last_action="SELECTED",
+        search_results=[],
+        messages=[],
+        processing_results=[]
+    )
 
     # Execute
     result = calculate_log_node(state)
@@ -69,27 +79,32 @@ def test_calculate_log_node_success(mock_db_session, mock_daily_log_service, moc
     assert call_args["timestamp"].date() == date(2023, 10, 26)
 
     # Assert state update
-    assert result["daily_totals"] == {
-        "calories": 500.0,
-        "protein": 50.0,
-        "carbs": 30.0,
-        "fat": 15.0
-    }
+    assert "daily_log_report" in result
+    report = result["daily_log_report"]
+    assert len(report) == 1
+    assert report[0]["id"] == 1
+    assert report[0]["calories"] == 200.0
+    
     assert result["pending_food_items"] == []
     assert result["last_action"] == "LOGGED"
     assert result["selected_food_id"] is None
+    assert len(result["processing_results"]) == 1
+    assert result["processing_results"][0]["status"] == "LOGGED"
 
-def test_calculate_log_node_no_selection(mock_db_session, mock_daily_log_service, mock_calculate_macros):
+def test_calculate_log_node_no_selection_or_processed(mock_db_session, mock_daily_log_service, mock_calculate_macros):
     # Setup
-    state: AgentState = {
-        "pending_food_items": [{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
-        "selected_food_id": None,
-        "daily_totals": {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0},
-        "current_date": date(2023, 10, 26),
-        "last_action": "SELECTED", # Simulation
-        "search_results": [],
-        "messages": []
-    }
+    state = AgentState(
+        pending_food_items=[{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
+        selected_food_id=None,
+        daily_log_report=[],
+        current_date=date(2023, 10, 26),
+        start_date=None,
+        end_date=None,
+        last_action="SELECTED", # Simulation
+        search_results=[],
+        messages=[],
+        processing_results=[]
+    )
 
     # Execute
     result = calculate_log_node(state)
@@ -99,25 +114,31 @@ def test_calculate_log_node_no_selection(mock_db_session, mock_daily_log_service
     mock_daily_log_service.create_log_entry.assert_not_called()
     assert result["pending_food_items"] == [] # Should still remove item to avoid loop
     assert result["selected_food_id"] is None
+    # Report should remain unchanged (empty list in this case)
+    assert result["daily_log_report"] == []
 
 def test_calculate_log_node_macro_error(mock_db_session, mock_daily_log_service, mock_calculate_macros):
     # Setup
     mock_calculate_macros.invoke.return_value = {"error": "Food not found"}
     
-    state: AgentState = {
-        "pending_food_items": [{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
-        "selected_food_id": 999,
-        "daily_totals": {"calories": 100.0, "protein": 10.0, "carbs": 10.0, "fat": 2.0},
-        "current_date": date(2023, 10, 26),
-        "last_action": "SELECTED",
-        "search_results": [],
-        "messages": []
-    }
+    state = AgentState(
+        pending_food_items=[{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
+        selected_food_id=999,
+        daily_log_report=[{"id": 1}], # Existing report
+        current_date=date(2023, 10, 26),
+        start_date=None,
+        end_date=None,
+        last_action="SELECTED",
+        search_results=[],
+        messages=[],
+        processing_results=[]
+    )
 
     # Execute
     result = calculate_log_node(state)
 
     # Assert
     mock_daily_log_service.create_log_entry.assert_not_called()
-    assert result["daily_totals"] == {"calories": 100.0, "protein": 10.0, "carbs": 10.0, "fat": 2.0} # Unchanged
+    # Report should remain unchanged
+    assert result["daily_log_report"] == [{"id": 1}]
     assert result["pending_food_items"] == []

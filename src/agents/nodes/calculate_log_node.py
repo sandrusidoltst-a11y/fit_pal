@@ -24,9 +24,7 @@ def calculate_log_node(state: AgentState) -> dict:
     # Get first item
     current_item = pending_items[0]
     
-    # Default to current totals if something fails
-    updated_totals = state.get("daily_totals")
-
+    
     # Only process if we have a valid selection
     if selected_food_id:
         amount = current_item.get("amount", 0.0)
@@ -58,9 +56,23 @@ def calculate_log_node(state: AgentState) -> dict:
                     original_text=current_item.get("original_text")
                 )
                 
-                # Fetch updated totals
+                # Fetch updated logs for report
+                updated_report = []
                 if current_date:
-                    updated_totals = daily_log_service.get_daily_totals(session, current_date)
+                    logs = daily_log_service.get_logs_by_date(session, current_date)
+                    for log in logs:
+                        updated_report.append({
+                            "id": log.id,
+                            "food_id": log.food_id,
+                            "amount_g": log.amount_g,
+                            "calories": log.calories,
+                            "protein": log.protein,
+                            "carbs": log.carbs,
+                            "fat": log.fat,
+                            "timestamp": log.timestamp,
+                            "meal_type": log.meal_type,
+                            "original_text": log.original_text,
+                        })
 
                 # Create success result
                 result_item = {
@@ -78,7 +90,7 @@ def calculate_log_node(state: AgentState) -> dict:
 
     return {
         "pending_food_items": remaining_items,
-        "daily_totals": updated_totals,
+        "daily_log_report": updated_report if 'updated_report' in locals() else state.get("daily_log_report", []),
         "last_action": "LOGGED",
         "selected_food_id": None,  # Reset selection
         "processing_results": updated_results if 'updated_results' in locals() else state.get("processing_results", [])
