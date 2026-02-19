@@ -85,3 +85,29 @@ Always verify:
 - **Environment**: Are `uv` commands used correctly?
 - **Testing**: Are unit tests included?
 - **Documentation**: Is the code self-documenting?
+
+### Step 5: Reply to Inline Comments (Hybrid Approach)
+
+**Constraint**: The `github-mcp-server` currently lacks the `in_reply_to` parameter needed for proper threading.
+**Workaround**: Use the `gh` CLI for replies.
+
+1.  **Fetch Comment IDs**:
+    - Use `mcp_github-mcp-server_pull_request_read(method="get_review_comments")` to find the `id` of the user's comment.
+
+2.  **Formulate Reply**:
+    - **Format Requirement**: Start every reply with:
+      `🤖 **Sandro**: [Your actual response in Markdown]`
+    - **Content**: Address the user's specific question using clear markdown (bolding, code blocks, lists).
+    - **Example**:
+      `🤖 **Sandro**: That is a good point! The `TypedDict` structure ensures type safety.`
+
+3.  **Execute Reply (Terminal)**:
+    - Construct a single-line `gh api` command.
+    - **Critical Formatting (PowerShell)**:
+      - Escape double quotes `"` as `\"`.
+      - **Use backtick-n (`n) for newlines**. Do not use `\n`.
+      - Use `**` for bold text.
+    - **Command Template**:
+      ```powershell
+      gh api repos/[OWNER]/[REPO]/pulls/[PR_NUMBER]/comments -f body="🤖 **Sandro**: First line.`n`nSecond line." -F in_reply_to=[COMMENT_ID]
+      ```
