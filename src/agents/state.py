@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, List, Literal, Optional, TypedDict
 
 from langgraph.graph.message import add_messages
@@ -28,19 +28,23 @@ class SearchResult(TypedDict):
     name: str
 
 
-class DailyTotals(TypedDict):
-    """Aggregated nutritional totals from database.
+from datetime import date, datetime
 
-    Mirrors the return type of get_daily_totals
-    from src/services/daily_log_service.py.
+class QueriedLog(TypedDict):
+    """Mirrors DailyLog model for reporting in state.
+    
+    Contains raw log data retrieved from the database.
     """
-
+    id: int
+    food_id: int
+    amount_g: float
     calories: float
     protein: float
     carbs: float
     fat: float
-
-
+    timestamp: datetime
+    meal_type: Optional[str]
+    original_text: Optional[str]
 
 GraphAction = Literal[
     "LOG_FOOD",
@@ -70,17 +74,22 @@ class AgentState(TypedDict):
     Attributes:
         messages: List of messages in the conversation history.
         pending_food_items: Food items extracted from user input, pending processing.
-        daily_totals: Aggregated nutritional totals from DB.
-        current_date: The date being tracked (for multi-day conversations).
+        daily_log_report: List of raw logs queried from DB (replaces aggregated totals).
+        current_date: The active date for logging or single-day query.
+        start_date: Start date for range query context (inclusive).
+        end_date: End date for range query context (inclusive).
         last_action: The last action type determined by input parser.
         search_results: Food search results for agent selection node.
         selected_food_id: Selected food ID from agent selection node.
+        processing_results: Feedback results for multi-item processing.
     """
 
     messages: Annotated[List, add_messages]
     pending_food_items: List[PendingFoodItem]
-    daily_totals: DailyTotals
+    daily_log_report: List[QueriedLog]
     current_date: date
+    start_date: Optional[date]
+    end_date: Optional[date]
     last_action: GraphAction
     search_results: List[SearchResult]
     selected_food_id: Optional[int]

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import List, Literal, Optional
 
@@ -25,10 +25,22 @@ class SingleFoodItem(BaseModel):
 
 class FoodIntakeEvent(BaseModel):
     action: ActionType
-    items: List[SingleFoodItem] = Field(default_factory=list)
+    items: List[SingleFoodItem] = Field(
+        default_factory=list,
+        description="List of food items. Only used for LOG_FOOD or QUERY_FOOD_INFO actions.",
+    )
     meal_type: Optional[str] = Field(
         None, description="Type of meal, e.g. Breakfast, Lunch, Dinner"
     )
+    target_date: Optional[date] = Field(
+        None, description="Specific date for the query or log (e.g. yesterday, 2023-10-27)"
+    )
+    start_date: Optional[date] = Field(
+        None, description="Start date for range queries (inclusive)"
+    )
+    end_date: Optional[date] = Field(
+        None, description="End date for range queries (inclusive)"
+    )
     timestamp: Optional[datetime] = Field(
-        None, description="When the food was consumed (UTC)"
+        None, description="When the food was consumed (UTC) - DEPRECATED in favor of target_date"
     )
