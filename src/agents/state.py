@@ -28,13 +28,12 @@ class SearchResult(TypedDict):
     name: str
 
 
-from datetime import date, datetime
-
 class QueriedLog(TypedDict):
     """Mirrors DailyLog model for reporting in state.
-    
+
     Contains raw log data retrieved from the database.
     """
+
     id: int
     food_id: int
     amount_g: float
@@ -46,6 +45,7 @@ class QueriedLog(TypedDict):
     meal_type: Optional[str]
     original_text: Optional[str]
 
+
 GraphAction = Literal[
     "LOG_FOOD",
     "QUERY_FOOD_INFO",
@@ -56,6 +56,7 @@ GraphAction = Literal[
     "AMBIGUOUS",
     "LOGGED",
 ]
+
 
 class ProcessingResult(PendingFoodItem):
     """Result of processing a single food item.
@@ -94,5 +95,3 @@ class AgentState(TypedDict):
     search_results: List[SearchResult]
     selected_food_id: Optional[int]
     processing_results: List["ProcessingResult"]
-
-
