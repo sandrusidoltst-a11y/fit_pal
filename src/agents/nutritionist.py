@@ -9,12 +9,12 @@ from src.agents.nodes.input_node import input_parser_node
 from src.agents.nodes.response_node import response_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.agents.nodes.stats_node import stats_lookup_node
-from src.agents.state import AgentState
+from src.agents.state import AgentState, InputState, OutputState
 
 
 def define_graph():
     # Initialize the graph with the AgentState
-    workflow = StateGraph(AgentState)
+    workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState)
 
     def route_parser(state: AgentState):
         action = state.get("last_action")
