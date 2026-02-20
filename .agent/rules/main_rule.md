@@ -33,7 +33,8 @@ fit_pal/
 │   │       ├── food_search_node.py # Food search node
 │   │       ├── selection_node.py   # Agent selection node
 │   │       ├── calculate_log_node.py # Calculate & log node
-│   │       └── stats_node.py       # Stats lookup node (New)
+│   │       ├── stats_node.py       # Stats lookup node
+│   │       └── response_node.py    # LLM response generator
 │   ├── services/            # Business logic layer
 │   │   └── daily_log_service.py # CRUD for daily logs
 │   ├── scripts/
