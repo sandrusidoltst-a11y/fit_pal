@@ -54,6 +54,7 @@ fit_pal/
 │   └── test_food_lookup.py  # Legacy/Integration tests
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
+├── langgraph.json       # LangSmith Studio configuration
 ├── PRD.md
 ├── prompts/             # System prompts and tool specs
 └── README.md
@@ -63,7 +64,8 @@ fit_pal/
 - **playwright**: Browser automation and interaction tools.
 
 ## 5. Architectural Patterns
-- **TypedDict for State**: `AgentState` uses nested TypedDict schemas (PendingFoodItem, SearchResult, QueriedLog) for type safety.
+- **Multiple Schemas**: Defines `InputState`, `OutputState`, and `AgentState`. Allows external callers (like LangSmith Studio) to interact via a clean, narrow public API (chat messages), while internally retaining robust task-specific state fields.
+- **TypedDict for State**: `AgentState` uses nested TypedDict schemas (PendingFoodItem, SearchResult, QueriedLog) for type safety and clean serialization.
 - **Pydantic for LLM Output**: Structured output validation with `.with_structured_output()`, then `.model_dump()` to dict.
 - **Service Layer**: Business logic in `src/services/` (e.g., `daily_log_service.py`).
 - **Write-Through Pattern**: DB is source of truth; write immediately, then query for state updates.

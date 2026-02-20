@@ -87,63 +87,45 @@ flowchart TD
 
 ### State Schema (TypedDict)
 
-**Note**: As of 2026-02-12, the state schema is being refactored to use proper nested TypedDict definitions for type safety. See [refactor-state-schema-and-multi-item-loop.md](../.agent/plans/refactor-state-schema-and-multi-item-loop.md) for details.
+**Note**: As of 2026-02-21, the state schema leverages the LangGraph "Multiple Schemas" pattern for clean LangSmith Studio integration.
 
 ```python
-from typing import TypedDict, List, Annotated, Optional
-from datetime import date
-from langgraph.graph import add_messages
+from typing import TypedDict, List, Annotated, Optional, Literal
+from datetime import date, datetime
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 
-class PendingFoodItem(TypedDict):
-    """Single food item waiting to be processed."""
-    food_name: str
-    amount: float
-    unit: str
-    original_text: str
+# ... [PendingFoodItem, SearchResult, QueriedLog, ProcessingResult omitted for brevity] ...
 
-class SearchResult(TypedDict):
-    """Result from food database search."""
-    id: int
-    name: str
+class InputState(TypedDict):
+    """Public API for LangSmith Studio (Chat Interface)"""
+    messages: Annotated[List[AnyMessage], add_messages]
 
-class QueriedLog(TypedDict):
-    """Mirrors DailyLog model for reporting in state."""
-    id: int
-    food_id: int
-    amount_g: float
-    calories: float
-    protein: float
-    carbs: float
-    fat: float
-    timestamp: datetime
-    meal_type: Optional[str]
-    original_text: Optional[str]
-
-class ProcessingResult(PendingFoodItem):
-    """Result of processing a single food item."""
-    status: "Literal['LOGGED', 'FAILED']"
-    message: str
+class OutputState(TypedDict):
+    """Public output API"""
+    messages: Annotated[List[AnyMessage], add_messages]
 
 class AgentState(TypedDict):
-    """Main graph state with type-safe nested structures."""
-    messages: Annotated[list, add_messages]
-    pending_food_items: List[PendingFoodItem]  # ✅ Type-safe (refactored from List[dict])
-    daily_log_report: List[QueriedLog]          # ✅ Raw logs for detailed reasoning (replaces DailyTotals)
-    current_date: date                          # Track which day we're logging
-    start_date: Optional[date]                  # Start date for range queries
-    end_date: Optional[date]                    # End date for range queries
-    last_action: "GraphAction"                  # ✅ Strictly typed Literal (was str)
-    search_results: List[SearchResult]          # ✅ Type-safe (refactored from List[dict])
-    selected_food_id: Optional[int]             # Selected food ID from agent selection
-    processing_results: List[ProcessingResult]  # ✅ Track per-item status for multi-item feedback
+    """Full internal state with type-safe nested structures."""
+    messages: Annotated[List[AnyMessage], add_messages]
+    pending_food_items: List[PendingFoodItem]
+    daily_log_report: List[QueriedLog]
+    current_date: date
+    start_date: Optional[date]
+    end_date: Optional[date]
+    last_action: "GraphAction"
+    search_results: List[SearchResult]
+    selected_food_id: Optional[int]
+    processing_results: List["ProcessingResult"]
 ```
 
 **Architectural Decision**: 
+- **Multiple Schemas**: Separation of `InputState` from `AgentState` ensures LangSmith Studio displays a clean Chat UI rather than a full state form.
 - **TypedDict for state**: Ensures type safety, IDE autocomplete, and proper serialization to SQLite checkpointer
+- **AnyMessage Typing**: Enforces proper LangChain message semantics (`HumanMessage`, `AIMessage`).
 - **Pydantic for LLM output**: Used with `.with_structured_output()` for validation, then converted to dict via `.model_dump()`
-- **Nested TypedDict structures**: Replaces vague `List[dict]` types with explicit schemas
 - **Strict Literal types**: `GraphAction` enforces valid state transitions across the graph
-- **Row-Level Reporting**: `daily_log_report` replaces `daily_totals` to allow LLM to perform complex reasoning (averages, distributions) on raw data.
+- **Row-Level Reporting**: `daily_log_report` allows LLM to perform complex reasoning (averages, distributions) on raw data.
 
 ### Directory Structure
 ```text
@@ -183,6 +165,7 @@ fit_pal/
 │   └── test_food_lookup.py  # Legacy/Integration tests
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
+├── langgraph.json       # LangSmith Studio configuration
 ├── PRD.md
 └── README.md
 ```
@@ -264,6 +247,9 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Replaced static string placeholder with LLM-powered node
   - ✅ Implemented selective JSON context injection based on action
   - ✅ Added unit tests verifying LLM mock interactions
+- ✅ **Refactor for Studio** (Completed 2026-02-21):
+  - ✅ Implemented Multiple Schemas pattern (`InputState`, `OutputState`)
+  - ✅ Typed messages list as `List[AnyMessage]`
 - ✅ **Core LangGraph Flow Complete**: Input -> Search -> Agent Selection -> Calc & Log -> Response (MVP Phase 1 Done).
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.

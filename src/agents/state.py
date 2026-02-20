@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import Annotated, List, Literal, Optional, TypedDict
 
+from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
 
@@ -69,11 +70,37 @@ class ProcessingResult(PendingFoodItem):
     message: str
 
 
+class InputState(TypedDict):
+    """Public input schema for the FitPal graph.
+
+    Used by LangSmith Studio and external callers to define the graph's
+    public API. Only exposes the 'messages' field so LangSmith Studio
+    renders a standard chat interface instead of a full state form.
+    LangGraph automatically merges this into the full AgentState.
+    """
+
+    messages: Annotated[List[AnyMessage], add_messages]
+
+
+class OutputState(TypedDict):
+    """Public output schema for the FitPal graph.
+
+    Defines what the graph exposes to external callers when the run
+    completes. Mirrors InputState so the caller receives the updated
+    conversation history (with the final AIMessage appended).
+    """
+
+    messages: Annotated[List[AnyMessage], add_messages]
+
+
 class AgentState(TypedDict):
-    """State definition for the FitPal agent.
+    """Full internal state definition for the FitPal agent.
+
+    This schema is the single source of truth for all nodes inside the
+    graph. It is a superset of InputState and OutputState.
 
     Attributes:
-        messages: List of messages in the conversation history.
+        messages: Conversation history (HumanMessages + AIMessages).
         pending_food_items: Food items extracted from user input, pending processing.
         daily_log_report: List of raw logs queried from DB (replaces aggregated totals).
         current_date: The active date for logging or single-day query.
@@ -85,7 +112,7 @@ class AgentState(TypedDict):
         processing_results: Feedback results for multi-item processing.
     """
 
-    messages: Annotated[List, add_messages]
+    messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
     daily_log_report: List[QueriedLog]
     current_date: date

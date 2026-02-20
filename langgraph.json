@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "fitpal": "./src/agents/nutritionist.py:define_graph"
+  },
+  "env": ".env"
+}
