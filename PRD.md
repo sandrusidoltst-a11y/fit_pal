@@ -108,15 +108,15 @@ class OutputState(TypedDict):
 class AgentState(TypedDict):
     """Full internal state with type-safe nested structures."""
     messages: Annotated[List[AnyMessage], add_messages]
-    pending_food_items: List[PendingFoodItem]
-    daily_log_report: List[QueriedLog]
-    current_date: date
-    start_date: Optional[date]
-    end_date: Optional[date]
-    last_action: "GraphAction"
-    search_results: List[SearchResult]
-    selected_food_id: Optional[int]
-    processing_results: List["ProcessingResult"]
+    pending_food_items: List[PendingFoodItem]   # ✅ Type-safe: foods to process
+    daily_log_report: List[QueriedLog]          # ✅ Raw logs for detailed reasoning
+    current_date: date                          # Track which day we're logging
+    start_date: Optional[date]                  # Start date for range queries
+    end_date: Optional[date]                    # End date for range queries
+    last_action: "GraphAction"                  # ✅ Strictly typed literal
+    search_results: List[SearchResult]          # ✅ Type-safe: lookup results
+    selected_food_id: Optional[int]             # Selected food ID from agent selection
+    processing_results: List["ProcessingResult"] # ✅ Track per-item status for feedback
 ```
 
 **Architectural Decision**: 
