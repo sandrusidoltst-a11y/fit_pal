@@ -6,6 +6,7 @@ from langgraph.graph import END, StateGraph
 from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.nodes.food_search_node import food_search_node
 from src.agents.nodes.input_node import input_parser_node
+from src.agents.nodes.response_node import response_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.agents.nodes.stats_node import stats_lookup_node
 from src.agents.state import AgentState
@@ -14,26 +15,6 @@ from src.agents.state import AgentState
 def define_graph():
     # Initialize the graph with the AgentState
     workflow = StateGraph(AgentState)
-
-    # Placeholder nodes (to be replaced in future phases)
-
-    def response_node(state: AgentState):
-        """Generate response based on current state."""
-        processing_results = state.get("processing_results", [])
-
-        if processing_results:
-            # Generate summary for processed items
-            summary = "\n".join([r["message"] for r in processing_results])
-            return {"messages": [summary]}
-
-        # Fallback for actions without processing results (e.g. general queries)
-        action = state.get("last_action")
-        if action == "LOGGED":
-            return {"messages": ["Food logged successfully!"]}
-        elif action == "NO_MATCH":
-            return {"messages": ["Could not find matching food item."]}
-        else:
-            return {"messages": ["Response placeholder"]}
 
     def route_parser(state: AgentState):
         action = state.get("last_action")

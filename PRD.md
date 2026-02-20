@@ -159,7 +159,12 @@ fit_pal/
 │   │   ├── nutritionist.py   # LangGraph definition
 │   │   ├── state.py         # Schema and TypedDict
 │   │   └── nodes/           # Node implementations
-│   │       └── input_node.py  # Input parser node
+│   │       ├── input_node.py      # Input parser node
+│   │       ├── food_search_node.py # Food search node
+│   │       ├── selection_node.py   # Agent selection node
+│   │       ├── calculate_log_node.py # Calculate & log node
+│   │       ├── stats_node.py       # Stats lookup node
+│   │       └── response_node.py    # LLM response generator
 │   ├── services/            # Business logic layer
 │   │   └── daily_log_service.py  # CRUD for daily logs
 │   ├── scripts/
@@ -255,8 +260,11 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Support date range queries in `DailyLogService`
   - ✅ Update `AgentState` with `start_date` / `end_date`
   - ✅ Integrate into main graph flow
-- 🚧 Build core LangGraph flow: Input -> Search -> Agent Selection -> Calc & Log -> Response (Active).
-
+- ✅ **Implement Response Node** (Completed 2026-02-20):
+  - ✅ Replaced static string placeholder with LLM-powered node
+  - ✅ Implemented selective JSON context injection based on action
+  - ✅ Added unit tests verifying LLM mock interactions
+- ✅ **Core LangGraph Flow Complete**: Input -> Search -> Agent Selection -> Calc & Log -> Response (MVP Phase 1 Done).
 ### Phase 2: Knowledge Integration
 - Add RAG/File-loading for the `Meal Plan`.
 - Implement "Remaining Macros" logic.
