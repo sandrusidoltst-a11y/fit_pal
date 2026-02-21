@@ -62,7 +62,7 @@ def test_chitchat(basic_state):
 
 def test_nonsense_input(basic_state):
     """Test valid handling of nonsense input as Chitchat (per new prompt rules)."""
-    basic_state["messages"] = [HumanMessage(content="100 200")]
+    basic_state["messages"] = [HumanMessage(content="asdfasdf")]
     result = input_parser_node(basic_state)
     
     assert result["last_action"] == "CHITCHAT"

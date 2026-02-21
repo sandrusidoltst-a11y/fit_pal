@@ -1,7 +1,6 @@
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents.nodes.response_node import _build_context, response_node
@@ -156,7 +155,7 @@ class TestBuildContext:
 class TestResponseNode:
     """Verify the response_node correctly constructs messages and invokes the LLM."""
 
-    @patch("src.agents.nodes.response_node.get_response_llm")
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
     def test_logging_context_invokes_llm(self, mock_get_llm):
         """Node should invoke LLM with processing_results context for LOGGED action."""
         mock_llm = MagicMock()
@@ -189,7 +188,7 @@ class TestResponseNode:
         assert "processing_results" in call_args[0].content
         assert "Context JSON" in call_args[0].content
 
-    @patch("src.agents.nodes.response_node.get_response_llm")
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
     def test_stats_context_invokes_llm(self, mock_get_llm):
         """Node should invoke LLM with daily_log_report context for QUERY_DAILY_STATS."""
         mock_llm = MagicMock()
@@ -225,7 +224,7 @@ class TestResponseNode:
         assert "daily_log_report" in call_args[0].content
         assert "processing_results" not in call_args[0].content
 
-    @patch("src.agents.nodes.response_node.get_response_llm")
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
     def test_no_match_context(self, mock_get_llm):
         """Node should handle NO_MATCH action and include processing_results."""
         mock_llm = MagicMock()
@@ -251,7 +250,7 @@ class TestResponseNode:
         call_args = mock_llm.invoke.call_args[0][0]
         assert "FAILED" in call_args[0].content
 
-    @patch("src.agents.nodes.response_node.get_response_llm")
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
     def test_empty_messages_history(self, mock_get_llm):
         """Node should handle state with no message history gracefully."""
         mock_llm = MagicMock()
@@ -269,7 +268,7 @@ class TestResponseNode:
         call_args = mock_llm.invoke.call_args[0][0]
         assert len(call_args) == 1
 
-    @patch("src.agents.nodes.response_node.get_response_llm")
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
     def test_preserves_full_conversation_history(self, mock_get_llm):
         """System message should be prepended, preserving all existing messages."""
         mock_llm = MagicMock()
@@ -292,7 +291,7 @@ class TestResponseNode:
         # First message is always the SystemMessage
         assert "FitPal" in call_args[0].content
 
-    @patch("src.agents.nodes.response_node.get_response_llm")
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
     @patch("builtins.open", side_effect=FileNotFoundError)
     def test_fallback_prompt_on_missing_file(self, mock_open, mock_get_llm):
         """Node should use fallback prompt if response_generator.md is missing."""

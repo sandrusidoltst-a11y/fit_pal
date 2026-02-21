@@ -1,9 +1,9 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 from src.agents.nodes.stats_node import stats_lookup_node
-from src.agents.state import AgentState, QueriedLog
+from src.agents.state import AgentState
 
 @pytest.fixture
 def mock_db_session():
