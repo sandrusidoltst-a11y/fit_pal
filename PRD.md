@@ -251,15 +251,38 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Implemented Multiple Schemas pattern (`InputState`, `OutputState`)
   - ✅ Typed messages list as `List[AnyMessage]`
 - ✅ **Core LangGraph Flow Complete**: Input -> Search -> Agent Selection -> Calc & Log -> Response (MVP Phase 1 Done).
-### Phase 2: Knowledge Integration
-- Add RAG/File-loading for the `Meal Plan`.
-- Implement "Remaining Macros" logic.
-- Support for target-based questions ("Can I eat this?").
 
-### Phase 3: Persistence & Reliability
-- Integrate SQLite `Checkpointer` for persistent sessions.
-- Implement **Correction Flow** (delete/update entries).
-- Add structured logging to `daily_log.json`.
+### Phase 2: Architecture Maturity & Target Engine
+- **LLM Configuration & Environment (Refactor)**: 
+  - Extract all hardcoded models (e.g., Claude/GPT-4) inside LangChain nodes into a centralized configuration layer (`src/config.py`).
+  - Manage token limits and environment variables from a single source of truth.
+- **Asynchronous Database Migration**:
+  - Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
+- **Relative Time & Past Logging**:
+  - Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
+- **The "Off-Menu" Problem (Fallback Logic)**:
+  - Implement a mechanism (e.g., an LLM estimation node or external API) to handle custom, branded, or complex foods when the local database returns a `NO_MATCH` from the search tool.
+- **Database Migrations (Alembic)**: 
+  - Install and configure Alembic to safely manage anticipated schema changes (User IDs, Targets) without destroying existing data.
+- **User Identity & Timezones**: 
+  - Add `user_id` tracking natively to SQLite checkpointer and data tables to support simulated multi-user structures.
+  - Implement time-zone aware logging to correctly calculate "daily" rollovers based on the individual user's location.
+- **Structured Macro Targets**: 
+  - Deprecate the concept of a "text file meal plan" in favor of strict, deterministic database columns (Target Calories, Protein, Carbs, Fats) per user.
+- **Remaining Macros & Assessment Reasoning**: 
+  - Build out the LLM capability to perform logic against structured targets ("How many calories do I have left?" or "Can I eat this cookie?").
+- **Correction Workflow**: 
+  - Implement intents to allow users to update or delete past erroneous entries without relying on risky direct-database modifications.
+- **Context Limit Management**: 
+  - Introduce an automated trimming sequence within the graph to prune the `messages` array, preventing token overflow while preserving necessary recent dialogue.
+
+### Phase 3: API Deployment & Production Scaling
+- **API Serving Layer**:
+  - Build the outward-facing web server to host the LangGraph agent securely (evaluating highly concurrent FastAPI vs. managed LangGraph REST API).
+- **PostgreSQL / Supabase Migration**:
+  - Graduate from local SQLite to a production-grade PostgreSQL cloud database (e.g., Supabase) utilizing the exact same Async SQLAlchemy architecture established in Phase 2.
+- **Production State Persistence**:
+  - Swap the local SQLite Checkpointer for the official `AsyncPostgresSaver` checkpointer, unifying chat history and daily logs in the same cloud database environment.
 
 ### Phase 4: Polish & Intelligence
 - Enable LangSmith tracing.
