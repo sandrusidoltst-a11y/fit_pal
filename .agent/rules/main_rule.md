@@ -67,6 +67,7 @@ fit_pal/
 - **Multiple Schemas**: Defines `InputState`, `OutputState`, and `AgentState`. Allows external callers (like LangSmith Studio) to interact via a clean, narrow public API (chat messages), while internally retaining robust task-specific state fields.
 - **TypedDict for State**: `AgentState` uses nested TypedDict schemas (PendingFoodItem, SearchResult, QueriedLog) for type safety and clean serialization.
 - **Pydantic for LLM Output**: Structured output validation with `.with_structured_output()`, then `.model_dump()` to dict.
+- **Configuration Dictionary Pattern**: Used in `src/config.py` to centrally manage LLM instantiations (`get_llm_for_node`), allowing fallback globals from `.env` and node-specific parameters (like temperature) without hardcoding models in nodes.
 - **Service Layer**: Business logic in `src/services/` (e.g., `daily_log_service.py`).
 - **Write-Through Pattern**: DB is source of truth; write immediately, then query for state updates.
 - **Reporting State**: `AgentState.daily_log_report` (List[QueriedLog]) stores raw log data instead of aggregates, enabling complex LLM reasoning (averages, distributions).

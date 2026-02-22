@@ -3,18 +3,9 @@ import os
 from datetime import date, datetime
 
 from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
 
 from src.agents.state import AgentState
-
-
-def get_response_llm():
-    """Initialize LLM for response generation.
-
-    Uses a slightly higher temperature than other nodes
-    to produce more natural, conversational replies.
-    """
-    return ChatOpenAI(model="gpt-4o", temperature=0.7)
+from src.config import get_llm_for_node
 
 
 def _serialize_date(obj):
@@ -104,7 +95,7 @@ def response_node(state: AgentState) -> dict:
     full_messages = [system_message] + list(messages)
 
     # Invoke LLM
-    llm = get_response_llm()
+    llm = get_llm_for_node("response_node")
     result = llm.invoke(full_messages)
 
     return {"messages": [result]}

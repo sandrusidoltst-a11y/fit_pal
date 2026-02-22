@@ -1,12 +1,9 @@
 from datetime import date
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from src.agents.state import AgentState
 from src.schemas.input_schema import FoodIntakeEvent
+from src.config import get_llm_for_node
 import os
-
-def get_parser_llm():
-    return ChatOpenAI(model="gpt-4o", temperature=0)
 
 def input_parser_node(state: AgentState):
     """
@@ -23,7 +20,7 @@ def input_parser_node(state: AgentState):
         print(f"Warning: Prompt file not found at {prompt_path}")
         system_prompt = "You are a helpful nutrition assistant. Parse food intake."
 
-    llm = get_parser_llm()
+    llm = get_llm_for_node("input_node")
     structured_llm = llm.with_structured_output(FoodIntakeEvent)
 
     # Get the last message from the user

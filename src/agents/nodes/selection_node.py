@@ -1,15 +1,10 @@
 import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from src.config import get_llm_for_node
 
 from src.agents.state import AgentState
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
-
-
-def get_selection_llm():
-    """Initialize LLM for agent selection."""
-    return ChatOpenAI(model="gpt-4o", temperature=0)
 
 
 def agent_selection_node(state: AgentState) -> dict:
@@ -60,7 +55,7 @@ def agent_selection_node(state: AgentState) -> dict:
         print(f"Warning: Prompt file not found at {prompt_path}")
         system_prompt = "Select the most appropriate food item from the search results."
 
-    llm = get_selection_llm()
+    llm = get_llm_for_node("selection_node")
     structured_llm = llm.with_structured_output(FoodSelectionResult)
 
     # Construct context for LLM
