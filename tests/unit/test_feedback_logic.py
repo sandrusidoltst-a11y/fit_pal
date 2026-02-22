@@ -79,7 +79,7 @@ def test_selection_failure_llm(base_state):
     # Force LLM path
     # We need to mock the LLM
     
-    with patch("src.agents.nodes.selection_node.get_selection_llm") as mock_get_llm:
+    with patch("src.agents.nodes.selection_node.get_llm_for_node") as mock_get_llm:
         mock_llm = MagicMock()
         mock_get_llm.return_value = mock_llm
         mock_structured = MagicMock()

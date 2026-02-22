@@ -253,9 +253,9 @@ Stores confirmed food entries for long-term tracking.
 - ✅ **Core LangGraph Flow Complete**: Input -> Search -> Agent Selection -> Calc & Log -> Response (MVP Phase 1 Done).
 
 ### Phase 2: Architecture Maturity & Target Engine
-- **LLM Configuration & Environment (Refactor)**: 
-  - Extract all hardcoded models (e.g., Claude/GPT-4) inside LangChain nodes into a centralized configuration layer (`src/config.py`).
-  - Manage token limits and environment variables from a single source of truth.
+- ✅ **LLM Configuration & Environment (Refactor)**: 
+  - ✅ Extract all hardcoded models (e.g., Claude/GPT-4) inside LangChain nodes into a centralized configuration layer (`src/config.py`).
+  - ✅ Manage token limits and environment variables from a single source of truth.
 - **Asynchronous Database Migration**:
   - Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
 - **Relative Time & Past Logging**:

@@ -54,10 +54,11 @@ Execute ALL validation commands from the plan in order:
 # Run each command exactly as specified in plan
 ```
 
-If any command fails:
-- Fix the issue
-- Re-run the command
-- Continue only when it passes
+If any testing/validation command fails:
+- First, identify the specific failing test or file.
+- Fix the issue and test LOCALLY by running only the specific failing component (e.g., `uv run pytest path/to/failing_test.py` or `uv run pytest --lf`).
+- Only re-run the full validation suite command once the localized tests are confirmed passing.
+- Continue only when all commands pass cleanly.
 
 ### 5. Final Verification
 

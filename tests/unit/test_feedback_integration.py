@@ -19,7 +19,7 @@ def test_integration_full_flow():
          patch("src.agents.nutritionist.food_search_node") as mock_search, \
          patch("src.agents.nutritionist.agent_selection_node") as mock_select, \
          patch("src.agents.nutritionist.calculate_log_node") as mock_calc, \
-         patch("src.agents.nodes.response_node.get_response_llm") as mock_get_llm, \
+         patch("src.agents.nodes.response_node.get_llm_for_node") as mock_get_llm, \
          patch("src.agents.nutritionist.SqliteSaver") as mock_mem, \
          patch("sqlite3.connect"):
 
