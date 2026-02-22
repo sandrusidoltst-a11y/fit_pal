@@ -52,6 +52,10 @@ OPENAI_API_KEY=your_openai_api_key
 # Or if using Anthropic:
 # ANTHROPIC_API_KEY=your_anthropic_api_key
 
+# Global LLM Configuration (Provides defaults for NODE_CONFIGS in src/config.py)
+LLM_PROVIDER=openai
+LLM_MODEL_NAME=gpt-4o
+
 # Optional: Enable LangSmith Tracing
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_langsmith_api_key
