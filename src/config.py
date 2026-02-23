@@ -9,7 +9,7 @@ load_dotenv()
 # Project Root (calculated relative to this file: src/config.py -> src -> root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 GLOBAL_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4o")

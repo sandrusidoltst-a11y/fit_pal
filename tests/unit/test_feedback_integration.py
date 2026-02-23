@@ -7,7 +7,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from src.agents.nutritionist import define_graph
 
 
-def test_integration_full_flow():
+async def test_integration_full_flow():
     """Integration test: Verify full graph flow with LLM-powered response node."""
 
     mock_llm = MagicMock()
@@ -20,11 +20,10 @@ def test_integration_full_flow():
          patch("src.agents.nutritionist.agent_selection_node") as mock_select, \
          patch("src.agents.nutritionist.calculate_log_node") as mock_calc, \
          patch("src.agents.nodes.response_node.get_llm_for_node") as mock_get_llm, \
-         patch("src.agents.nutritionist.SqliteSaver") as mock_mem, \
-         patch("sqlite3.connect"):
+         patch("src.agents.nutritionist.AsyncSqliteSaver") as mock_mem:
 
         # Use MemorySaver as a valid checkpointer replacement
-        mock_mem.return_value = MemorySaver()
+        mock_mem.from_conn_string.return_value = MemorySaver()
         mock_get_llm.return_value = mock_llm
 
         # Simulating a flow where one item is successfully processed
@@ -65,11 +64,11 @@ def test_integration_full_flow():
             "last_action": "LOGGED"
         }
 
-        # Build the graph
-        app = define_graph()
+        # Build the graph (define_graph is now async)
+        app = await define_graph()
 
-        # Invoke with user message
-        final_state = app.invoke(
+        # Invoke with user message (use ainvoke for async graph)
+        final_state = await app.ainvoke(
             {"messages": [("user", "I ate an apple")]},
             config={"configurable": {"thread_id": "1"}}
         )
@@ -85,4 +84,3 @@ def test_integration_full_flow():
         call_args = mock_llm.invoke.call_args[0][0]
         system_content = call_args[0].content
         assert "processing_results" in system_content
-

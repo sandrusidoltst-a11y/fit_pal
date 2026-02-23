@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
 from src.agents.state import AgentState
-from src.database import get_db_session
+from src.database import get_async_db_session
 from src.services import daily_log_service
 from src.tools.food_lookup import calculate_food_macros
 
 
-def calculate_log_node(state: AgentState) -> dict:
+async def calculate_log_node(state: AgentState) -> dict:
     """Calculate macros and log to database.
 
     Processes the first item in pending_food_items:
@@ -43,8 +43,8 @@ def calculate_log_node(state: AgentState) -> dict:
             else:
                 timestamp = now
 
-            with get_db_session() as session:
-                daily_log_service.create_log_entry(
+            async with get_async_db_session() as session:
+                await daily_log_service.create_log_entry(
                     session=session,
                     food_id=selected_food_id,
                     amount_g=amount,
@@ -59,7 +59,7 @@ def calculate_log_node(state: AgentState) -> dict:
                 # Fetch updated logs for report
                 updated_report = []
                 if current_date:
-                    logs = daily_log_service.get_logs_by_date(session, current_date)
+                    logs = await daily_log_service.get_logs_by_date(session, current_date)
                     for log in logs:
                         updated_report.append({
                             "id": log.id,

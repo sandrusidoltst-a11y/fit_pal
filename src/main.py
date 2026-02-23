@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import os
 
@@ -6,10 +7,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.agents.nutritionist import define_graph
 
-def main():
+async def main():
     print("Initializing FitPal Agent...")
     try:
-        define_graph()
+        await define_graph()
         print("Graph compiled successfully.")
         print("FitPal Agent is ready.")
     except Exception as e:
@@ -17,4 +18,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
@@ -16,20 +16,27 @@ def base_state():
             }
         ],
         "processing_results": [],
-        "daily_totals": {"calories": 0, "protein": 0, "carbs": 0, "fat": 0},
+        "daily_log_report": [],
         "current_date": None,
         "selected_food_id": 123
     }
 
-def test_calculate_log_success_result(base_state):
+async def test_calculate_log_success_result(base_state):
     """Test that calculate_log_node appends a LOGGED result."""
     with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock_macros, \
-         patch("src.agents.nodes.calculate_log_node.get_db_session"), \
-         patch("src.agents.nodes.calculate_log_node.daily_log_service"):
+         patch("src.agents.nodes.calculate_log_node.get_async_db_session") as mock_db, \
+         patch("src.agents.nodes.calculate_log_node.daily_log_service") as mock_service:
         
+        # Setup async context manager mock
+        session = AsyncMock()
+        mock_db.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_db.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_service.create_log_entry = AsyncMock()
+        mock_service.get_logs_by_date = AsyncMock(return_value=[])
+
         mock_macros.invoke.return_value = {"calories": 95, "protein": 0.5, "carbs": 25, "fat": 0.3}
         
-        result = calculate_log_node(base_state)
+        result = await calculate_log_node(base_state)
         
         assert "processing_results" in result
         assert len(result["processing_results"]) == 1
@@ -38,7 +45,7 @@ def test_calculate_log_success_result(base_state):
         assert "Logged Test Apple" in res["message"]
         assert res["original_text"] == "one medium apple"
 
-def test_calculate_log_accumulates_results(base_state):
+async def test_calculate_log_accumulates_results(base_state):
     """Test that results accumulate over multiple steps."""
     existing = {
         "food_name": "Prev", "amount": 1, "unit": "g", "original_text": "p",
@@ -47,11 +54,18 @@ def test_calculate_log_accumulates_results(base_state):
     base_state["processing_results"] = [existing]
     
     with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock_macros, \
-         patch("src.agents.nodes.calculate_log_node.get_db_session"), \
-         patch("src.agents.nodes.calculate_log_node.daily_log_service"):
-             
+         patch("src.agents.nodes.calculate_log_node.get_async_db_session") as mock_db, \
+         patch("src.agents.nodes.calculate_log_node.daily_log_service") as mock_service:
+        
+        # Setup async context manager mock
+        session = AsyncMock()
+        mock_db.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_db.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_service.create_log_entry = AsyncMock()
+        mock_service.get_logs_by_date = AsyncMock(return_value=[])
+
         mock_macros.invoke.return_value = {"calories": 100, "protein": 0, "carbs": 0, "fat": 0}
-        result = calculate_log_node(base_state)
+        result = await calculate_log_node(base_state)
         
         assert len(result["processing_results"]) == 2
         assert result["processing_results"][0] == existing

@@ -1,11 +1,11 @@
 from typing import Dict
 
 from src.agents.state import AgentState, QueriedLog
-from src.database import get_db_session
+from src.database import get_async_db_session
 from src.services import daily_log_service
 
 
-def stats_lookup_node(state: AgentState) -> Dict:
+async def stats_lookup_node(state: AgentState) -> Dict:
     """Retrieve nutritional logs based on date context.
 
     If start_date and end_date are present, performs a range query.
@@ -15,14 +15,14 @@ def stats_lookup_node(state: AgentState) -> Dict:
     end_date = state.get("end_date")
     current_date = state.get("current_date")
 
-    with get_db_session() as session:
+    async with get_async_db_session() as session:
         if start_date and end_date:
-            logs = daily_log_service.get_logs_by_date_range(
+            logs = await daily_log_service.get_logs_by_date_range(
                 session, start_date, end_date
             )
         else:
             # Default to current_date lookup
-            logs = daily_log_service.get_logs_by_date(session, current_date)
+            logs = await daily_log_service.get_logs_by_date(session, current_date)
 
         # Convert SQLAlchemy models to TypedDict for state
         report = []
