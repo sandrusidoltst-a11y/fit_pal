@@ -256,8 +256,8 @@ Stores confirmed food entries for long-term tracking.
 - ✅ **LLM Configuration & Environment (Refactor)**: 
   - ✅ Extract all hardcoded models (e.g., Claude/GPT-4) inside LangChain nodes into a centralized configuration layer (`src/config.py`).
   - ✅ Manage token limits and environment variables from a single source of truth.
-- **Asynchronous Database Migration**:
-  - Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
+- ✅ **Asynchronous Database Migration** (Completed 2026-02-23):
+  - ✅ Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
 - **Relative Time & Past Logging**:
   - Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
 - **The "Off-Menu" Problem (Fallback Logic)**:
