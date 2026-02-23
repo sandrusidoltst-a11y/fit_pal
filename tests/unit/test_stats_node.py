@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from src.agents.nodes.stats_node import stats_lookup_node
@@ -7,17 +7,20 @@ from src.agents.state import AgentState
 
 @pytest.fixture
 def mock_db_session():
-    with patch("src.agents.nodes.stats_node.get_db_session") as mock:
-        session = MagicMock()
-        mock.return_value.__enter__.return_value = session
+    with patch("src.agents.nodes.stats_node.get_async_db_session") as mock:
+        session = AsyncMock()
+        mock.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock.return_value.__aexit__ = AsyncMock(return_value=False)
         yield session
 
 @pytest.fixture
 def mock_daily_log_service():
     with patch("src.agents.nodes.stats_node.daily_log_service") as mock:
+        mock.get_logs_by_date = AsyncMock(return_value=[])
+        mock.get_logs_by_date_range = AsyncMock(return_value=[])
         yield mock
 
-def test_stats_lookup_single_day(mock_db_session, mock_daily_log_service):
+async def test_stats_lookup_single_day(mock_db_session, mock_daily_log_service):
     """Test retrieving logs for a single day."""
     state = AgentState(
         current_date=date(2023, 10, 27),
@@ -39,9 +42,9 @@ def test_stats_lookup_single_day(mock_db_session, mock_daily_log_service):
     log1.meal_type = "Lunch"
     log1.original_text = "100g chicken"
     
-    mock_daily_log_service.get_logs_by_date.return_value = [log1]
+    mock_daily_log_service.get_logs_by_date = AsyncMock(return_value=[log1])
     
-    result = stats_lookup_node(state)
+    result = await stats_lookup_node(state)
     
     mock_daily_log_service.get_logs_by_date.assert_called_once_with(
         mock_db_session, date(2023, 10, 27)
@@ -55,20 +58,20 @@ def test_stats_lookup_single_day(mock_db_session, mock_daily_log_service):
     assert report[0]["calories"] == 150.0
     assert report[0]["original_text"] == "100g chicken"
 
-def test_stats_lookup_date_range(mock_db_session, mock_daily_log_service):
+async def test_stats_lookup_date_range(mock_db_session, mock_daily_log_service):
     """Test retrieving logs for a date range."""
     start = date(2023, 10, 25)
     end = date(2023, 10, 27)
     state = AgentState(
-        current_date=date.today(), # Should specify some date to satisfy TypedDict if mocked properly
+        current_date=date.today(),
         start_date=start,
         end_date=end,
         daily_log_report=[]
     )
     
-    mock_daily_log_service.get_logs_by_date_range.return_value = []
+    mock_daily_log_service.get_logs_by_date_range = AsyncMock(return_value=[])
     
-    result = stats_lookup_node(state)
+    result = await stats_lookup_node(state)
     
     mock_daily_log_service.get_logs_by_date_range.assert_called_once_with(
         mock_db_session, start, end

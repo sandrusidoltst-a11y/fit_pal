@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from src.models import DailyLog
 
 
-def test_daily_log_creation(test_db_session):
+async def test_daily_log_creation(async_test_db_session):
     """Test that a DailyLog entry can be created with all required fields."""
     log = DailyLog(
         food_id=1,
@@ -17,8 +17,8 @@ def test_daily_log_creation(test_db_session):
         timestamp=datetime.now(timezone.utc),
         meal_type="lunch",
     )
-    test_db_session.add(log)
-    test_db_session.commit()
+    async_test_db_session.add(log)
+    await async_test_db_session.commit()
 
     assert log.id is not None
     assert log.food_id == 1
@@ -30,7 +30,7 @@ def test_daily_log_creation(test_db_session):
     assert log.meal_type == "lunch"
 
 
-def test_daily_log_relationship(test_db_session):
+async def test_daily_log_relationship(async_test_db_session):
     """Test that the FoodItem <-> DailyLog relationship works bidirectionally."""
     from src.models import FoodItem
 
@@ -43,20 +43,22 @@ def test_daily_log_relationship(test_db_session):
         fat=7.2,
         timestamp=datetime.now(timezone.utc),
     )
-    test_db_session.add(log)
-    test_db_session.commit()
+    async_test_db_session.add(log)
+    await async_test_db_session.commit()
+    await async_test_db_session.refresh(log, ["food_item"])
 
     # Test DailyLog -> FoodItem direction
     assert log.food_item is not None
     assert log.food_item.name == "Test Chicken"
 
     # Test FoodItem -> DailyLog direction
-    food = test_db_session.get(FoodItem, 1)
+    food = await async_test_db_session.get(FoodItem, 1)
+    await async_test_db_session.refresh(food, ["logs"])
     assert len(food.logs) == 1
     assert food.logs[0].id == log.id
 
 
-def test_daily_log_timestamps(test_db_session):
+async def test_daily_log_timestamps(async_test_db_session):
     """Test that created_at is automatically set on creation."""
     log = DailyLog(
         food_id=1,
@@ -67,13 +69,13 @@ def test_daily_log_timestamps(test_db_session):
         fat=1.8,
         timestamp=datetime.now(timezone.utc),
     )
-    test_db_session.add(log)
-    test_db_session.commit()
+    async_test_db_session.add(log)
+    await async_test_db_session.commit()
 
     assert log.created_at is not None
 
 
-def test_daily_log_nullable_fields(test_db_session):
+async def test_daily_log_nullable_fields(async_test_db_session):
     """Test that meal_type and original_text can be null."""
     log = DailyLog(
         food_id=1,
@@ -86,15 +88,15 @@ def test_daily_log_nullable_fields(test_db_session):
         meal_type=None,
         original_text=None,
     )
-    test_db_session.add(log)
-    test_db_session.commit()
+    async_test_db_session.add(log)
+    await async_test_db_session.commit()
 
     assert log.id is not None
     assert log.meal_type is None
     assert log.original_text is None
 
 
-def test_daily_log_with_original_text(test_db_session):
+async def test_daily_log_with_original_text(async_test_db_session):
     """Test that original_text is preserved when provided."""
     log = DailyLog(
         food_id=1,
@@ -106,7 +108,7 @@ def test_daily_log_with_original_text(test_db_session):
         timestamp=datetime.now(timezone.utc),
         original_text="I ate 100g of chicken breast",
     )
-    test_db_session.add(log)
-    test_db_session.commit()
+    async_test_db_session.add(log)
+    await async_test_db_session.commit()
 
     assert log.original_text == "I ate 100g of chicken breast"

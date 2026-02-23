@@ -6,9 +6,9 @@ from datetime import date
 sys.path.append(os.getcwd())
 
 import pytest
+import pytest_asyncio
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.models import Base, FoodItem
 
@@ -21,37 +21,42 @@ def basic_state():
     return {
         "messages": [],
         "pending_food_items": [],
-        "daily_totals": {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0},
+        "daily_log_report": [],
         "current_date": date.today(),
+        "start_date": None,
+        "end_date": None,
         "last_action": "",
         "search_results": [],
         "selected_food_id": None,
+        "processing_results": [],
     }
 
 
-@pytest.fixture
-def test_db_session():
-    """Provides an in-memory SQLite session for testing.
+@pytest_asyncio.fixture
+async def async_test_db_session():
+    """Provides an async in-memory SQLite session for testing.
 
     Creates all tables and seeds with a sample FoodItem (id=1).
     Session is automatically closed after each test.
     """
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    TestSession = sessionmaker(bind=engine)
-    session = TestSession()
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    # Seed with sample food item for testing
-    sample_food = FoodItem(
-        id=1,
-        name="Test Chicken",
-        calories=165.0,
-        protein=31.0,
-        fat=3.6,
-        carbs=0.0,
-    )
-    session.add(sample_food)
-    session.commit()
+    AsyncTestSession = async_sessionmaker(engine, expire_on_commit=False)
+    async with AsyncTestSession() as session:
+        # Seed with sample food item for testing
+        sample_food = FoodItem(
+            id=1,
+            name="Test Chicken",
+            calories=165.0,
+            protein=31.0,
+            fat=3.6,
+            carbs=0.0,
+        )
+        session.add(sample_food)
+        await session.commit()
 
-    yield session
-    session.close()
+        yield session
+
+    await engine.dispose()

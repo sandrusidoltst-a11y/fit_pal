@@ -1,21 +1,21 @@
 """
 Service layer for DailyLog CRUD operations.
 
-Provides functions for creating, querying, and aggregating daily food log entries.
-All functions accept an explicit SQLAlchemy Session for testability.
+Provides async functions for creating, querying, and aggregating daily food log entries.
+All functions accept an explicit SQLAlchemy AsyncSession for testability.
 """
 
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import DailyLog
 
 
-def create_log_entry(
-    session: Session,
+async def create_log_entry(
+    session: AsyncSession,
     food_id: int,
     amount_g: float,
     calories: float,
@@ -30,7 +30,7 @@ def create_log_entry(
     Create and persist a new DailyLog entry.
 
     Args:
-        session: Active database session.
+        session: Active async database session.
         food_id: Foreign key to FoodItem.
         amount_g: Quantity consumed in grams.
         calories: Calculated calories for the amount.
@@ -56,12 +56,12 @@ def create_log_entry(
         original_text=original_text,
     )
     session.add(log)
-    session.commit()
-    session.refresh(log)
+    await session.commit()
+    await session.refresh(log)
     return log
 
 
-def get_daily_totals(session: Session, target_date: date) -> Dict[str, float]:
+async def get_daily_totals(session: AsyncSession, target_date: date) -> Dict[str, float]:
     """
     Aggregate nutritional totals for a specific date.
 
@@ -69,7 +69,7 @@ def get_daily_totals(session: Session, target_date: date) -> Dict[str, float]:
     and returns summed macro values.
 
     Args:
-        session: Active database session.
+        session: Active async database session.
         target_date: The date to aggregate totals for.
 
     Returns:
@@ -82,7 +82,7 @@ def get_daily_totals(session: Session, target_date: date) -> Dict[str, float]:
         func.coalesce(func.sum(DailyLog.fat), 0.0).label("fat"),
     ).where(func.date(DailyLog.timestamp) == target_date)
 
-    result = session.execute(stmt).one()
+    result = (await session.execute(stmt)).one()
 
     return {
         "calories": float(result.calories),
@@ -92,12 +92,12 @@ def get_daily_totals(session: Session, target_date: date) -> Dict[str, float]:
     }
 
 
-def get_logs_by_date(session: Session, target_date: date) -> List[DailyLog]:
+async def get_logs_by_date(session: AsyncSession, target_date: date) -> List[DailyLog]:
     """
     Retrieve all log entries for a specific date.
 
     Args:
-        session: Active database session.
+        session: Active async database session.
         target_date: The date to query logs for.
 
     Returns:
@@ -108,17 +108,17 @@ def get_logs_by_date(session: Session, target_date: date) -> List[DailyLog]:
         .where(func.date(DailyLog.timestamp) == target_date)
         .order_by(DailyLog.timestamp)
     )
-    return list(session.execute(stmt).scalars().all())
+    return list((await session.execute(stmt)).scalars().all())
 
 
-def get_logs_by_date_range(
-    session: Session, start_date: date, end_date: date
+async def get_logs_by_date_range(
+    session: AsyncSession, start_date: date, end_date: date
 ) -> List[DailyLog]:
     """
     Retrieve all log entries within a date range (inclusive).
 
     Args:
-        session: Active database session.
+        session: Active async database session.
         start_date: Start of the range (inclusive).
         end_date: End of the range (inclusive).
 
@@ -131,4 +131,4 @@ def get_logs_by_date_range(
         .where(func.date(DailyLog.timestamp) <= end_date)
         .order_by(DailyLog.timestamp)
     )
-    return list(session.execute(stmt).scalars().all())
+    return list((await session.execute(stmt)).scalars().all())
