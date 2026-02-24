@@ -115,7 +115,7 @@ class AgentState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
     daily_log_report: List[QueriedLog]
-    current_date: date
+    consumed_at: Optional[datetime]
     start_date: Optional[date]
     end_date: Optional[date]
     last_action: GraphAction

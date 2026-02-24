@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.state import AgentState
 
@@ -61,7 +61,7 @@ async def test_calculate_log_node_success(mock_db_session, mock_daily_log_servic
         }],
         selected_food_id=123,
         daily_log_report=[],
-        current_date=date(2023, 10, 26),
+        consumed_at=datetime(2023, 10, 26, 12, 0, tzinfo=timezone.utc),
         start_date=None,
         end_date=None,
         last_action="SELECTED",
@@ -102,7 +102,7 @@ async def test_calculate_log_node_no_selection_or_processed(mock_db_session, moc
         pending_food_items=[{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
         selected_food_id=None,
         daily_log_report=[],
-        current_date=date(2023, 10, 26),
+        consumed_at=datetime(2023, 10, 26, 12, 0, tzinfo=timezone.utc),
         start_date=None,
         end_date=None,
         last_action="SELECTED", # Simulation
@@ -130,7 +130,7 @@ async def test_calculate_log_node_macro_error(mock_db_session, mock_daily_log_se
         pending_food_items=[{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
         selected_food_id=999,
         daily_log_report=[{"id": 1}], # Existing report
-        current_date=date(2023, 10, 26),
+        consumed_at=datetime(2023, 10, 26, 12, 0, tzinfo=timezone.utc),
         start_date=None,
         end_date=None,
         last_action="SELECTED",

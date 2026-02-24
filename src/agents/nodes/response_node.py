@@ -24,12 +24,12 @@ def _build_context(state: AgentState) -> str:
     last_action = state.get("last_action", "")
     context: dict = {"last_action": last_action}
 
-    current_date = state.get("current_date")
-    if current_date:
-        context["current_date"] = (
-            current_date.isoformat()
-            if isinstance(current_date, date)
-            else str(current_date)
+    consumed_at = state.get("consumed_at")
+    if consumed_at:
+        context["consumed_at"] = (
+            consumed_at.isoformat()
+            if isinstance(consumed_at, datetime)
+            else str(consumed_at)
         )
 
     if last_action in ("LOGGED", "FAILED", "NO_MATCH", "SELECTED"):
@@ -56,7 +56,7 @@ def _build_context(state: AgentState) -> str:
                 end_date.isoformat() if isinstance(end_date, date) else str(end_date)
             )
 
-    # For CHITCHAT or other actions, context stays minimal (just last_action + current_date)
+    # For CHITCHAT or other actions, context stays minimal (just last_action + consumed_at)
 
     return json.dumps(context, indent=2, default=_serialize_date)
 

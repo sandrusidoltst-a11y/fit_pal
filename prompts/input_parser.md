@@ -6,12 +6,16 @@ Determine the user's primary goal and select the appropriate `action`:
 
 - **LOG_FOOD**: The user is stating what they ate.
   - Examples: "I had an apple", "200g chicken", "Log a coffee".
+  - **EXTRACT CONSUMED_AT**: Output `consumed_at` (datetime) based on this hierarchy:
+    1. Exact Time provided -> Use exact time.
+    2. Relative Time (e.g. "2 hours ago") -> Parse relatively from the injected System Time.
+    3. Specific Date (e.g. "yesterday") -> Use that date at 12:00:00.
+    4. No Time mentioned -> Leave null.
 - **QUERY_DAILY_STATS**: The user is asking about their nutrition stats or logs.
   - Examples: "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days".
   - **EXTRACT DATES**: 
-    - If specific date mentioned (e.g. "yesterday", "on Monday"), set `target_date`.
     - If range mentioned (e.g. "last 3 days", "this week"), set `start_date` and `end_date`.
-    - Default: If no date specified, leave dates null (code handles default to Today).
+    - Default: If no date specified, leave dates null.
 - **QUERY_FOOD_INFO**: The user is asking about a specific food's nutrition *without* eating it.
   - Examples: "How much protein is in an egg?", "Is rice high carb?".
 - **CHITCHAT**: Greetings, small talk, or off-topic queries.
@@ -42,4 +46,4 @@ Response must be a valid JSON object matching the `FoodIntakeEvent` schema.
 - `action`: One of standard Enum values above.
 - `items`: List of food items (only for LOG_FOOD).
 - `meal_type`: Breakfast/Lunch/Dinner/Snack (optional).
-- `timestamp`: UTC datetime (optional).
+- `consumed_at`: Date and time the food was consumed (optional).

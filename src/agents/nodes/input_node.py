@@ -1,9 +1,11 @@
-from datetime import date
-from langchain_core.messages import SystemMessage
-from src.agents.state import AgentState
-from src.schemas.input_schema import FoodIntakeEvent
-from src.config import get_llm_for_node
 import os
+from datetime import datetime
+
+from langchain_core.messages import SystemMessage
+
+from src.agents.state import AgentState
+from src.config import get_llm_for_node
+from src.schemas.input_schema import FoodIntakeEvent
 
 def input_parser_node(state: AgentState):
     """
@@ -26,9 +28,13 @@ def input_parser_node(state: AgentState):
     # Get the last message from the user
     last_message = state["messages"][-1]
     
+    # Prepend the system time to the system prompt
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    system_prompt_with_time = f"The current system time is: {now_str}\n\n{system_prompt}"
+
     # Construct prompt
     messages = [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=system_prompt_with_time),
         last_message
     ]
 
@@ -47,25 +53,14 @@ def input_parser_node(state: AgentState):
         # Range query
         updates["start_date"] = result.start_date
         updates["end_date"] = result.end_date
-        updates["current_date"] = result.end_date  # Default current to end of range or today?
-        # clearer to set current_date to None or ignore it if range is set, 
-        # but let's follow the plan: "clear current_date" implies it might be None or just ignored.
-        # But AgentState definition says current_date: date (not Optional).
-        # So I must provide a date. Let's use end_date or today.
-        # The plan said: "(clear current_date)". But typeddict might complain if I set it to None if not Optional.
-        # In state.py: current_date: date. It is NOT Optional.
-        # So I should probably set it to something valid. 
-        # However, for stats lookup, if start/end are present, strictly they are used.
-        # Let's set current_date to date.today() as a fallback if not strict.
-        updates["current_date"] = date.today() 
-    elif result.target_date:
-        # Specific date
-        updates["current_date"] = result.target_date
+        updates["consumed_at"] = None
+    elif result.consumed_at:
+        updates["consumed_at"] = result.consumed_at
         updates["start_date"] = None
         updates["end_date"] = None
     else:
-        # Default to today
-        updates["current_date"] = date.today()
+        # Default to nothing
+        updates["consumed_at"] = None
         updates["start_date"] = None
         updates["end_date"] = None
 
