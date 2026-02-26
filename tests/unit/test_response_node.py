@@ -15,8 +15,7 @@ def _make_state(**overrides):
     state = {
         "messages": [HumanMessage(content="I ate 200g chicken")],
         "pending_food_items": [],
-        "daily_log_report": [],
-        "current_date": date(2026, 2, 20),
+        "consumed_at": datetime(2026, 2, 20, 12, 0),
         "start_date": None,
         "end_date": None,
         "last_action": "LOGGED",
@@ -123,8 +122,8 @@ class TestBuildContext:
         assert parsed["end_date"] == "2026-02-20"
         assert "processing_results" not in parsed
 
-    def test_chitchat_has_minimal_context(self):
-        """CHITCHAT action should only include last_action and current_date."""
+    def test_response_chitchat(self):
+        """CHITCHAT action should only include last_action and consumed_at."""
         state = _make_state(last_action="CHITCHAT")
 
         ctx = _build_context(state)
@@ -132,7 +131,7 @@ class TestBuildContext:
         parsed = json.loads(ctx)
 
         assert parsed["last_action"] == "CHITCHAT"
-        assert "current_date" in parsed
+        assert "consumed_at" in parsed
         assert "processing_results" not in parsed
         assert "daily_log_report" not in parsed
 

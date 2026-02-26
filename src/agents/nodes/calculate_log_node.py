@@ -34,12 +34,16 @@ async def calculate_log_node(state: AgentState) -> dict:
         
         if "error" not in macros:
             # Prepare timestamp
-            current_date = state.get("current_date")
+            consumed_at = state.get("consumed_at")
             now = datetime.now(timezone.utc)
             
-            if current_date:
-                # Use the state's date + current time
-                timestamp = datetime.combine(current_date, now.time()).replace(tzinfo=timezone.utc)
+            if consumed_at:
+                # If naive, assume UTC for MVP. 
+                # TODO: Phase 2 - Update 12:00 PM default to accommodate timezone rollover edge cases.
+                if consumed_at.tzinfo is None:
+                    timestamp = consumed_at.replace(tzinfo=timezone.utc)
+                else:
+                    timestamp = consumed_at
             else:
                 timestamp = now
 
@@ -58,8 +62,8 @@ async def calculate_log_node(state: AgentState) -> dict:
                 
                 # Fetch updated logs for report
                 updated_report = []
-                if current_date:
-                    logs = await daily_log_service.get_logs_by_date(session, current_date)
+                if consumed_at:
+                    logs = await daily_log_service.get_logs_by_date(session, consumed_at.date())
                     for log in logs:
                         updated_report.append({
                             "id": log.id,

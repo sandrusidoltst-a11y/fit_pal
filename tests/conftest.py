@@ -1,6 +1,5 @@
 import os
 import sys
-from datetime import date
 
 # Ensure project root is in python path - MUST be before src imports
 sys.path.append(os.getcwd())
@@ -22,7 +21,7 @@ def basic_state():
         "messages": [],
         "pending_food_items": [],
         "daily_log_report": [],
-        "current_date": date.today(),
+        "consumed_at": None,
         "start_date": None,
         "end_date": None,
         "last_action": "",

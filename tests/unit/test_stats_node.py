@@ -23,7 +23,7 @@ def mock_daily_log_service():
 async def test_stats_lookup_single_day(mock_db_session, mock_daily_log_service):
     """Test retrieving logs for a single day."""
     state = AgentState(
-        current_date=date(2023, 10, 27),
+        consumed_at=datetime(2023, 10, 27, 12, 0),
         start_date=None,
         end_date=None,
         daily_log_report=[]
@@ -63,7 +63,7 @@ async def test_stats_lookup_date_range(mock_db_session, mock_daily_log_service):
     start = date(2023, 10, 25)
     end = date(2023, 10, 27)
     state = AgentState(
-        current_date=date.today(),
+        consumed_at=datetime.today(),
         start_date=start,
         end_date=end,
         daily_log_report=[]

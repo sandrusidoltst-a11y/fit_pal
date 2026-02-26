@@ -13,16 +13,18 @@ async def stats_lookup_node(state: AgentState) -> Dict:
     """
     start_date = state.get("start_date")
     end_date = state.get("end_date")
-    current_date = state.get("current_date")
+    consumed_at = state.get("consumed_at")
 
+    from datetime import datetime, timezone
     async with get_async_db_session() as session:
         if start_date and end_date:
             logs = await daily_log_service.get_logs_by_date_range(
                 session, start_date, end_date
             )
         else:
-            # Default to current_date lookup
-            logs = await daily_log_service.get_logs_by_date(session, current_date)
+            # Default to consumed_at's date, or today
+            target_date = consumed_at.date() if consumed_at else datetime.now(timezone.utc).date()
+            logs = await daily_log_service.get_logs_by_date(session, target_date)
 
         # Convert SQLAlchemy models to TypedDict for state
         report = []

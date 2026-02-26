@@ -17,7 +17,8 @@ def base_state():
         ],
         "processing_results": [],
         "daily_log_report": [],
-        "current_date": None,
+        "consumed_at": None,
+        "start_date": None,
         "selected_food_id": 123
     }
 
