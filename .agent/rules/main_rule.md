@@ -84,4 +84,5 @@ fit_pal/
 | [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management & type safety | **BEFORE** implementing any LangGraph features |
 | [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | Testing & Logging standards | Writing tests or debugging code |
 | [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
+| [skills/skill-creator](../skills/skill-creator/SKILL.md) | Skill | Guide for creating effective skills | When extending agent capabilities with new skills |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |

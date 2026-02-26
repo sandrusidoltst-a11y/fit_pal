@@ -110,7 +110,7 @@ class AgentState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]   # ✅ Type-safe: foods to process
     daily_log_report: List[QueriedLog]          # ✅ Raw logs for detailed reasoning
-    current_date: date                          # Track which day we're logging
+    consumed_at: Optional[datetime]             # Track exact time of consumption
     start_date: Optional[date]                  # Start date for range queries
     end_date: Optional[date]                    # End date for range queries
     last_action: "GraphAction"                  # ✅ Strictly typed literal
@@ -258,8 +258,8 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Manage token limits and environment variables from a single source of truth.
 - ✅ **Asynchronous Database Migration** (Completed 2026-02-23):
   - ✅ Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
-- **Relative Time & Past Logging**:
-  - Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
+- ✅ **Relative Time & Past Logging** (Completed 2026-02-24):
+  - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
 - **The "Off-Menu" Problem (Fallback Logic)**:
   - Implement a mechanism (e.g., an LLM estimation node or external API) to handle custom, branded, or complex foods when the local database returns a `NO_MATCH` from the search tool.
 - **Database Migrations (Alembic)**: 
