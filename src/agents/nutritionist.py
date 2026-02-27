@@ -20,6 +20,8 @@ async def define_graph():
             return "food_search"
         elif action == "QUERY_DAILY_STATS":
             return "stats_lookup"
+        elif action == "CONFIRM_ESTIMATION":
+            return "calculate_log"
         return "response"
 
     def route_after_selection(state: AgentState):
@@ -27,6 +29,8 @@ async def define_graph():
         action = state.get("last_action")
         if action == "SELECTED":
             return "calculate_log"
+        elif action == "ESTIMATED":
+            return "response"
         else:  # NO_MATCH
             return "response"
 

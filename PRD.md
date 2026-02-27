@@ -260,8 +260,8 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
 - ✅ **Relative Time & Past Logging** (Completed 2026-02-24):
   - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
-- **The "Off-Menu" Problem (Fallback Logic)**:
-  - Implement a mechanism (e.g., an LLM estimation node or external API) to handle custom, branded, or complex foods when the local database returns a `NO_MATCH` from the search tool.
+- ✅ **The "Off-Menu" Problem (Fallback Logic) & HITL**:
+  - ✅ Implemented LLM macro estimation when the local database returns zero matches. Added conversational Human-in-the-Loop (HITL) confirmation flow allowing users to accept or discard estimated macros before saving.
 - **Database Migrations (Alembic)**: 
   - Install and configure Alembic to safely manage anticipated schema changes (User IDs, Targets) without destroying existing data.
 - **User Identity & Timezones**: 

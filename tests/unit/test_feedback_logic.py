@@ -73,17 +73,29 @@ async def test_calculate_log_accumulates_results(base_state):
         assert result["processing_results"][1]["status"] == "LOGGED"
 
 def test_selection_failure_no_results(base_state):
-    """Test NO_MATCH due to empty search results."""
+    """Test NO_MATCH due to empty search results and LLM declining to estimate."""
     base_state["search_results"] = []
     
-    result = agent_selection_node(base_state)
-    
-    assert result["last_action"] == "NO_MATCH"
-    assert "processing_results" in result
-    assert len(result["processing_results"]) == 1
-    res = result["processing_results"][0]
-    assert res["status"] == "FAILED"
-    assert "No search results" in res["message"]
+    with patch("src.agents.nodes.selection_node.get_llm_for_node") as mock_get_llm:
+        mock_llm = MagicMock()
+        mock_get_llm.return_value = mock_llm
+        mock_structured = MagicMock()
+        mock_llm.with_structured_output.return_value = mock_structured
+        
+        mock_structured.invoke.return_value = FoodSelectionResult(
+            food_id=None, 
+            status=SelectionStatus.NO_MATCH,
+            confidence="Cannot estimate"
+        )
+        
+        result = agent_selection_node(base_state)
+        
+        assert result["last_action"] == "NO_MATCH"
+        assert "processing_results" in result
+        assert len(result["processing_results"]) == 1
+        res = result["processing_results"][0]
+        assert res["status"] == "FAILED"
+        assert "No appropriate match found" in res["message"]
 
 def test_selection_failure_llm(base_state):
     """Test failure when LLM returns NO_MATCH or issue."""

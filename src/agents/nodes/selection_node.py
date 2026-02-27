@@ -10,33 +10,11 @@ from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
 def agent_selection_node(state: AgentState) -> dict:
     """
     Intelligently select the best food item from search results.
-
-    Handles edge cases:
-    - 0 results: Return NO_MATCH status
-    - 1 result: Auto-select
-    - N results: Use LLM to select best match
+    If no matches are found, asks the LLM to provide estimated macros.
     """
     search_results = state.get("search_results", [])
     pending_items = state.get("pending_food_items", [])
-
-    # Edge case: No search results
-    if not search_results:
-        current_item = pending_items[0] if pending_items else {}
-        if current_item:
-            fail_item = {
-                **current_item,
-                "status": "FAILED",
-                "message": f"No search results found for {current_item.get('food_name', 'item')}"
-            }
-            updated_results = state.get("processing_results", []) + [fail_item]
-        else:
-            updated_results = state.get("processing_results", [])
-
-        return {
-            "selected_food_id": None,
-            "last_action": "NO_MATCH",
-            "processing_results": updated_results
-        }
+    current_item = pending_items[0] if pending_items else {}
 
     # Edge case: Single result - auto-select
     if len(search_results) == 1:
@@ -45,7 +23,7 @@ def agent_selection_node(state: AgentState) -> dict:
             "last_action": "SELECTED",
         }
 
-    # Multiple results - use LLM selection
+    # Multiple results (or 0 results for estimation) - use LLM selection
     prompt_path = os.path.join(os.getcwd(), "prompts", "agent_selection.md")
 
     try:
@@ -59,10 +37,13 @@ def agent_selection_node(state: AgentState) -> dict:
     structured_llm = llm.with_structured_output(FoodSelectionResult)
 
     # Construct context for LLM
-    user_context = f"User input: {pending_items[0]['original_text'] if pending_items else 'Unknown'}"
-    search_context = "Search results:\n" + "\n".join(
-        [f"- ID {r['id']}: {r['name']}" for r in search_results]
-    )
+    user_context = f"User input: {pending_items[0]['original_text'] if pending_items else 'Unknown'}, Weight context: {pending_items[0].get('amount', 0)} {pending_items[0].get('unit', 'g')} if known."
+    if not search_results:
+        search_context = "Search results: [] (Empty. Must estimate macros per 100g)"
+    else:
+        search_context = "Search results:\n" + "\n".join(
+            [f"- ID {r['id']}: {r['name']}" for r in search_results]
+        )
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -71,8 +52,20 @@ def agent_selection_node(state: AgentState) -> dict:
 
     result = structured_llm.invoke(messages)
 
-    current_item = pending_items[0]
     processing_results = state.get("processing_results", [])
+
+    if result.status == SelectionStatus.ESTIMATED:
+        # User will be asked to confirm, store the estimation in state
+        return {
+            "selected_food_id": None,
+            "last_action": "ESTIMATED",
+            "current_estimation": {
+                "calories": result.estimated_calories or 0,
+                "protein": result.estimated_protein or 0,
+                "carbs": result.estimated_carbs or 0,
+                "fat": result.estimated_fat or 0,
+            }
+        }
 
     # Validate LLM response consistency
     if result.status == SelectionStatus.SELECTED and result.food_id is None:
@@ -80,7 +73,7 @@ def agent_selection_node(state: AgentState) -> dict:
         fail_item = {
             **current_item,
             "status": "FAILED",
-            "message": f"Could not select match for {current_item['food_name']}"
+            "message": f"Could not select match for {current_item.get('food_name')}"
         }
         return {
             "selected_food_id": None,
@@ -93,13 +86,25 @@ def agent_selection_node(state: AgentState) -> dict:
         fail_item = {
             **current_item,
             "status": "FAILED",
-            "message": f"Ambiguous match for {current_item['food_name']}"
+            "message": f"Ambiguous match for {current_item.get('food_name')}"
         }
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
             "processing_results": processing_results + [fail_item]
         }
+        
+    if result.status == SelectionStatus.NO_MATCH:
+         fail_item = {
+             **current_item,
+             "status": "FAILED",
+             "message": f"No appropriate match found for {current_item.get('food_name')}"
+         }
+         return {
+             "selected_food_id": None,
+             "last_action": "NO_MATCH",
+             "processing_results": processing_results + [fail_item]
+         }
 
     return {
         "selected_food_id": result.food_id,

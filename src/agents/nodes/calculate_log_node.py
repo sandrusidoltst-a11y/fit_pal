@@ -25,12 +25,23 @@ async def calculate_log_node(state: AgentState) -> dict:
     current_item = pending_items[0]
     
     
-    # Only process if we have a valid selection
-    if selected_food_id:
+    # Only process if we have a valid selection or estimation
+    if selected_food_id or state.get("current_estimation"):
         amount = current_item.get("amount", 0.0)
         
         # Calculate macros
-        macros = calculate_food_macros.invoke({"food_id": selected_food_id, "amount_g": amount})
+        if selected_food_id:
+            macros = calculate_food_macros.invoke({"food_id": selected_food_id, "amount_g": amount})
+        else:
+            estimation = state.get("current_estimation", {})
+            # Estimation is per 100g, we need to scale to amount
+            scale = amount / 100.0 if amount > 0 else 1.0
+            macros = {
+                "calories": round(estimation.get("calories", 0) * scale, 2),
+                "protein": round(estimation.get("protein", 0) * scale, 2),
+                "carbs": round(estimation.get("carbs", 0) * scale, 2),
+                "fat": round(estimation.get("fat", 0) * scale, 2),
+            }
         
         if "error" not in macros:
             # Prepare timestamp
@@ -79,10 +90,15 @@ async def calculate_log_node(state: AgentState) -> dict:
                         })
 
                 # Create success result
+                if selected_food_id:
+                    msg = f"Logged {current_item['food_name']} ({macros['calories']}kcal)"
+                else:
+                    msg = f"Logged Off-Menu item {current_item['food_name']} ({macros['calories']}kcal)"
+                    
                 result_item = {
                     **current_item,
                     "status": "LOGGED",
-                    "message": f"Logged {current_item['food_name']} ({macros['calories']}kcal)"
+                    "message": msg
                 }
                 
                 # Append to existing results
@@ -97,5 +113,6 @@ async def calculate_log_node(state: AgentState) -> dict:
         "daily_log_report": updated_report if 'updated_report' in locals() else state.get("daily_log_report", []),
         "last_action": "LOGGED",
         "selected_food_id": None,  # Reset selection
+        "current_estimation": None, # Clear estimation
         "processing_results": updated_results if 'updated_results' in locals() else state.get("processing_results", [])
     }

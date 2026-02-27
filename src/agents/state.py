@@ -56,6 +56,9 @@ GraphAction = Literal[
     "NO_MATCH",
     "AMBIGUOUS",
     "LOGGED",
+    "ESTIMATED",
+    "CONFIRM_ESTIMATION",
+    "REJECT_ESTIMATION",
 ]
 
 
@@ -110,6 +113,7 @@ class AgentState(TypedDict):
         search_results: Food search results for agent selection node.
         selected_food_id: Selected food ID from agent selection node.
         processing_results: Feedback results for multi-item processing.
+        current_estimation: Optional dictionary holding pending estimated macros.
     """
 
     messages: Annotated[List[AnyMessage], add_messages]
@@ -122,3 +126,4 @@ class AgentState(TypedDict):
     search_results: List[SearchResult]
     selected_food_id: Optional[int]
     processing_results: List["ProcessingResult"]
+    current_estimation: Optional[dict]
