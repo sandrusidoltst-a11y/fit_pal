@@ -51,16 +51,23 @@ flowchart TD
     subgraph Core_Logic [Core Logic]
         InputNode --> ToolCall{Need Macros or History?}
         
+        %% Normal Food Logging
         ToolCall -- Need Macros --> SearchTool[1. Search Food Tool]
         SearchTool --> SelectNode[Agent Selection]
-        SelectNode --> CalcTool[2. Calculate Macros & Log]
+        SelectNode -- "SELECTED \n(Match Found)" --> CalcTool[2. Calculate Min & Log]
         
+        %% HITL Estimation Flow
+        SelectNode -- "ESTIMATED \n(No Match)" --> ResponseNode
+        ToolCall -- "CONFIRM_ESTIMATION \n(Resume)" --> CalcTool
+        ToolCall -- "REJECT_ESTIMATION \n(Discard)" --> ResponseNode
+        
+        %% History Lookup
         ToolCall -- Need History --> ReadLog[3. Read Daily Logs]
         
         CalcTool --> UpdateState[Update State Node]
         ReadLog --> UpdateState
         
-        ToolCall -- No --> ResponseNode
+        ToolCall -- "No / Chitchat" --> ResponseNode
     end
     
     UpdateState --> ResponseNode[Response Node]
@@ -78,12 +85,12 @@ flowchart TD
 
 | Node | Responsibility | Input | Output |
 | :--- | :--- | :--- | :--- |
-| **Input Parser** | Extract structured data from natural language. | User Text | `FoodIntake` Pydantic Model |
+| **Input Parser** | Extract structured data and identify intents (Log, Query, Confirm/Reject). | User Text | Object matching Intent |
 | **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
-| **Agent Selection** | Intelligent selection of best match from search results. | User Msg + Results | Selected Food ID / "No Match" |
-| **Calc & Log** | Calculate macros, log to DB, and update daily state. | Food ID, Amount (g) | Updated `AgentState` |
+| **Agent Selection** | Intelligent selection of best match, or generates an estimate if no matches found. | User Msg + Results | ID, "No Match", or "Estimated" |
+| **Calc & Log** | Calculate macros (or use estimated), log to DB, and update daily state. | Food ID (or None), Amount (g) | Updated `AgentState` |
 | **Stats Lookup** | Retrieve historical log data (single day or range). | Current Date / Range | `daily_log_report` |
-| **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
+| **Response** | Generate confirmation, or ask user to approve/deny estimated macros. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
 
@@ -271,7 +278,7 @@ Stores confirmed food entries for long-term tracking.
   - Deprecate the concept of a "text file meal plan" in favor of strict, deterministic database columns (Target Calories, Protein, Carbs, Fats) per user.
 - **Remaining Macros & Assessment Reasoning**: 
   - Build out the LLM capability to perform logic against structured targets ("How many calories do I have left?" or "Can I eat this cookie?").
-- **Correction Workflow**: 
+- **Correction Workflow**:
   - Implement intents to allow users to update or delete past erroneous entries without relying on risky direct-database modifications.
 - **Context Limit Management**: 
   - Introduce an automated trimming sequence within the graph to prune the `messages` array, preventing token overflow while preserving necessary recent dialogue.
