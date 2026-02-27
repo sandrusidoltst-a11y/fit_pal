@@ -74,6 +74,7 @@ fit_pal/
 - **LLM Response Validation**: Code-level validation catches inconsistent LLM responses (e.g., SELECTED without food_id).
 - **Multi-Item Loop**: Graph conditional routing processes food items sequentially with loop-back edges.
 - **Asynchronous DB & Graph**: Usage of `sqlalchemy.ext.asyncio` with `aiosqlite` for non-blocking database queries, and `AsyncSqliteSaver` as the LangGraph checkpointer. Both sync and async DB engines are maintained to support legacy LangChain `@tool`s.
+- **Human-in-the-Loop (HITL)**: Graph routing supports pausing execution (e.g., routing to Response Node on `ESTIMATED` status) to ask the user for confirmation, then resuming safely downstream (e.g., straight to Calculation via `CONFIRM_ESTIMATION` intent).
 
 ## 6. Reference Table
 | File / Resource | Type | Purpose | When to Read |
