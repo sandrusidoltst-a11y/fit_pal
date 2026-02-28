@@ -1,4 +1,4 @@
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # noqa: F401 — re-exported for callers
 from langgraph.graph import END, StateGraph
 
 from src.agents.nodes.calculate_log_node import calculate_log_node
@@ -10,7 +10,8 @@ from src.agents.nodes.stats_node import stats_lookup_node
 from src.agents.state import AgentState, InputState, OutputState
 
 
-async def define_graph():
+async def define_graph(**kwargs):
+    checkpointer = kwargs.get("checkpointer")
     # Initialize the graph with the AgentState
     workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState)
 
@@ -83,6 +84,4 @@ async def define_graph():
     workflow.add_edge("stats_lookup", "response")
     workflow.add_edge("response", END)
 
-    memory = AsyncSqliteSaver.from_conn_string("data/checkpoints.sqlite")
-
-    return workflow.compile(checkpointer=memory)
+    return workflow.compile(checkpointer=checkpointer)
