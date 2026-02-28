@@ -33,7 +33,10 @@ tests/
 │   ├── test_state_consistency.py
 │   └── test_stats_node.py
 └── integration/              # Slower, real LLM or real DB file, run deliberately
-    └── test_llm_prompts.py   # Prompt quality tests — real LLM calls
+    ├── __init__.py
+    ├── test_llm_prompts.py   # Prompt quality tests — real LLM calls
+    ├── test_food_db.py       # Real DB lookup tests
+    └── test_graph_compilation.py # Real MemorySaver compilation tests
 ```
 
 **Rule**: The folder name is the test type. No `@pytest.mark.llm` decorators needed — the folder structure is the organiser.
@@ -143,8 +146,11 @@ These flows must never lose test coverage. If you touch these areas, verify thei
 |---|---|---|
 | `basic_state` | `tests/conftest.py` | A complete `AgentState` dict with all keys set to empty defaults |
 | `async_test_db_session` | `tests/conftest.py` | Real async in-memory SQLite with `FoodItem(id=1)` seeded |
-
-**Anti-pattern to avoid**: `mock_db_session` and `mock_calculate_macros` are currently duplicated in `test_calculate_log_node.py` and `test_multi_item_loop.py`. These should be moved to `conftest.py`.
+| `mock_calculate_log_db_session` | `tests/conftest.py` | Mock AsyncSession for calculate_log_node |
+| `mock_daily_log_service_for_calc` | `tests/conftest.py` | Mock daily_log_service for calculate_log_node |
+| `mock_calculate_macros` | `tests/conftest.py` | Mock calculate_food_macros tool |
+| `mock_stats_db_session` | `tests/conftest.py` | Mock AsyncSession for stats_node |
+| `mock_daily_log_service_for_stats` | `tests/conftest.py` | Mock daily_log_service for stats_node |
 
 ---
 
@@ -197,10 +203,12 @@ uv run pytest --lf -v
 
 ## 9. Known Tech Debt
 
-These are existing test files that violate the rules above. They should be refactored when their area of code is next touched.
+All previously identified tech debt items have been resolved:
 
-| File | Issue | Required Fix |
-|---|---|---|
-| `tests/unit/test_input_parser.py` | Calls real LLM — non-deterministic in unit suite | Refactor to mock `get_llm_for_node`, move real-LLM version to `tests/integration/` |
-| `tests/unit/test_food_search_node.py` | Hits real `nutrition.db` file on disk | Mock the DB tool, or move to `tests/integration/` |
-| `test_calculate_log_node.py` + `test_multi_item_loop.py` | Duplicate `mock_db_session` and `mock_calculate_macros` fixtures | Move shared fixtures to `tests/conftest.py` |
+| Item | Resolution |
+|---|---|
+| `test_input_parser.py` calling real LLM | Refactored to mock LLM. Real-LLM tests moved to `tests/integration/test_llm_prompts.py` |
+| `test_food_search_node.py` hitting real DB | Refactored to mock `search_food`. Real-DB tests moved to `tests/integration/test_food_db.py` |
+| Duplicate `mock_db_session` / `mock_calculate_macros` | Consolidated into `tests/conftest.py` as shared fixtures |
+| Missing `tests/integration/` directory | Created with `test_llm_prompts.py`, `test_food_db.py`, `test_graph_compilation.py` |
+| `tests/test_food_lookup.py` outside folder structure | Moved to `tests/integration/test_food_db.py`, old file deleted |

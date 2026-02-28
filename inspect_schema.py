@@ -1,5 +1,4 @@
 import sqlite3
-import pandas as pd
 
 try:
     conn = sqlite3.connect('data/nutrition.db')

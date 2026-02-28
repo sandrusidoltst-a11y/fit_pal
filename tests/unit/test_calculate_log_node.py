@@ -1,32 +1,9 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from datetime import date, datetime, timezone
 from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.state import AgentState
 
-@pytest.fixture
-def mock_db_session():
-    with patch("src.agents.nodes.calculate_log_node.get_async_db_session") as mock:
-        session = AsyncMock()
-        mock.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock.return_value.__aexit__ = AsyncMock(return_value=False)
-        yield session
-
-@pytest.fixture
-def mock_daily_log_service():
-    with patch("src.agents.nodes.calculate_log_node.daily_log_service") as mock:
-        # Make the service functions return coroutines when awaited
-        mock.create_log_entry = AsyncMock()
-        mock.get_logs_by_date = AsyncMock(return_value=[])
-        mock.get_logs_by_date_range = AsyncMock(return_value=[])
-        yield mock
-
-@pytest.fixture
-def mock_calculate_macros():
-    with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock:
-        yield mock
-
-async def test_calculate_log_node_success(mock_db_session, mock_daily_log_service, mock_calculate_macros):
+async def test_calculate_log_node_success(mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros):
     # Setup
     mock_calculate_macros.invoke.return_value = {
         "name": "Test Food",
@@ -50,7 +27,7 @@ async def test_calculate_log_node_success(mock_db_session, mock_daily_log_servic
     log_mock.meal_type = "Lunch"
     log_mock.original_text = "100g test food"
     
-    mock_daily_log_service.get_logs_by_date = AsyncMock(return_value=[log_mock])
+    mock_daily_log_service_for_calc.get_logs_by_date = AsyncMock(return_value=[log_mock])
 
     state = AgentState(
         pending_food_items=[{
@@ -76,8 +53,8 @@ async def test_calculate_log_node_success(mock_db_session, mock_daily_log_servic
     # Assert logic
     mock_calculate_macros.invoke.assert_called_once_with({"food_id": 123, "amount_g": 100.0})
     
-    mock_daily_log_service.create_log_entry.assert_called_once()
-    call_args = mock_daily_log_service.create_log_entry.call_args[1]
+    mock_daily_log_service_for_calc.create_log_entry.assert_called_once()
+    call_args = mock_daily_log_service_for_calc.create_log_entry.call_args[1]
     assert call_args["food_id"] == 123
     assert call_args["amount_g"] == 100.0
     assert call_args["calories"] == 200
@@ -96,7 +73,7 @@ async def test_calculate_log_node_success(mock_db_session, mock_daily_log_servic
     assert len(result["processing_results"]) == 1
     assert result["processing_results"][0]["status"] == "LOGGED"
 
-async def test_calculate_log_node_no_selection_or_processed(mock_db_session, mock_daily_log_service, mock_calculate_macros):
+async def test_calculate_log_node_no_selection_or_processed(mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros):
     # Setup
     state = AgentState(
         pending_food_items=[{"food_name": "Test", "amount": 100.0, "unit": "g", "original_text": "test"}],
@@ -116,13 +93,13 @@ async def test_calculate_log_node_no_selection_or_processed(mock_db_session, moc
 
     # Assert
     mock_calculate_macros.invoke.assert_not_called()
-    mock_daily_log_service.create_log_entry.assert_not_called()
+    mock_daily_log_service_for_calc.create_log_entry.assert_not_called()
     assert result["pending_food_items"] == [] # Should still remove item to avoid loop
     assert result["selected_food_id"] is None
     # Report should remain unchanged (empty list in this case)
     assert result["daily_log_report"] == []
 
-async def test_calculate_log_node_macro_error(mock_db_session, mock_daily_log_service, mock_calculate_macros):
+async def test_calculate_log_node_macro_error(mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros):
     # Setup
     mock_calculate_macros.invoke.return_value = {"error": "Food not found"}
     
@@ -143,7 +120,7 @@ async def test_calculate_log_node_macro_error(mock_db_session, mock_daily_log_se
     result = await calculate_log_node(state)
 
     # Assert
-    mock_daily_log_service.create_log_entry.assert_not_called()
+    mock_daily_log_service_for_calc.create_log_entry.assert_not_called()
     # Report should remain unchanged
     assert result["daily_log_report"] == [{"id": 1}]
     assert result["pending_food_items"] == []

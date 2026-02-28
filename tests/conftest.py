@@ -9,6 +9,8 @@ import pytest_asyncio
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from unittest.mock import AsyncMock, patch
+
 from src.models import Base, FoodItem
 
 load_dotenv()
@@ -59,3 +61,44 @@ async def async_test_db_session():
         yield session
 
     await engine.dispose()
+
+
+@pytest.fixture
+def mock_calculate_log_db_session():
+    with patch("src.agents.nodes.calculate_log_node.get_async_db_session") as mock:
+        session = AsyncMock()
+        mock.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock.return_value.__aexit__ = AsyncMock(return_value=False)
+        yield session
+
+
+@pytest.fixture
+def mock_daily_log_service_for_calc():
+    with patch("src.agents.nodes.calculate_log_node.daily_log_service") as mock:
+        mock.create_log_entry = AsyncMock()
+        mock.get_logs_by_date = AsyncMock(return_value=[])
+        mock.get_logs_by_date_range = AsyncMock(return_value=[])
+        yield mock
+
+
+@pytest.fixture
+def mock_calculate_macros():
+    with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_stats_db_session():
+    with patch("src.agents.nodes.stats_node.get_async_db_session") as mock:
+        session = AsyncMock()
+        mock.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock.return_value.__aexit__ = AsyncMock(return_value=False)
+        yield session
+
+
+@pytest.fixture
+def mock_daily_log_service_for_stats():
+    with patch("src.agents.nodes.stats_node.daily_log_service") as mock:
+        mock.get_logs_by_date = AsyncMock(return_value=[])
+        mock.get_logs_by_date_range = AsyncMock(return_value=[])
+        yield mock

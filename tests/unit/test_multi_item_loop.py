@@ -1,43 +1,18 @@
-from unittest.mock import AsyncMock, patch
 
-import pytest
 from src.agents.nodes.calculate_log_node import calculate_log_node
 
 
-@pytest.fixture
-def mock_db_session():
-    with patch("src.agents.nodes.calculate_log_node.get_async_db_session") as mock:
-        session = AsyncMock()
-        mock.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock.return_value.__aexit__ = AsyncMock(return_value=False)
-        yield session
-
-
-@pytest.fixture
-def mock_daily_log_service():
-    with patch("src.agents.nodes.calculate_log_node.daily_log_service") as mock:
-        mock.create_log_entry = AsyncMock()
-        mock.get_logs_by_date = AsyncMock(return_value=[])
-        yield mock
-
-
-@pytest.fixture
-def mock_calculate_macros():
-    with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock:
-        mock.invoke.return_value = {
-            "name": "Test Food",
-            "amount_g": 100,
-            "calories": 200,
-            "protein": 20,
-            "carbs": 10,
-            "fat": 5,
-        }
-        yield mock
-
-
 async def test_calculate_log_removes_first_item(
-    basic_state, mock_db_session, mock_daily_log_service, mock_calculate_macros
+    basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros
 ):
+    mock_calculate_macros.invoke.return_value = {
+        "name": "Test Food",
+        "amount_g": 100,
+        "calories": 200,
+        "protein": 20,
+        "carbs": 10,
+        "fat": 5,
+    }
     """Test that calculate_log_node removes the first pending item."""
     basic_state["pending_food_items"] = [
         {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
@@ -62,9 +37,17 @@ async def test_calculate_log_empty_pending(basic_state):
 
 
 async def test_calculate_log_single_item(
-    basic_state, mock_db_session, mock_daily_log_service, mock_calculate_macros
+    basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros
 ):
     """Test that calculate_log_node processes single item correctly."""
+    mock_calculate_macros.invoke.return_value = {
+        "name": "Test Food",
+        "amount_g": 100,
+        "calories": 200,
+        "protein": 20,
+        "carbs": 10,
+        "fat": 5,
+    }
     basic_state["pending_food_items"] = [
         {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "an apple"},
     ]
@@ -91,9 +74,17 @@ async def test_multi_item_state_setup(basic_state):
 
 
 async def test_sequential_item_removal(
-    basic_state, mock_db_session, mock_daily_log_service, mock_calculate_macros
+    basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros
 ):
     """Test that items are removed sequentially as they are processed."""
+    mock_calculate_macros.invoke.return_value = {
+        "name": "Test Food",
+        "amount_g": 100,
+        "calories": 200,
+        "protein": 20,
+        "carbs": 10,
+        "fat": 5,
+    }
     items = [
         {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
         {"food_name": "rice", "amount": 200.0, "unit": "g", "original_text": "200g rice"},
