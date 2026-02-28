@@ -19,11 +19,8 @@ async def test_integration_full_flow():
          patch("src.agents.nutritionist.food_search_node") as mock_search, \
          patch("src.agents.nutritionist.agent_selection_node") as mock_select, \
          patch("src.agents.nutritionist.calculate_log_node") as mock_calc, \
-         patch("src.agents.nodes.response_node.get_llm_for_node") as mock_get_llm, \
-         patch("src.agents.nutritionist.AsyncSqliteSaver") as mock_mem:
+         patch("src.agents.nodes.response_node.get_llm_for_node") as mock_get_llm:
 
-        # Use MemorySaver as a valid checkpointer replacement
-        mock_mem.from_conn_string.return_value = MemorySaver()
         mock_get_llm.return_value = mock_llm
 
         # Simulating a flow where one item is successfully processed
@@ -64,8 +61,8 @@ async def test_integration_full_flow():
             "last_action": "LOGGED"
         }
 
-        # Build the graph (define_graph is now async)
-        app = await define_graph()
+        # Build the graph with an in-memory checkpointer for testing
+        app = await define_graph(checkpointer=MemorySaver())
 
         # Invoke with user message (use ainvoke for async graph)
         final_state = await app.ainvoke(
