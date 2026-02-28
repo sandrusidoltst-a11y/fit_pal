@@ -18,6 +18,10 @@ Determine the user's primary goal and select the appropriate `action`:
     - Default: If no date specified, leave dates null.
 - **QUERY_FOOD_INFO**: The user is asking about a specific food's nutrition *without* eating it.
   - Examples: "How much protein is in an egg?", "Is rice high carb?".
+- **CONFIRM_ESTIMATION**: The user is approving a previous macro estimation.
+  - Examples: "Yes", "Do it", "Log it", "Looks good".
+- **REJECT_ESTIMATION**: The user is rejecting a previous macro estimation or canceling.
+  - Examples: "No", "Cancel", "Nevermind", "Don't log that".
 - **CHITCHAT**: Greetings, small talk, or off-topic queries.
   - Examples: "Hi", "Who are you?", "Help".
 

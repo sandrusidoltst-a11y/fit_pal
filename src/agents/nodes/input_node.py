@@ -64,4 +64,15 @@ def input_parser_node(state: AgentState):
         updates["start_date"] = None
         updates["end_date"] = None
 
+    if result.action.value == "REJECT_ESTIMATION":
+        pending = state.get("pending_food_items", [])
+        if pending:
+            updates["pending_food_items"] = pending[1:]
+        else:
+            updates["pending_food_items"] = []
+        updates["current_estimation"] = None
+    elif result.action.value == "CONFIRM_ESTIMATION":
+        # Do not override pending items, keep them as is
+        del updates["pending_food_items"]
+        
     return updates

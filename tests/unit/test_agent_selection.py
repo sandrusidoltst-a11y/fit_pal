@@ -1,16 +1,41 @@
 from src.agents.nodes.selection_node import agent_selection_node
 
 
-def test_selection_no_results(basic_state):
-    """Test handling of empty search results."""
+from unittest.mock import MagicMock, patch
+from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
+
+@patch("src.agents.nodes.selection_node.get_llm_for_node")
+def test_selection_no_results_estimation(mock_get_llm, basic_state):
+    """Test handling of empty search results triggers estimation."""
+    mock_llm = MagicMock()
+    mock_structured_llm = MagicMock()
+    
+    # Mock LLM returning ESTIMATED
+    result_mock = FoodSelectionResult(
+        status=SelectionStatus.ESTIMATED, 
+        food_id=None,
+        confidence="It's off-menu",
+        estimated_calories=200.0,
+        estimated_protein=10.0,
+        estimated_carbs=20.0,
+        estimated_fat=5.0
+    )
+    mock_structured_llm.invoke.return_value = result_mock
+    mock_llm.with_structured_output.return_value = mock_structured_llm
+    mock_get_llm.return_value = mock_llm
+
     basic_state["search_results"] = []
-    basic_state["pending_food_items"] = [{"food_name": "xyz", "amount": 100.0, "unit": "g", "original_text": "xyz"}]
+    basic_state["pending_food_items"] = [{"food_name": "Zinger Burger", "amount": 100.0, "unit": "g", "original_text": "Zinger Burger"}]
 
     result = agent_selection_node(basic_state)
 
     assert result["selected_food_id"] is None
-    assert result["last_action"] == "NO_MATCH"
-
+    assert result["last_action"] == "ESTIMATED"
+    assert "current_estimation" in result
+    assert result["current_estimation"]["calories"] == 200.0
+    assert result["current_estimation"]["protein"] == 10.0
+    assert result["current_estimation"]["carbs"] == 20.0
+    assert result["current_estimation"]["fat"] == 5.0
 
 def test_selection_single_result(basic_state):
     """Test auto-selection with single search result."""
