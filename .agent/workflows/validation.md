@@ -6,6 +6,7 @@ description: Comprehensive project validation and code review
 
 Ensure project quality through automated checks and systematic review.
 
+
 ## 1. Automated Validation
 
 **Goal**: Run standard checks to catch errors early.
@@ -17,8 +18,8 @@ Ensure project quality through automated checks and systematic review.
     - Backend: `uv run mypy backend/`
     - Frontend: `npm run typecheck`
 3.  **Unit Tests**:
-    - Backend: `uv run pytest -v`
-    - Frontend: `npm test`
+    - Pre-commit (fast): `uv run pytest tests/unit/ -v`
+    - Full suite (before deploy): `uv run pytest tests/ -v`
 4.  **Test Coverage** (Optional):
     - `uv run pytest --cov=backend`
 5.  **Build**:
