@@ -85,8 +85,27 @@ fit_pal/
 | [PRD.md](../../PRD.md) | Documentation | Requirements, features, and specs | Start of project / Feature planning |
 | [venv-enforcement.md](venv-enforcement.md) | Rule | Python environment management | Before installing packages or running scripts |
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
+| [reference/test-strategy.md](../reference/test-strategy.md) | Reference | FitPal testing rules, mock boundaries, validation commands | Before writing any test, before running `/validation`, when a test fails unexpectedly |
 | [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management & type safety | **BEFORE** implementing any LangGraph features |
-| [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | Testing & Logging standards | Writing tests or debugging code |
+| [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | **How** to write tests — pytest syntax, AsyncMock patterns, structlog setup | When writing test code and you need implementation guidance |
 | [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
 | [skills/skill-creator](../skills/skill-creator/SKILL.md) | Skill | Guide for creating effective skills | When extending agent capabilities with new skills |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |
+
+## 8. Validation Commands
+
+Run these before every commit and after every implementation task.
+
+```bash
+# Pre-commit — mandatory gate (fast, ~15s, unit tests only)
+uv run pytest tests/unit/ -v
+
+# Full suite — before deploy or after schema/prompt changes (~60s)
+uv run pytest tests/ -v
+
+# Single file — during active development
+uv run pytest tests/unit/test_<specific>.py -v
+
+# Last-failed only — fix-and-retry loop
+uv run pytest --lf -v
+```
