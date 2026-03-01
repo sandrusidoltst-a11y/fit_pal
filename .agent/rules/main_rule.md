@@ -50,7 +50,8 @@ fit_pal/
 │   └── config.py            # Environment & LLM setup
 ├── tests/
 │   ├── unit/                # Fast, deterministic tests (mocked DB/LLM)
-│   ├── integration/         # Slower integration tests (real DB/LLM checkpoints)
+│   ├── integration/         # Slower tests (real DB / real LLM / graph compilation)
+│   ├── graph_api/           # End-to-end graph flow tests via langgraph-sdk
 │   └── conftest.py          # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
@@ -62,6 +63,7 @@ fit_pal/
 
 ## 4. MCP Servers
 - **playwright**: Browser automation and interaction tools.
+- **docs-langchain**: LangChain/LangGraph documentation search. Use when implementing LangGraph features or researching SDK patterns.
 
 ## 5. Architectural Patterns
 - **Multiple Schemas**: Defines `InputState`, `OutputState`, and `AgentState`. Allows external callers (like LangSmith Studio) to interact via a clean, narrow public API (chat messages), while internally retaining robust task-specific state fields.
@@ -84,7 +86,7 @@ fit_pal/
 | [main_rule.md](main_rule.md) | Rule | Project overview and rules | New session / Context loading |
 | [reference/test-strategy.md](../reference/test-strategy.md) | Reference | FitPal testing rules, mock boundaries, validation commands | Before writing any test, before running `/validation`, when a test fails unexpectedly |
 | [skills/langchain-architecture](../skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management & type safety | **BEFORE** implementing any LangGraph features |
-| [skills/testing-and-logging](../skills/testing-and-logging/SKILL.md) | Skill | **How** to write tests — pytest syntax, AsyncMock patterns, structlog setup | When writing test code and you need implementation guidance |
+| [skills/test-engineering](../skills/test-engineering/SKILL.md) | Skill | **How** to write tests — file headers, AAA docstrings, mock patterns, graph-api flows | Before writing any test; when a test fails unexpectedly; when adding a new node/route/schema |
 | [skills/langsmith-fetch](../skills/langsmith-fetch/SKILL.md) | Skill | Debug LangChain traces | Troubleshooting agent behavior |
 | [skills/skill-creator](../skills/skill-creator/SKILL.md) | Skill | Guide for creating effective skills | When extending agent capabilities with new skills |
 | [workflows/sync_context.md](../workflows/sync_context.md) | Workflow | Sync docs with project state | Periodic context checks |
@@ -99,6 +101,9 @@ uv run pytest tests/unit/ -v
 
 # Full suite — before deploy or after schema/prompt changes (~60s)
 uv run pytest tests/ -v
+
+# Graph-API suite — after changing graph edges/nodes (requires: uv run langgraph dev)
+uv run pytest tests/graph_api/ -v -s
 
 # Single file — during active development
 uv run pytest tests/unit/test_<specific>.py -v

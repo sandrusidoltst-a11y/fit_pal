@@ -154,15 +154,17 @@ fit_pal/
 │   ├── tools/
 │   │   └── food_lookup.py   # Database search logic
 │   ├── schemas/             # Pydantic models
-│   │   └── input_schema.py  # FoodIntakeEvent schema
+│   │   ├── input_schema.py  # FoodIntakeEvent schema
+│   │   └── selection_schema.py # FoodSelectionResult schema
 │   ├── database.py          # Database connection
 │   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
 ├── tests/
-│   ├── unit/                # Unit tests (pytest)
-│   ├── conftest.py          # Pytest fixtures
-│   └── test_food_lookup.py  # Legacy/Integration tests
+│   ├── unit/                # Fast, deterministic tests (mocked DB/LLM)
+│   ├── integration/         # Slower tests (real DB / real LLM / graph compilation)
+│   ├── graph_api/           # End-to-end graph flow tests via langgraph-sdk
+│   └── conftest.py          # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
 ├── langgraph.json       # LangSmith Studio configuration
