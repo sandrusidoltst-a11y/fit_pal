@@ -1,4 +1,4 @@
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # noqa: F401 — re-exported for callers
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # type: ignore # noqa: F401 — re-exported for callers
 from langgraph.graph import END, StateGraph
 
 from src.agents.nodes.calculate_log_node import calculate_log_node

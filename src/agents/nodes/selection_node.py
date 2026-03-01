@@ -3,8 +3,9 @@ import os
 from langchain_core.messages import HumanMessage, SystemMessage
 from src.config import get_llm_for_node
 
-from src.agents.state import AgentState
+from src.agents.state import AgentState, ProcessingResult
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
+from typing import cast
 
 
 def agent_selection_node(state: AgentState) -> dict:
@@ -21,13 +22,13 @@ def agent_selection_node(state: AgentState) -> dict:
 
     # Edge case: No search results
     if not search_results:
-        current_item = pending_items[0] if pending_items else {}
+        current_item = pending_items[0] if pending_items else None
         if current_item:
-            fail_item = {
+            fail_item = cast(ProcessingResult, {
                 **current_item,
                 "status": "FAILED",
                 "message": f"No search results found for {current_item.get('food_name', 'item')}"
-            }
+            })
             updated_results = state.get("processing_results", []) + [fail_item]
         else:
             updated_results = state.get("processing_results", [])
@@ -77,11 +78,11 @@ def agent_selection_node(state: AgentState) -> dict:
     # Validate LLM response consistency
     if result.status == SelectionStatus.SELECTED and result.food_id is None:
         print("Warning: LLM returned SELECTED without food_id, treating as NO_MATCH")
-        fail_item = {
+        fail_item = cast(ProcessingResult, {
             **current_item,
             "status": "FAILED",
             "message": f"Could not select match for {current_item['food_name']}"
-        }
+        })
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
@@ -90,15 +91,15 @@ def agent_selection_node(state: AgentState) -> dict:
 
     if result.status == SelectionStatus.AMBIGUOUS:
         print("Warning: LLM returned AMBIGUOUS (not supported in MVP), treating as NO_MATCH")
-        fail_item = {
+        fail_item2 = cast(ProcessingResult, {
             **current_item,
             "status": "FAILED",
             "message": f"Ambiguous match for {current_item['food_name']}"
-        }
+        })
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
-            "processing_results": processing_results + [fail_item]
+            "processing_results": processing_results + [fail_item2]
         }
 
     return {

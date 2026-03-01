@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
+from typing import Optional
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy import Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -11,15 +12,15 @@ class Base(DeclarativeBase):
 class FoodItem(Base):
     __tablename__ = "food_items"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, index=True)
-    calories = Column(Float)
-    protein = Column(Float)
-    fat = Column(Float)
-    carbs = Column(Float)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    calories: Mapped[Optional[float]] = mapped_column(Float)
+    protein: Mapped[Optional[float]] = mapped_column(Float)
+    fat: Mapped[Optional[float]] = mapped_column(Float)
+    carbs: Mapped[Optional[float]] = mapped_column(Float)
 
     # Relationship: one FoodItem -> many DailyLog entries
-    logs = relationship("DailyLog", back_populates="food_item")
+    logs: Mapped[list["DailyLog"]] = relationship("DailyLog", back_populates="food_item")
 
 
 class DailyLog(Base):
@@ -27,32 +28,32 @@ class DailyLog(Base):
 
     __tablename__ = "daily_logs"
 
-    id = Column(Integer, primary_key=True)
-    food_id = Column(Integer, ForeignKey("food_items.id"), nullable=False)
-    amount_g = Column(Float, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    food_id: Mapped[int] = mapped_column(Integer, ForeignKey("food_items.id"), nullable=False)
+    amount_g: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Nutritional values (denormalized for fast aggregation)
-    calories = Column(Float, nullable=False)
-    protein = Column(Float, nullable=False)
-    carbs = Column(Float, nullable=False)
-    fat = Column(Float, nullable=False)
+    calories: Mapped[float] = mapped_column(Float, nullable=False)
+    protein: Mapped[float] = mapped_column(Float, nullable=False)
+    carbs: Mapped[float] = mapped_column(Float, nullable=False)
+    fat: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Temporal data
-    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
-    meal_type = Column(String, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    meal_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Audit trail
-    created_at = Column(
+    created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    updated_at = Column(
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
     # Optional: preserve user input
-    original_text = Column(String, nullable=True)
+    original_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Relationship
-    food_item = relationship("FoodItem", back_populates="logs")
+    food_item: Mapped["FoodItem"] = relationship("FoodItem", back_populates="logs")

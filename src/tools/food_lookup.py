@@ -34,13 +34,18 @@ def calculate_food_macros(food_id: int, amount_g: float) -> dict:
         # Calculate ratio
         ratio = amount_g / 100.0
         
+        calories = food.calories or 0.0
+        protein = food.protein or 0.0
+        fat = food.fat or 0.0
+        carbs = food.carbs or 0.0
+        
         return {
             "name": food.name,
             "amount_g": amount_g,
-            "calories": round(food.calories * ratio, 2),
-            "protein": round(food.protein * ratio, 2),
-            "fat": round(food.fat * ratio, 2),
-            "carbs": round(food.carbs * ratio, 2)
+            "calories": round(calories * ratio, 2),
+            "protein": round(protein * ratio, 2),
+            "fat": round(fat * ratio, 2),
+            "carbs": round(carbs * ratio, 2)
         }
     finally:
         session.close()
