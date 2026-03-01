@@ -282,6 +282,7 @@ dependencies = [
 dev = [
     { name = "anyio" },
     { name = "langgraph-cli", extra = ["inmem"] },
+    { name = "langgraph-sdk" },
     { name = "langsmith-fetch" },
     { name = "pandas-stubs" },
     { name = "pytest" },
@@ -308,6 +309,7 @@ requires-dist = [
 dev = [
     { name = "anyio", specifier = ">=4.0.0" },
     { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.4.12" },
+    { name = "langgraph-sdk", specifier = ">=0.3.8" },
     { name = "langsmith-fetch", specifier = ">=0.3.1" },
     { name = "pandas-stubs", specifier = ">=3.0.0.260204" },
     { name = "pytest", specifier = ">=9.0.2" },
