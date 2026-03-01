@@ -49,9 +49,9 @@ fit_pal/
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
 ├── tests/
-│   ├── unit/                # Unit tests (pytest)
-│   ├── conftest.py          # Pytest fixtures
-│   └── test_food_lookup.py  # Legacy/Integration tests
+│   ├── unit/                # Fast, deterministic tests (mocked DB/LLM)
+│   ├── integration/         # Slower integration tests (real DB/LLM checkpoints)
+│   └── conftest.py          # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
 ├── langgraph.json       # LangSmith Studio configuration
@@ -65,6 +65,7 @@ fit_pal/
 
 ## 5. Architectural Patterns
 - **Multiple Schemas**: Defines `InputState`, `OutputState`, and `AgentState`. Allows external callers (like LangSmith Studio) to interact via a clean, narrow public API (chat messages), while internally retaining robust task-specific state fields.
+- **Strict Typing for Typecheckers**: SQLAlchemy models use `Mapped[T]` and `mapped_column()` over legacy `Column()` descriptors for `mypy` support. LangGraph typed states safely fallback missing parameters to `None` instead of generic objects (`{}`).
 - **TypedDict for State**: `AgentState` uses nested TypedDict schemas (PendingFoodItem, SearchResult, QueriedLog) for type safety and clean serialization.
 - **Pydantic for LLM Output**: Structured output validation with `.with_structured_output()`, then `.model_dump()` to dict.
 - **Configuration Dictionary Pattern**: Used in `src/config.py` to centrally manage LLM instantiations (`get_llm_for_node`), allowing fallback globals from `.env` and node-specific parameters (like temperature) without hardcoding models in nodes.
