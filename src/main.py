@@ -11,7 +11,7 @@ async def main():
     print("Initializing FitPal Agent...")
     try:
         async with AsyncSqliteSaver.from_conn_string("data/checkpoints.sqlite") as memory:
-            app = await define_graph(checkpointer=memory)
+            await define_graph(checkpointer=memory)
             print("Graph compiled successfully.")
             print("FitPal Agent is ready.")
     except Exception as e:
