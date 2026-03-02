@@ -35,13 +35,13 @@ def test_calculate_food_macros():
     assert macros_200["fat"] == pytest.approx(macros_100["fat"] * 2, abs=0.1)
     assert macros_200["carbs"] == pytest.approx(macros_100["carbs"] * 2, abs=0.1)
 
-def test_food_search_node_real_db(basic_state):
+async def test_food_search_node_real_db(basic_state):
     """Integration test using the real database search."""
     basic_state["pending_food_items"] = [
         {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"}
     ]
 
-    result = food_search_node(basic_state)
+    result = await food_search_node(basic_state)
 
     assert "search_results" in result
     assert isinstance(result["search_results"], list)

@@ -82,9 +82,12 @@ def mock_daily_log_service_for_calc():
 
 
 @pytest.fixture
-def mock_calculate_macros():
-    with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock:
-        yield mock
+def mock_food_search_db_session():
+    with patch("src.agents.nodes.food_search_node.get_async_db_session") as mock:
+        session = AsyncMock()
+        mock.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock.return_value.__aexit__ = AsyncMock(return_value=False)
+        yield session
 
 
 @pytest.fixture

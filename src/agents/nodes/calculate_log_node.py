@@ -2,8 +2,9 @@ from datetime import datetime, timezone
 
 from src.agents.state import AgentState
 from src.database import get_async_db_session
+from src.models import FoodItem
 from src.services import daily_log_service
-from src.tools.food_lookup import calculate_food_macros
+from src.tools.food_lookup import compute_food_macros
 
 
 async def calculate_log_node(state: AgentState) -> dict:
@@ -23,31 +24,36 @@ async def calculate_log_node(state: AgentState) -> dict:
 
     # Get first item
     current_item = pending_items[0]
-    
-    
+
+
     # Only process if we have a valid selection
     if selected_food_id:
         amount = current_item.get("amount", 0.0)
-        
-        # Calculate macros
-        macros = calculate_food_macros.invoke({"food_id": selected_food_id, "amount_g": amount})
-        
-        if "error" not in macros:
-            # Prepare timestamp
-            consumed_at = state.get("consumed_at")
-            now = datetime.now(timezone.utc)
-            
-            if consumed_at:
-                # If naive, assume UTC for MVP. 
-                # TODO: Phase 2 - Update 12:00 PM default to accommodate timezone rollover edge cases.
-                if consumed_at.tzinfo is None:
-                    timestamp = consumed_at.replace(tzinfo=timezone.utc)
-                else:
-                    timestamp = consumed_at
-            else:
-                timestamp = now
 
-            async with get_async_db_session() as session:
+        async with get_async_db_session() as session:
+            # Look up food item asynchronously
+            food = await session.get(FoodItem, selected_food_id)
+
+            if not food:
+                macros = {"error": f"Food item with ID {selected_food_id} not found"}
+            else:
+                macros = compute_food_macros(food, amount)
+
+            if "error" not in macros:
+                # Prepare timestamp
+                consumed_at = state.get("consumed_at")
+                now = datetime.now(timezone.utc)
+
+                if consumed_at:
+                    # If naive, assume UTC for MVP.
+                    # TODO: Phase 2 - Update 12:00 PM default to accommodate timezone rollover edge cases.
+                    if consumed_at.tzinfo is None:
+                        timestamp = consumed_at.replace(tzinfo=timezone.utc)
+                    else:
+                        timestamp = consumed_at
+                else:
+                    timestamp = now
+
                 await daily_log_service.create_log_entry(
                     session=session,
                     food_id=selected_food_id,
@@ -59,7 +65,7 @@ async def calculate_log_node(state: AgentState) -> dict:
                     timestamp=timestamp,
                     original_text=current_item.get("original_text")
                 )
-                
+
                 # Fetch updated logs for report
                 updated_report = []
                 if consumed_at:
@@ -84,7 +90,7 @@ async def calculate_log_node(state: AgentState) -> dict:
                     "status": "LOGGED",
                     "message": f"Logged {current_item['food_name']} ({macros['calories']}kcal)"
                 }
-                
+
                 # Append to existing results
                 current_results = state.get("processing_results", [])
                 updated_results = current_results + [result_item]

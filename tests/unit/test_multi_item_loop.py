@@ -7,26 +7,34 @@ Scope:
 LLM Usage:
     NONE — calculate_log_node does not call an LLM natively.
 """
+from unittest.mock import AsyncMock, MagicMock
+
 from src.agents.nodes.calculate_log_node import calculate_log_node
+from src.models import FoodItem
+
+
+def _make_food(food_id=1, name="Test Food", calories=200.0, protein=20.0, fat=5.0, carbs=10.0):
+    """Create a mock FoodItem for testing."""
+    food = MagicMock(spec=FoodItem)
+    food.id = food_id
+    food.name = name
+    food.calories = calories
+    food.protein = protein
+    food.fat = fat
+    food.carbs = carbs
+    return food
 
 
 class TestMultiItemLoopDraining:
     """Test standard array draining functionality."""
 
-    async def test_calculate_log_removes_first_item(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros):
+    async def test_calculate_log_removes_first_item(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc):
         """
         arrange: set multiple items inside pending_food_items array.
         act:     run calculate_log_node.
         assert:  verifies calculated item has successfully been detached from current index tracking.
         """
-        mock_calculate_macros.invoke.return_value = {
-            "name": "Test Food",
-            "amount_g": 100,
-            "calories": 200,
-            "protein": 20,
-            "carbs": 10,
-            "fat": 5,
-        }
+        mock_calculate_log_db_session.get = AsyncMock(return_value=_make_food())
         basic_state["pending_food_items"] = [
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
             {"food_name": "rice", "amount": 200.0, "unit": "g", "original_text": "200g rice"},
@@ -39,20 +47,13 @@ class TestMultiItemLoopDraining:
         assert result["pending_food_items"][0]["food_name"] == "rice"
         assert result["last_action"] == "LOGGED"
 
-    async def test_calculate_log_single_item(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros):
+    async def test_calculate_log_single_item(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc):
         """
         arrange: setup state to reflect processing only a single remaining trackable metric.
         act:     run calculate_log_node.
         assert:  verifies processing accurately drops elements fully, triggering resolution state updates appropriately.
         """
-        mock_calculate_macros.invoke.return_value = {
-            "name": "Test Food",
-            "amount_g": 100,
-            "calories": 200,
-            "protein": 20,
-            "carbs": 10,
-            "fat": 5,
-        }
+        mock_calculate_log_db_session.get = AsyncMock(return_value=_make_food(food_id=5))
         basic_state["pending_food_items"] = [
             {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "an apple"},
         ]
@@ -63,20 +64,13 @@ class TestMultiItemLoopDraining:
         assert len(result["pending_food_items"]) == 0
         assert result["last_action"] == "LOGGED"
 
-    async def test_sequential_item_removal(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros):
+    async def test_sequential_item_removal(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc):
         """
         arrange: initialize pending elements inside the state tracking construct.
         act:     call simulated iterative executions updating element arrays between sequences.
         assert:  verifies final output array finishes at exactly zero components with finalized loop completions logic triggered.
         """
-        mock_calculate_macros.invoke.return_value = {
-            "name": "Test Food",
-            "amount_g": 100,
-            "calories": 200,
-            "protein": 20,
-            "carbs": 10,
-            "fat": 5,
-        }
+        mock_calculate_log_db_session.get = AsyncMock(return_value=_make_food(food_id=5))
         items = [
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
             {"food_name": "rice", "amount": 200.0, "unit": "g", "original_text": "200g rice"},

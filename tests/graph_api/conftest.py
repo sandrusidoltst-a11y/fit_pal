@@ -2,9 +2,6 @@
 import os
 import subprocess
 import time
-import os
-import subprocess
-import time
 import urllib.request
 import urllib.error
 import atexit
@@ -25,51 +22,62 @@ def is_server_running(host: str = "127.0.0.1", port: int = 2024, timeout: float 
         return False
 
 
-def kill_processes_on_port(port: int):
-    """Attempt to kill any process listening on the specified port. Windows-focused."""
+def kill_process_tree_on_port(port: int):
+    """Kill the entire process tree for any process listening on the specified port."""
     try:
-        if os.name == 'nt':
-            # Run netstat to find PID
-            netstat = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
+        if os.name == "nt":
+            netstat = subprocess.check_output(
+                f"netstat -ano | findstr :{port}", shell=True
+            ).decode()
             pids_to_kill = set()
-            for line in netstat.strip().split('\n'):
+            for line in netstat.strip().split("\n"):
                 if f":{port}" in line and "LISTENING" in line:
                     parts = line.strip().split()
                     if len(parts) > 4:
                         pids_to_kill.add(parts[-1])
-            
+
             for pid in pids_to_kill:
-                print(f"[conftest] Killing zombie process {pid} on port {port}")
-                subprocess.call(["taskkill", "/F", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                time.sleep(0.5) 
+                print(f"[conftest] Killing process tree rooted at PID {pid} on port {port}")
+                # /T kills the entire process tree, not just the parent
+                subprocess.call(
+                    ["taskkill", "/F", "/T", "/PID", pid],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            if pids_to_kill:
+                time.sleep(1)
         else:
-            # Linux/Mac fallback
-            subprocess.call(f"kill -9 $(lsof -t -i:{port})", shell=True, stderr=subprocess.DEVNULL)
+            subprocess.call(
+                f"kill -9 $(lsof -t -i:{port})", shell=True, stderr=subprocess.DEVNULL
+            )
+    except subprocess.CalledProcessError:
+        pass  # No process on port — nothing to kill
     except Exception as e:
-        print(f"[conftest] Port cleanup warning (can usually be ignored): {e}")
+        print(f"[conftest] Port cleanup warning: {e}")
 
 
 def cleanup_server(process: subprocess.Popen):
-    """Safely terminate the server process."""
+    """Kill the server process and its entire child tree."""
     if process.poll() is not None:
-        return  # Process is already dead
+        return
 
     print("\n[conftest] Tearing down auto-started langgraph dev server...")
+
     if os.name == "nt":
-        # Send CTRL_BREAK_EVENT to the process group on Windows
-        import signal
-        try:
-            os.kill(process.pid, signal.CTRL_BREAK_EVENT)
-        except ProcessLookupError:
-            pass
+        # taskkill /T /F kills the process and all children — reliable on Windows
+        subprocess.call(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     else:
         process.terminate()
 
-    # Wait gracefully
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
         process.kill()
+        process.wait(timeout=3)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -79,64 +87,49 @@ def auto_start_langgraph_server():
     Tears it down cleanly (Windows compatible) when the test session ends.
     """
     if is_server_running():
-        # Server is already running (likely launched manually in another terminal)
         yield
         return
 
     print("\n[conftest] langgraph dev server not found.")
-    print(f"[conftest] Cleaning up any hanging processes on port 2024...")
-    kill_processes_on_port(2024)
-    time.sleep(1) # Give OS brief moment to free port
-    
+    print("[conftest] Cleaning up any hanging processes on port 2024...")
+    kill_process_tree_on_port(2024)
+
     print("[conftest] Starting langgraph dev server...")
 
-    # Start the server as a subprocess
-    # Note: On Windows, use creationflags to create a new process group for clean termination
-    process_kwargs = {}
-    if os.name == "nt":
-        # CREATE_NEW_PROCESS_GROUP is necessary on Windows to send CTRL_BREAK_EVENT
-        process_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-
-    # Use uv run to ensure the right environment is used
+    # Use DEVNULL instead of PIPE to prevent buffer deadlocks that create zombie processes
     process = subprocess.Popen(
         ["uv", "run", "langgraph", "dev"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        **process_kwargs
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
-    # Register the cleanup handler to ensure it runs even if pytest crashes or is interrupted
     atexit.register(cleanup_server, process)
 
-    # Poll until the server is ready (max 15 seconds)
-    max_retries = 30
+    # Poll until the server is ready (max 30 seconds)
+    max_retries = 60
     ready = False
     for _ in range(max_retries):
         if is_server_running():
             ready = True
             print("[conftest] Server is ready!")
             break
-        # Check if process crashed immediately
         if process.poll() is not None:
-            _, err = process.communicate()
-            pytest.fail(f"langgraph dev server crashed on startup: {err.decode()}")
+            pytest.fail(
+                f"langgraph dev server crashed on startup (exit code {process.returncode})"
+            )
         time.sleep(0.5)
 
     if not ready:
         cleanup_server(process)
-        pytest.fail("langgraph dev server failed to start within 15 seconds.")
+        pytest.fail("langgraph dev server failed to start within 30 seconds.")
 
-    # Yield control to the tests
     yield
 
-    # Normal Teardown: terminate the server
-    # We call atexit.unregister to prevent double-execution, although the poll() check in 
-    # cleanup_server makes double-execution safe anyway.
     try:
         atexit.unregister(cleanup_server)
     except AttributeError:
         pass
-        
+
     cleanup_server(process)
 
 
