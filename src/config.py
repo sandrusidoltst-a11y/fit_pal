@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from typing import Any
 
 from langchain.chat_models import init_chat_model
 
@@ -36,7 +37,7 @@ def get_llm_for_node(node_name: str):
     🔗 https://python.langchain.com/docs/how_to/chat_models_universal_init/
     """
     # Base defaults
-    params = {
+    params: dict[str, Any] = {
         "model_provider": GLOBAL_PROVIDER,
         "model": GLOBAL_MODEL,
         "temperature": 0.0
