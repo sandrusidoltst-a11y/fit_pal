@@ -11,28 +11,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.agents.nodes.calculate_log_node import calculate_log_node
 from src.agents.nodes.selection_node import agent_selection_node
-from src.models import FoodItem
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
-
-
-def _make_food(food_id=123, name="Test Apple", calories=95.0, protein=0.5, fat=0.3, carbs=25.0):
-    """Create a mock FoodItem for testing."""
-    food = MagicMock(spec=FoodItem)
-    food.id = food_id
-    food.name = name
-    food.calories = calories
-    food.protein = protein
-    food.fat = fat
-    food.carbs = carbs
-    return food
 
 
 class TestCalculateLogFeedback:
     """Test feedback payload manipulations within Calculate Log context."""
 
-    async def test_calculate_log_success_result(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc):
+    async def test_calculate_log_success_result(self, basic_state, mock_calculate_macros, mock_log_food_entry, mock_query_food_logs_for_calc):
         """
-        arrange: set up pending_food_items state alongside DB mock.
+        arrange: set up pending_food_items state alongside tool mocks.
         act:     run calculate_log_node.
         assert:  verifies processing_results array populates with success feedback messages.
         """
@@ -48,9 +35,15 @@ class TestCalculateLogFeedback:
             "selected_food_id": 123
         })
 
-        mock_calculate_log_db_session.get = AsyncMock(return_value=_make_food())
-        mock_daily_log_service_for_calc.create_log_entry = AsyncMock()
-        mock_daily_log_service_for_calc.get_logs_by_date = AsyncMock(return_value=[])
+        mock_calculate_macros.ainvoke = AsyncMock(return_value={
+            "name": "Test Apple",
+            "amount_g": 1,
+            "calories": 95,
+            "protein": 0.5,
+            "carbs": 25,
+            "fat": 0.3,
+        })
+        mock_query_food_logs_for_calc.ainvoke = AsyncMock(return_value=[])
 
         result = await calculate_log_node(basic_state)
 
@@ -61,7 +54,7 @@ class TestCalculateLogFeedback:
         assert "Logged Test Apple" in res["message"]
         assert res["original_text"] == "one medium apple"
 
-    async def test_calculate_log_accumulates_results(self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc):
+    async def test_calculate_log_accumulates_results(self, basic_state, mock_calculate_macros, mock_log_food_entry, mock_query_food_logs_for_calc):
         """
         arrange: append existing results into current state loop tracking.
         act:     run calculate_log_node.
@@ -85,9 +78,15 @@ class TestCalculateLogFeedback:
             "processing_results": [existing]
         })
 
-        mock_calculate_log_db_session.get = AsyncMock(return_value=_make_food())
-        mock_daily_log_service_for_calc.create_log_entry = AsyncMock()
-        mock_daily_log_service_for_calc.get_logs_by_date = AsyncMock(return_value=[])
+        mock_calculate_macros.ainvoke = AsyncMock(return_value={
+            "name": "Test Apple",
+            "amount_g": 1,
+            "calories": 100,
+            "protein": 0,
+            "carbs": 0,
+            "fat": 0,
+        })
+        mock_query_food_logs_for_calc.ainvoke = AsyncMock(return_value=[])
 
         result = await calculate_log_node(basic_state)
 

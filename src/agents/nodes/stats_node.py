@@ -1,8 +1,8 @@
+from datetime import datetime, timezone
 from typing import Dict
 
-from src.agents.state import AgentState, QueriedLog
-from src.database import get_async_db_session
-from src.services import daily_log_service
+from src.agents.state import AgentState
+from src.services.daily_log_service import query_food_logs
 
 
 async def stats_lookup_node(state: AgentState) -> Dict:
@@ -15,32 +15,14 @@ async def stats_lookup_node(state: AgentState) -> Dict:
     end_date = state.get("end_date")
     consumed_at = state.get("consumed_at")
 
-    from datetime import datetime, timezone
-    async with get_async_db_session() as session:
-        if start_date and end_date:
-            logs = await daily_log_service.get_logs_by_date_range(
-                session, start_date, end_date
-            )
-        else:
-            # Default to consumed_at's date, or today
-            target_date = consumed_at.date() if consumed_at else datetime.now(timezone.utc).date()
-            logs = await daily_log_service.get_logs_by_date(session, target_date)
-
-        # Convert SQLAlchemy models to TypedDict for state
-        report = []
-        for log in logs:
-            entry: QueriedLog = {
-                "id": log.id,
-                "food_id": log.food_id,
-                "amount_g": log.amount_g,
-                "calories": log.calories,
-                "protein": log.protein,
-                "carbs": log.carbs,
-                "fat": log.fat,
-                "timestamp": log.timestamp,
-                "meal_type": log.meal_type,
-                "original_text": log.original_text,
-            }
-            report.append(entry)
+    if start_date and end_date:
+        report = await query_food_logs.ainvoke({
+            "target_date": str(start_date),
+            "end_date": str(end_date),
+        })
+    else:
+        # Default to consumed_at's date, or today
+        target_date = consumed_at.date() if consumed_at else datetime.now(timezone.utc).date()
+        report = await query_food_logs.ainvoke({"target_date": str(target_date)})
 
     return {"daily_log_report": report}

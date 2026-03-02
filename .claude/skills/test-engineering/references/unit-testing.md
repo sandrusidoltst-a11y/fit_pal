@@ -101,34 +101,39 @@ def test_input_parser_log_food(self, basic_state):
 
 ---
 
-## 5. Mocking Async DB Sessions
+## 5. Mocking Async Tools
 
-Use the fixtures from `conftest.py`. Do NOT redefine them in individual test files.
+Nodes call tools via `await tool.ainvoke(...)`. Mock the tool on the node's module. Use fixtures from `conftest.py` — do NOT redefine them in individual test files.
 
 ```python
-# conftest.py provides:
-#   mock_calculate_log_db_session  — patches get_async_db_session in calculate_log_node
-#   mock_daily_log_service_for_calc — patches daily_log_service in calculate_log_node
-#   mock_stats_db_session          — patches get_async_db_session in stats_node
-#   mock_daily_log_service_for_stats — patches daily_log_service in stats_node
+# conftest.py provides tool mock fixtures:
+#   mock_search_food               — patches search_food on food_search_node
+#   mock_calculate_macros          — patches calculate_food_macros on calculate_log_node
+#   mock_log_food_entry            — patches log_food_entry on calculate_log_node
+#   mock_query_food_logs_for_calc  — patches query_food_logs on calculate_log_node
+#   mock_query_food_logs_for_stats — patches query_food_logs on stats_node
 
 async def test_calculate_log_writes_entry(
-    self, basic_state, mock_calculate_log_db_session, mock_daily_log_service_for_calc, mock_calculate_macros
+    self, basic_state, mock_calculate_macros, mock_log_food_entry, mock_query_food_logs_for_calc
 ):
     """
-    arrange: State with a selected food item; DB and service mocked.
+    arrange: State with a selected food item; tools mocked.
     act:     calculate_log_node processes the state.
-    assert:  create_log_entry is called once with the correct food_id.
+    assert:  log_food_entry.ainvoke is called once.
     """
+    mock_calculate_macros.ainvoke = AsyncMock(return_value={
+        "calories": 330, "protein": 62, "fat": 7.2, "carbs": 0
+    })
+    mock_query_food_logs_for_calc.ainvoke = AsyncMock(return_value=[])
+
     basic_state["selected_food_id"] = 1
     basic_state["pending_food_items"] = [
         {"food_name": "chicken", "amount": 200.0, "unit": "g", "original_text": "200g chicken"}
     ]
-    mock_calculate_macros.invoke.return_value = {"calories": 330, "protein": 62, "fat": 7.2, "carbs": 0}
 
     result = await calculate_log_node(basic_state)
 
-    mock_daily_log_service_for_calc.create_log_entry.assert_called_once()
+    mock_log_food_entry.ainvoke.assert_called_once()
     assert result["last_action"] == "LOGGED"
 ```
 

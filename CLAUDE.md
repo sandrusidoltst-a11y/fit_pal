@@ -16,7 +16,7 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | LLM Framework | LangChain 1.x |
 | Schema Validation | Pydantic v2 |
 | LLM Models | Claude 3.5 Sonnet / GPT-4o — configured via `src/config.py` |
-| Storage | SQLite + SQLAlchemy (`aiosqlite` async + sync engine for LangChain tools) |
+| Storage | SQLite + SQLAlchemy (`aiosqlite` async engine; sync engine for ETL scripts only) |
 | Package Manager | `uv` — strictly enforced (see Package Management below) |
 | Language | Python 3.13+ |
 | Dev Server | `langgraph dev` → LangSmith Studio |
@@ -45,11 +45,11 @@ fit_pal/
 │   │       ├── stats_node.py      # Stats lookup node
 │   │       └── response_node.py   # LLM response generator
 │   ├── services/
-│   │   └── daily_log_service.py   # CRUD for daily logs
+│   │   └── daily_log_service.py   # CRUD for daily logs + @tool wrappers (log_food_entry, query_food_logs)
 │   ├── scripts/
 │   │   └── ingest_simple_db.py    # ETL script (CSV -> SQLite)
 │   ├── tools/
-│   │   └── food_lookup.py         # Database search logic
+│   │   └── food_lookup.py         # Async @tool: search_food, calculate_food_macros + compute_food_macros helper
 │   ├── schemas/
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
 │   │   └── selection_schema.py    # FoodSelectionResult schema
@@ -64,6 +64,8 @@ fit_pal/
 │   └── conftest.py                # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb      # Analysis notebook
+├── docs/
+│   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
 ├── langgraph.json                 # LangSmith Studio configuration
 ├── PRD.md
@@ -74,12 +76,13 @@ fit_pal/
 
 ## Architecture Patterns
 
+- **Tool-First Architecture**: All DB access goes through async `@tool` functions. Nodes are thin orchestrators that call tools via `await tool.ainvoke(...)` — they never import `get_async_db_session` or query the DB directly. Tools own their own sessions. This ensures scalability (change the tool, not every node) and avoids `BlockingError` from mixing sync/async.
+- **Service + Tool Layer**: `src/services/` contains both raw service functions (accept `session` param for DI/testability) and `@tool` wrappers that create their own session and delegate. `src/tools/` contains food-specific async tools.
 - **Multiple Schemas**: `InputState` (messages only, public API) → `AgentState` (internal) → `OutputState`. Enables clean LangSmith Studio chat interface without exposing internal state fields.
 - **Configuration Dictionary**: `get_llm_for_node()` in `config.py` centralises all LLM instantiation with per-node overrides (temperature, model). Never hardcode models inside nodes.
 - **Write-Through**: DB is source of truth. Write immediately on confirmation, then query for state updates.
-- **Async DB + Graph**: `sqlalchemy.ext.asyncio` + `aiosqlite` for non-blocking queries. Both sync and async engines are maintained — LangChain `@tool` decorators require the sync engine.
+- **Fully Async**: All nodes, tools, and DB access use `async`/`await`. The async engine (`aiosqlite`) is the primary DB path. A sync engine exists only for ETL scripts.
 - **Multi-Item Loop**: Conditional routing processes food items sequentially with loop-back edges until the queue is empty.
-- **Service Layer**: Business logic lives in `src/services/`. Nodes call services, never the DB directly.
 - **Pydantic for LLM Output**: Always use `.with_structured_output()` then `.model_dump()`. Never parse raw LLM strings.
 - **Reporting State**: `AgentState.daily_log_report` stores raw `QueriedLog` list — enables flexible LLM reasoning (averages, distributions) instead of pre-aggregated values.
 

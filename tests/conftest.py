@@ -63,45 +63,45 @@ async def async_test_db_session():
     await engine.dispose()
 
 
-@pytest.fixture
-def mock_calculate_log_db_session():
-    with patch("src.agents.nodes.calculate_log_node.get_async_db_session") as mock:
-        session = AsyncMock()
-        mock.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock.return_value.__aexit__ = AsyncMock(return_value=False)
-        yield session
-
+# ---------------------------------------------------------------------------
+# Tool mock fixtures — mock .ainvoke() on tool objects used by nodes
+# ---------------------------------------------------------------------------
 
 @pytest.fixture
-def mock_daily_log_service_for_calc():
-    with patch("src.agents.nodes.calculate_log_node.daily_log_service") as mock:
-        mock.create_log_entry = AsyncMock()
-        mock.get_logs_by_date = AsyncMock(return_value=[])
-        mock.get_logs_by_date_range = AsyncMock(return_value=[])
+def mock_search_food():
+    """Mock search_food tool on food_search_node."""
+    with patch("src.agents.nodes.food_search_node.search_food") as mock:
+        mock.ainvoke = AsyncMock()
         yield mock
 
 
 @pytest.fixture
-def mock_food_search_db_session():
-    with patch("src.agents.nodes.food_search_node.get_async_db_session") as mock:
-        session = AsyncMock()
-        mock.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock.return_value.__aexit__ = AsyncMock(return_value=False)
-        yield session
+def mock_calculate_macros():
+    """Mock calculate_food_macros tool on calculate_log_node."""
+    with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock:
+        mock.ainvoke = AsyncMock()
+        yield mock
 
 
 @pytest.fixture
-def mock_stats_db_session():
-    with patch("src.agents.nodes.stats_node.get_async_db_session") as mock:
-        session = AsyncMock()
-        mock.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock.return_value.__aexit__ = AsyncMock(return_value=False)
-        yield session
+def mock_log_food_entry():
+    """Mock log_food_entry tool on calculate_log_node."""
+    with patch("src.agents.nodes.calculate_log_node.log_food_entry") as mock:
+        mock.ainvoke = AsyncMock()
+        yield mock
 
 
 @pytest.fixture
-def mock_daily_log_service_for_stats():
-    with patch("src.agents.nodes.stats_node.daily_log_service") as mock:
-        mock.get_logs_by_date = AsyncMock(return_value=[])
-        mock.get_logs_by_date_range = AsyncMock(return_value=[])
+def mock_query_food_logs_for_calc():
+    """Mock query_food_logs tool on calculate_log_node."""
+    with patch("src.agents.nodes.calculate_log_node.query_food_logs") as mock:
+        mock.ainvoke = AsyncMock()
+        yield mock
+
+
+@pytest.fixture
+def mock_query_food_logs_for_stats():
+    """Mock query_food_logs tool on stats_node."""
+    with patch("src.agents.nodes.stats_node.query_food_logs") as mock:
+        mock.ainvoke = AsyncMock()
         yield mock

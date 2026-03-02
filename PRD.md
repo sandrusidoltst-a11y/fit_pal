@@ -147,16 +147,16 @@ fit_pal/
 │   │       ├── calculate_log_node.py # Calculate & log node
 │   │       ├── stats_node.py       # Stats lookup node
 │   │       └── response_node.py    # LLM response generator
-│   ├── services/            # Business logic layer
-│   │   └── daily_log_service.py  # CRUD for daily logs
+│   ├── services/            # Business logic + @tool wrappers
+│   │   └── daily_log_service.py  # CRUD services + log_food_entry / query_food_logs tools
 │   ├── scripts/
 │   │   └── ingest_simple_db.py # ETL script
 │   ├── tools/
-│   │   └── food_lookup.py   # Database search logic
+│   │   └── food_lookup.py   # Async search_food / calculate_food_macros tools
 │   ├── schemas/             # Pydantic models
 │   │   ├── input_schema.py  # FoodIntakeEvent schema
 │   │   └── selection_schema.py # FoodSelectionResult schema
-│   ├── database.py          # Database connection
+│   ├── database.py          # Sync + async DB engines (async-first)
 │   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
@@ -182,8 +182,8 @@ fit_pal/
 - **Schema Validation**: Pydantic v2.
 - **LLM Model**: Claude 3.5 Sonnet or GPT-4o.
 - **Data Processing**: Pandas (for CSV/Database lookup).
-- **Storage**: SQLite (Checkpointer for state).
-- **Language**: Python 3.10+.
+- **Storage**: SQLite + SQLAlchemy (`aiosqlite` async-first; sync engine retained for ETL scripts).
+- **Language**: Python 3.13+.
 - **Package Manager**: uv (Required for dependency management).
 
 ## 8. Database Schema & Data Source
@@ -260,6 +260,11 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Manage token limits and environment variables from a single source of truth.
 - ✅ **Asynchronous Database Migration** (Completed 2026-02-23):
   - ✅ Refactor all SQLAlchemy operations (`database.py`, `daily_log_service.py`) and LangGraph nodes to use `AsyncSession` and `async/await`. This eliminates SQLite concurrency locking bugs early and prevents writing new synchronous functions that would just need to be rewritten later.
+- ✅ **Tool-First Architecture Refactor** (Completed 2026-03-02):
+  - ✅ Convert all `@tool` functions to `async def` using `get_async_db_session()`
+  - ✅ Add `log_food_entry` and `query_food_logs` `@tool` wrappers to `daily_log_service.py`
+  - ✅ Restore node → tool boundary: all nodes call tools via `await tool.ainvoke()`, zero direct DB access in nodes
+  - ✅ Service functions kept unchanged (accept session param for DI/testability); `@tool` wrappers create their own sessions and delegate
 - ✅ **Relative Time & Past Logging** (Completed 2026-02-24):
   - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
 - **The "Off-Menu" Problem (Fallback Logic)**:
