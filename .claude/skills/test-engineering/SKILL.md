@@ -1,6 +1,6 @@
 ---
 name: test-engineering
-description: FitPal-specific testing engineering skill. Covers how to write, structure, and run tests for the FitPal LangGraph agent. Use when writing any test (unit, integration, or graph-api), when a test fails unexpectedly, when adding a new node/route/schema, or when setting up a new test file. Provides mock boundary rules, file structure conventions, AAA docstring standards, and graph-api end-to-end testing patterns using langgraph-sdk.
+description: FitPal-specific testing engineering skill. Covers how to write, structure, and run tests for the FitPal LangGraph agent. Use when writing any test (unit or graph-api), when a test fails unexpectedly, when adding a new node/route/schema, or when setting up a new test file. Provides mock boundary rules, file structure conventions, AAA docstring standards, and graph-api end-to-end testing patterns using langgraph-sdk.
 ---
 
 # Test Engineering — FitPal
@@ -22,10 +22,9 @@ Load the relevant file based on the task:
 ## Test Tier Decision
 
 ```
-Does the test mock any I/O (LLM, DB)?
+Does the test mock any I/O (LLM, DB, tools)?
   YES → tests/unit/
-  NO, but tests compilation/DB/LLM directly → tests/integration/
-  NO, tests the full graph through the HTTP API runtime → tests/graph_api/
+  NO, tests compilation or full graph via HTTP API → tests/graph_api/
 ```
 
 ## Validation Commands

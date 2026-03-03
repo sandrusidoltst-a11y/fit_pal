@@ -5,8 +5,7 @@
 > **"Test your logic, not your dependencies."**
 >
 > Unit tests verify code transforms inputs into outputs correctly.
-> Integration tests verify the real interface with an external system.
-> Graph-api tests verify the graph runs correctly through its HTTP API runtime.
+> Graph-api tests verify the graph compiles and runs correctly through its HTTP API runtime.
 > Never blur the boundary.
 
 ---
@@ -17,38 +16,31 @@
 tests/
 ├── conftest.py               # Shared fixtures for ALL test types
 ├── unit/                     # Fast, deterministic, zero real I/O
-├── integration/              # Real DB or real LLM, run deliberately
-└── graph_api/                # Full graph flow via langgraph-sdk — see graph-api-testing.md
+└── graph_api/                # Graph compilation + E2E flows via langgraph-sdk
 ```
 
 **Rule**: The folder name IS the test type. No `@pytest.mark` decorators needed.
 
 ---
 
-## 3. The Three Test Types
+## 3. The Two Test Tiers
 
 ### Unit (`tests/unit/`)
 
 - No real LLM API calls — always mock via `patch("src.agents.nodes.X.get_llm_for_node")`
-- No real file-based DB — use `async_test_db_session` fixture or mock the service
+- No real file-based DB — use `async_test_db_session` fixture or mock tools
 - Runs in milliseconds — no network, no disk I/O beyond in-memory SQLite
 - Deterministic — same input → same result
 - Tests ONE unit: a node function, a service method, or a routing function
 
-### Integration (`tests/integration/`)
-
-- Removes exactly one mock to test the real interface with an external system
-- Prompt quality: does the real LLM return valid structured output?
-- DB access: does `food_search_node` return results from the real `nutrition.db`?
-- Graph compilation: does `define_graph()` compile with `MemorySaver`?
-
 ### Graph-API (`tests/graph_api/`)
 
-- The `conftest.py` auto-starts `langgraph dev` if not already running (no manual server needed)
-- Uses `langgraph-sdk` client (`get_client`) — same API surface as LangSmith Studio
-- Tests full graph execution through all routing paths
-- Catches errors that only surface at API runtime (not at compile time)
+- **Compilation tests**: Verify `define_graph()` compiles with a real checkpointer and all nodes are registered. No server needed.
+- **E2E flow tests**: The `conftest.py` auto-starts `langgraph dev` if not already running (no manual server needed). Uses `langgraph-sdk` client (`get_client`) — same API surface as LangSmith Studio. Tests full graph execution through all routing paths.
+- Catches errors that only surface at compile time or API runtime
 - See [graph-api-testing.md](graph-api-testing.md) for full setup and patterns
+
+**Note on prompt evaluation**: Prompt quality testing (does the LLM classify intents correctly?) is better suited for LangSmith Studio traces and evaluations than pytest. LLM responses are non-deterministic and make tests flaky without indicating a code bug.
 
 ---
 
@@ -80,7 +72,7 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 | Pydantic schemas | Always use real model instances |
 | The `langgraph dev` server in graph-api tests | The server IS the boundary under test |
 
-### 4.3 The Golden Rule
+### 4.4 The Golden Rule
 
 > **Never mock the thing you are directly testing.**
 >
@@ -95,7 +87,7 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 
 | Critical Path | Test File | What to Watch |
 |---|---|---|
-| `define_graph()` compilation | `integration/test_graph_compilation.py` | Must compile with `MemorySaver()` without `TypeError` |
+| `define_graph()` compilation | `graph_api/test_graph_compilation.py` | Must compile with `MemorySaver()` without `TypeError` |
 | Input parsing → all `GraphAction` outcomes | `unit/test_input_parser.py` | `LOG_FOOD`, `QUERY_DAILY_STATS`, `CHITCHAT` |
 | Routing functions (all branches) | `unit/test_feedback_logic.py` | Every `GraphAction` maps to a valid next node |
 | Multi-item loop drain | `unit/test_multi_item_loop.py` | `pending_food_items` reaches `[]` after N iterations |
@@ -129,9 +121,9 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 | A new node that calls LLM | Mock LLM (`patch get_llm_for_node`) | `unit/test_<node>.py` |
 | A new routing function | Mock tools, test all `GraphAction` branches | `unit/test_<routing>.py` |
 | A new service function | Real DB (`async_test_db_session`), zero mocks | `unit/test_<service>.py` |
-| A new prompt | Real LLM, verify structured output shape | `integration/test_<prompt>.py` |
-| A new Pydantic schema field | Unit for node + integration for LLM parsing | Both tiers |
-| A new graph edge or compile change | Real `MemorySaver` + graph-api for the path | `integration/` + `graph_api/` |
+| A new Pydantic schema field | Unit test for node handling | `unit/test_<node>.py` |
+| A new graph edge or compile change | Real `MemorySaver` + graph-api for the path | `graph_api/` |
+| Prompt quality evaluation | Use LangSmith Studio traces, not pytest | N/A |
 
 ---
 
@@ -140,8 +132,6 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 | Trigger | Command | Suite |
 |---|---|---|
 | After any code change | `uv run pytest tests/unit/ -v` | Unit only |
-| After changing a prompt file | `uv run pytest tests/integration/ -v` | Integration only |
-| After changing a schema | `uv run pytest tests/ -v` | Unit + Integration |
 | Before `/commit` | `uv run pytest tests/unit/ -v` | Unit only — mandatory gate |
-| Before PR merge | `uv run pytest tests/ -v && uv run pytest tests/graph_api/ -v -s` | All tiers |
 | After changing graph edges/nodes | `uv run pytest tests/graph_api/ -v -s` | Graph-api |
+| Before PR merge | `uv run pytest tests/unit/ -v && uv run pytest tests/graph_api/ -v -s` | Both tiers |

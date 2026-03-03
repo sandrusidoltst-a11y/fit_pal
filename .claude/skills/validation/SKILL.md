@@ -25,10 +25,7 @@ uv run mypy src/
 # Step 1 — Pre-commit gate (mandatory, fast ~15s)
 uv run pytest tests/unit/ -v
 
-# Step 2 — After schema, state, or prompt changes (~60s)
-uv run pytest tests/ -v
-
-# Step 3 — After changing graph edges/nodes (server auto-starts via conftest)
+# Step 2 — After changing graph edges/nodes (server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s
 
 # Single file during active development
@@ -41,10 +38,9 @@ uv run pytest --lf -v
 ### Test Tier Decision
 
 ```
-Does the test mock any I/O (LLM, DB)?
+Does the test mock any I/O (LLM, DB, tools)?
   YES → tests/unit/
-  NO, but tests compilation/DB/LLM directly → tests/integration/
-  NO, tests the full graph via HTTP API runtime → tests/graph_api/
+  NO, tests compilation or full graph via HTTP API → tests/graph_api/
 ```
 
 ## 2. Critical Paths — Must Always Pass
@@ -53,7 +49,7 @@ These flows must never lose test coverage. Verify these specifically after any c
 
 | Critical Path | Test File | What to Watch |
 |---|---|---|
-| `define_graph()` compilation | `test_feedback_integration.py` | Must compile with `MemorySaver()` without `TypeError` |
+| `define_graph()` compilation | `graph_api/test_graph_compilation.py` | Must compile with `MemorySaver()` without `TypeError` |
 | Input parsing → all `GraphAction` outcomes | `test_input_parser.py` | `LOG_FOOD`, `QUERY_DAILY_STATS`, `CHITCHAT`, `CONFIRM_ESTIMATION` |
 | Routing functions (all branches) | `test_feedback_logic.py` | Every `GraphAction` maps to a valid next node |
 | Multi-item loop drain | `test_multi_item_loop.py` | `pending_food_items` reaches `[]` after N iterations |

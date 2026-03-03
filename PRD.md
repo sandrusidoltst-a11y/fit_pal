@@ -162,8 +162,7 @@ fit_pal/
 │   └── config.py            # Environment & LLM setup
 ├── tests/
 │   ├── unit/                # Fast, deterministic tests (mocked DB/LLM)
-│   ├── integration/         # Slower tests (real DB / real LLM / graph compilation)
-│   ├── graph_api/           # End-to-end graph flow tests via langgraph-sdk
+│   ├── graph_api/           # Graph compilation + E2E flow tests via langgraph-sdk
 │   └── conftest.py          # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook

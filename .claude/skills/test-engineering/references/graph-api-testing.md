@@ -1,12 +1,14 @@
 # Graph-API Testing — FitPal
 
-Tests in `tests/graph_api/` run the full graph through the `langgraph dev` HTTP server
-using the `langgraph-sdk` client. This is the same API surface LangSmith Studio uses —
-it catches a class of bugs that unit tests and compile-only integration tests cannot.
+Tests in `tests/graph_api/` cover two categories:
 
-**Bugs this tier catches that others don't:**
+1. **Compilation tests** (`test_graph_compilation.py`): Verify the graph compiles with a real checkpointer and all nodes are registered. Fast, no server needed.
+2. **E2E flow tests** (`test_graph_flows.py`): Run the full graph through the `langgraph dev` HTTP server using `langgraph-sdk`. Same API surface as LangSmith Studio.
+
+**Bugs this tier catches that unit tests don't:**
+- Import errors or TypedDict mismatches that only surface at compile time
 - Errors from `MemorySaver` or `AsyncSqliteSaver` that only surface at API runtime
-- Routing failures that occur only on specific graph paths (e.g., a path not exercised in unit tests)
+- Routing failures that occur only on specific graph paths
 - State serialization issues across the checkpointer boundary
 - Node errors that only surface when state is thread-bound and persisted
 

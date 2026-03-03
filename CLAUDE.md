@@ -59,8 +59,7 @@ fit_pal/
 │   └── config.py                  # Environment & LLM setup via get_llm_for_node()
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
-│   ├── integration/               # Slower tests (real DB / real LLM / graph compilation)
-│   ├── graph_api/                 # End-to-end graph flow tests via langgraph-sdk
+│   ├── graph_api/                 # Graph compilation + E2E flow tests via langgraph-sdk
 │   └── conftest.py                # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb      # Analysis notebook
@@ -109,9 +108,6 @@ Run before every commit and after every implementation task.
 ```bash
 # Pre-commit — mandatory gate (fast, ~15s, unit tests only)
 uv run pytest tests/unit/ -v
-
-# Full suite — after schema or prompt changes (~60s)
-uv run pytest tests/ -v
 
 # Graph-API suite — after changing graph edges/nodes (server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s
