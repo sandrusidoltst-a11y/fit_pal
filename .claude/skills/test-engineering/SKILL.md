@@ -37,7 +37,7 @@ uv run pytest tests/unit/ -v
 # After schema or prompt changes
 uv run pytest tests/ -v
 
-# Graph-api suite (requires langgraph dev running)
+# Graph-api suite (server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s
 
 # Single file during development

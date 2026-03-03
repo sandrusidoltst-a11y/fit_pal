@@ -113,7 +113,7 @@ uv run pytest tests/unit/ -v
 # Full suite — after schema or prompt changes (~60s)
 uv run pytest tests/ -v
 
-# Graph-API suite — after changing graph edges/nodes (requires: uv run langgraph dev)
+# Graph-API suite — after changing graph edges/nodes (server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s
 
 # Single file — during active development

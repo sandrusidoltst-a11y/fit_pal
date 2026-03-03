@@ -1,4 +1,4 @@
-"""Shared fixtures for graph-api tests. Requires langgraph dev running on port 2024."""
+"""Shared fixtures for graph-api tests. Auto-starts langgraph dev on port 2024 if not running."""
 import os
 import subprocess
 import time

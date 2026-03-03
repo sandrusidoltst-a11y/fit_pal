@@ -14,16 +14,19 @@ it catches a class of bugs that unit tests and compile-only integration tests ca
 
 ## 1. Prerequisites
 
-The `langgraph dev` server must be running before graph-api tests execute.
-It is already available as a dev dependency (`langgraph-cli[inmem]`).
+The `langgraph dev` server is **auto-started** by the `conftest.py` session fixture.
+No manual server startup is needed — just run the tests:
 
 ```bash
-# Start server (keep running in a separate terminal)
-uv run langgraph dev
-
-# Verify it is up
-curl http://localhost:2024/ok
+uv run pytest tests/graph_api/ -v -s
 ```
+
+The conftest will:
+1. Check if a server is already running on port 2024
+2. If not, clean up any orphaned processes on that port
+3. Start `uv run langgraph dev` as a subprocess
+4. Wait up to 30s for the `/ok` healthcheck to pass
+5. Tear down the server (with full process tree cleanup) when tests finish
 
 The assistant name in `langgraph.json` must match the `assistant_id` used in tests.
 Check `langgraph.json` for the graph name before writing tests.
@@ -32,40 +35,19 @@ Check `langgraph.json` for the graph name before writing tests.
 
 ## 2. Pytest Session Fixture (conftest.py in graph_api/)
 
-Place this fixture in `tests/graph_api/conftest.py`:
+The actual conftest provides these fixtures:
 
-```python
-"""Shared fixtures for graph-api tests. Requires langgraph dev running on port 2024."""
-import pytest
-from langgraph_sdk import get_client
+| Fixture | Scope | Purpose |
+|---|---|---|
+| `auto_start_langgraph_server` | session, autouse | Auto-starts server if not running; tears down on exit |
+| `lg_client` | function | Returns a `langgraph-sdk` client connected to `http://127.0.0.1:2024` |
+| `thread` | function | Creates a fresh thread per test and cleans it up after |
 
-
-LANGGRAPH_DEV_URL = "http://localhost:2024"
-
-
-@pytest.fixture(scope="session")
-def lg_client():
-    """
-    Returns a langgraph-sdk client connected to the local dev server.
-    Fails fast with a clear message if the server is not running.
-    """
-    import httpx
-    try:
-        httpx.get(f"{LANGGRAPH_DEV_URL}/ok", timeout=2).raise_for_status()
-    except Exception:
-        pytest.skip(
-            "langgraph dev server not running. "
-            "Start it with: uv run langgraph dev"
-        )
-    return get_client(url=LANGGRAPH_DEV_URL)
-
-
-@pytest.fixture
-async def thread(lg_client):
-    """Creates a fresh thread for each test and yields its thread_id."""
-    t = await lg_client.threads.create()
-    yield t["thread_id"]
-```
+Key implementation details:
+- Uses `subprocess.DEVNULL` (not `PIPE`) to prevent buffer deadlocks that create zombie processes
+- On Windows, uses `taskkill /F /T /PID` to kill the entire process tree
+- Registers `atexit` handler as a safety net for abnormal exits
+- `lg_client` fails fast if the server goes down unexpectedly
 
 ---
 
@@ -116,8 +98,8 @@ LLM Usage:
     LIVE — all LLM calls are real. These tests make actual API calls.
     Categorized as graph-api tests; run deliberately, not in pre-commit gate.
 
-Prerequisites:
-    langgraph dev server must be running: uv run langgraph dev
+Server:
+    Auto-started by conftest.py session fixture. No manual startup needed.
 """
 import pytest
 from langgraph_sdk import get_client
@@ -145,90 +127,6 @@ class TestFoodLoggingPath:
         assert len(messages) >= 2  # HumanMessage + at least one AIMessage
         last = messages[-1]
         assert last.get("content", "").strip() != ""
-
-
-class TestQueryStatsPath:
-    """Full path: input_parser → stats_lookup → response."""
-
-    async def test_query_todays_stats_returns_response(self, lg_client, thread):
-        """
-        arrange: User message asking for today's nutritional stats.
-        act:     Graph routes through stats_lookup to response.
-        assert:  Run completes without error and final message is non-empty.
-        """
-        result = await lg_client.runs.wait(
-            thread,
-            ASSISTANT_ID,
-            input={"messages": [{"role": "human", "content": "What did I eat today?"}]},
-        )
-
-        assert result is not None
-        messages = result.get("messages", [])
-        assert len(messages) >= 2
-        assert messages[-1].get("content", "").strip() != ""
-
-
-class TestChitchatPath:
-    """Short path: input_parser → response (no food or stats query)."""
-
-    async def test_greeting_routes_directly_to_response(self, lg_client, thread):
-        """
-        arrange: A plain greeting with no food or stats intent.
-        act:     Graph routes directly to response node, skipping all food nodes.
-        assert:  Run completes without error and final message is non-empty.
-        """
-        result = await lg_client.runs.wait(
-            thread,
-            ASSISTANT_ID,
-            input={"messages": [{"role": "human", "content": "Hello, how are you?"}]},
-        )
-
-        assert result is not None
-        messages = result.get("messages", [])
-        assert len(messages) >= 2
-        assert messages[-1].get("content", "").strip() != ""
-
-
-class TestNoMatchPath:
-    """Path where food_search returns no results: food_search → agent_selection(NO_MATCH) → response."""
-
-    async def test_unknown_food_gracefully_handled(self, lg_client, thread):
-        """
-        arrange: User logs a food name that cannot exist in the database.
-        act:     Graph routes to agent_selection which returns NO_MATCH, then response.
-        assert:  Run completes without error; agent responds gracefully.
-        """
-        result = await lg_client.runs.wait(
-            thread,
-            ASSISTANT_ID,
-            input={"messages": [{"role": "human", "content": "I ate 200g of xyzfood99999abcde"}]},
-        )
-
-        assert result is not None
-        messages = result.get("messages", [])
-        assert len(messages) >= 2
-        assert messages[-1].get("content", "").strip() != ""
-
-
-class TestMultiItemPath:
-    """Multi-item loop: input_parser extracts 2+ items, graph loops through food_search for each."""
-
-    async def test_multi_item_input_completes_without_error(self, lg_client, thread):
-        """
-        arrange: User logs two food items in a single message (triggers the loop).
-        act:     Graph processes each item sequentially via food_search → calculate_log loop.
-        assert:  Run completes without error; final message is non-empty.
-        """
-        result = await lg_client.runs.wait(
-            thread,
-            ASSISTANT_ID,
-            input={"messages": [{"role": "human", "content": "I had 150g of chicken and 100g of rice"}]},
-        )
-
-        assert result is not None
-        messages = result.get("messages", [])
-        assert len(messages) >= 2
-        assert messages[-1].get("content", "").strip() != ""
 ```
 
 ---
@@ -237,6 +135,6 @@ class TestMultiItemPath:
 
 - **Assert on structure, not exact content.** LLM responses are non-deterministic. Assert that a response exists, is non-empty, and doesn't raise — not its exact wording.
 - **One path per class.** Each `Test<Path>` class tests one routing branch. Adding a new graph edge = add a new test class.
-- **Skip, don't fail, when server is down.** The `lg_client` fixture uses `pytest.skip` so the unit suite never fails due to a missing server.
+- **Server is auto-managed.** The conftest handles startup and teardown. Don't add manual server management to test files.
 - **Use a fresh thread per test.** The `thread` fixture is function-scoped so state never bleeds between tests.
 - **Run deliberately.** Graph-api tests are slow (real LLM, real server). Never include them in the pre-commit gate. Run with `uv run pytest tests/graph_api/ -v -s`.

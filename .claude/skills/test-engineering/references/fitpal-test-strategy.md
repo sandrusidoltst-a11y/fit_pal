@@ -44,7 +44,7 @@ tests/
 
 ### Graph-API (`tests/graph_api/`)
 
-- Runs against a live `langgraph dev` server on `http://localhost:2024`
+- The `conftest.py` auto-starts `langgraph dev` if not already running (no manual server needed)
 - Uses `langgraph-sdk` client (`get_client`) — same API surface as LangSmith Studio
 - Tests full graph execution through all routing paths
 - Catches errors that only surface at API runtime (not at compile time)
@@ -54,21 +54,29 @@ tests/
 
 ## 4. Mock Boundary Rules
 
-### 4.1 Always Mock in Unit Tests
+### 4.1 Always Mock in Node Unit Tests
 
 | Dependency | How to Mock |
 |---|---|
 | LLM calls | `patch("src.agents.nodes.X.get_llm_for_node")` returning `MagicMock()` |
-| Async DB session | `patch("src.agents.nodes.X.get_async_db_session")` + `AsyncMock` for `__aenter__`/`__aexit__` |
-| Service layer | `patch("src.agents.nodes.X.daily_log_service")` with `AsyncMock` methods |
-| LangChain tools | `patch("src.agents.nodes.X.calculate_food_macros")` + `.invoke.return_value` |
+| Async tools | `patch("src.agents.nodes.X.tool_name")` + `.ainvoke = AsyncMock(return_value=...)` |
 
-### 4.2 Never Mock These
+Nodes never import DB sessions or service functions directly — they only call tools. So mock the **tools on the node's module**, not DB sessions or services.
+
+### 4.2 Never Mock in Service Unit Tests
+
+| Thing | Why |
+|---|---|
+| `AsyncSession` | Use `async_test_db_session` fixture — mocking the session means you're not testing SQL |
+| Service functions themselves | They ARE the thing under test — call them directly with a real session |
+
+Service functions accept `session` as a parameter (DI). Inject the test session, call the function, assert the result. Zero mocks needed.
+
+### 4.3 Never Mock These (Any Test Type)
 
 | Thing | Why |
 |---|---|
 | `workflow.compile()` | Compilation IS the thing being tested — mocking defeats the purpose |
-| `AsyncSession` in service layer tests | Use `async_test_db_session` — mocking session means you're not testing SQL |
 | Pydantic schemas | Always use real model instances |
 | The `langgraph dev` server in graph-api tests | The server IS the boundary under test |
 
@@ -105,24 +113,25 @@ tests/
 |---|---|
 | `basic_state` | Complete `AgentState` dict with all keys set to empty defaults |
 | `async_test_db_session` | Real async in-memory SQLite with `FoodItem(id=1)` seeded |
-| `mock_calculate_log_db_session` | Mock `AsyncSession` for `calculate_log_node` |
-| `mock_daily_log_service_for_calc` | Mock `daily_log_service` for `calculate_log_node` |
-| `mock_calculate_macros` | Mock `calculate_food_macros` tool |
-| `mock_stats_db_session` | Mock `AsyncSession` for `stats_node` |
-| `mock_daily_log_service_for_stats` | Mock `daily_log_service` for `stats_node` |
+| `mock_search_food` | Mock `search_food` tool for `food_search_node` |
+| `mock_calculate_macros` | Mock `calculate_food_macros` tool for `calculate_log_node` |
+| `mock_log_food_entry` | Mock `log_food_entry` tool for `calculate_log_node` |
+| `mock_query_food_logs_for_calc` | Mock `query_food_logs` tool for `calculate_log_node` |
+| `mock_query_food_logs_for_stats` | Mock `query_food_logs` tool for `stats_node` |
 
 ---
 
 ## 7. When to Write Which Test
 
-| You are writing... | Write in |
-|---|---|
-| A new node | Unit test mocking LLM + services |
-| A new routing function | Unit test with all `GraphAction` branches |
-| A new prompt | Integration test (real LLM) verifying structured output shape |
-| A new Pydantic schema field | Unit test for node handling + integration test for LLM parsing |
-| A new service method | Unit test with `async_test_db_session` |
-| A new graph edge or compile change | Integration test with `MemorySaver` + graph-api test for the new path |
+| You are writing... | Pattern | Write in |
+|---|---|---|
+| A new node that calls tools | Mock tools (`.ainvoke = AsyncMock`) | `unit/test_<node>.py` |
+| A new node that calls LLM | Mock LLM (`patch get_llm_for_node`) | `unit/test_<node>.py` |
+| A new routing function | Mock tools, test all `GraphAction` branches | `unit/test_<routing>.py` |
+| A new service function | Real DB (`async_test_db_session`), zero mocks | `unit/test_<service>.py` |
+| A new prompt | Real LLM, verify structured output shape | `integration/test_<prompt>.py` |
+| A new Pydantic schema field | Unit for node + integration for LLM parsing | Both tiers |
+| A new graph edge or compile change | Real `MemorySaver` + graph-api for the path | `integration/` + `graph_api/` |
 
 ---
 

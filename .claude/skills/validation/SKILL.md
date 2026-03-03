@@ -28,7 +28,7 @@ uv run pytest tests/unit/ -v
 # Step 2 — After schema, state, or prompt changes (~60s)
 uv run pytest tests/ -v
 
-# Step 3 — After changing graph edges/nodes (requires: uv run langgraph dev)
+# Step 3 — After changing graph edges/nodes (server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s
 
 # Single file during active development
