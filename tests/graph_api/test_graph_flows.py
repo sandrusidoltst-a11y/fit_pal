@@ -129,23 +129,34 @@ class TestConversationMemory:
         """
         arrange: First run introduces a name on the thread.
         act:     Second run asks for the name on the same thread.
-        assert:  Agent recalls the name, proving checkpointer memory works.
+        assert:  Full thread state shows both turns and agent recalls the name.
         """
         # Turn 1 — introduce a name
-        await lg_client.runs.wait(
+        run1 = await lg_client.runs.wait(
             thread,
             ASSISTANT_ID,
             input={"messages": [{"role": "human", "content": "Hi, my name is Bob"}]},
         )
+        assert run1 is not None, "Run 1 returned None"
+        run1_msgs = run1.get("messages", [])
+        assert len(run1_msgs) >= 2, f"Run 1 produced {len(run1_msgs)} messages, expected >= 2"
+
+        # Wait for thread to be idle before starting the second run
+        thread_info = await lg_client.threads.get(thread)
+        assert thread_info["status"] == "idle", f"Thread not idle after Run 1: {thread_info['status']}"
 
         # Turn 2 — ask for the name on the same thread
-        result = await lg_client.runs.wait(
+        run2 = await lg_client.runs.wait(
             thread,
             ASSISTANT_ID,
             input={"messages": [{"role": "human", "content": "What's my name?"}]},
         )
+        assert run2 is not None, "Run 2 returned None — second run did not complete"
+        run2_msgs = run2.get("messages", [])
+        assert len(run2_msgs) >= 2, f"Run 2 produced {len(run2_msgs)} messages, expected >= 2"
 
-        assert result is not None
-        messages = result.get("messages", [])
-        assert len(messages) >= 2
+        # Verify full accumulated thread state has both turns
+        state = await lg_client.threads.get_state(thread)
+        messages = state["values"]["messages"]
+        assert len(messages) >= 4, f"Thread has {len(messages)} messages, expected >= 4 (2 turns)"
         assert "Bob" in messages[-1]["content"]
