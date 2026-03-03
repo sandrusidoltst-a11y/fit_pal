@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
 
 from src.agents.nutritionist import define_graph
 
@@ -21,9 +22,9 @@ class TestFullFlowIntegration:
 
     async def test_integration_full_flow(self):
         """
-        arrange: build and load extensive MagicMock definitions simulating active logic blocks internally spanning multiple routines to return specific states.
-        act:     construct temporary Checkpointing memory to parse mock input text asynchronously mapping responses into finalized state records.
-        assert:  triggers system checks asserting exactly one resulting system context passed contains valid properties parsed throughout execution flow sequence updates natively.
+        arrange: build and load extensive MagicMock definitions simulating active logic blocks.
+        act:     construct temporary Checkpointing memory to parse mock input text asynchronously.
+        assert:  triggers system checks asserting exactly one resulting system context contains valid properties.
         """
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Logged Apple Success")
@@ -33,12 +34,12 @@ class TestFullFlowIntegration:
         with patch("src.agents.nutritionist.input_parser_node") as mock_input, \
              patch("src.agents.nutritionist.food_search_node") as mock_search, \
              patch("src.agents.nutritionist.agent_selection_node") as mock_select, \
-             patch("src.agents.nutritionist.calculate_log_node") as mock_calc, \
+             patch("src.agents.nutritionist.calculate_macros_node") as mock_calc, \
+             patch("src.agents.nutritionist.confirmation_node") as mock_confirm, \
+             patch("src.agents.nutritionist.commit_node") as mock_commit, \
              patch("src.agents.nodes.response_node.get_llm_for_node") as mock_get_llm:
 
             mock_get_llm.return_value = mock_llm
-
-            # Simulating a flow where one item is successfully processed
 
             # 1. Input Parser returns initial state
             mock_input.return_value = {
@@ -60,17 +61,55 @@ class TestFullFlowIntegration:
                 "last_action": "SELECTED"
             }
 
-            # 4. Calculate returns logged result
+            # 4. Calculate macros returns preview (no DB write)
             mock_calc.return_value = {
                 "pending_food_items": [],
+                "pending_confirmations": [{
+                    "food_name": "Apple",
+                    "amount_g": 1,
+                    "calories": 95,
+                    "protein": 0.5,
+                    "carbs": 25,
+                    "fat": 0.3,
+                    "source": "database",
+                    "original_text": "apple",
+                    "food_id": 1,
+                }],
+                "last_action": "AWAITING_CONFIRMATION",
+                "selected_food_id": None,
+            }
+
+            # 5. Confirmation node returns Command to commit (bypass interrupt)
+            mock_confirm.return_value = Command(
+                goto="commit",
+                update={
+                    "pending_confirmations": [{
+                        "food_name": "Apple",
+                        "amount_g": 1,
+                        "calories": 95,
+                        "protein": 0.5,
+                        "carbs": 25,
+                        "fat": 0.3,
+                        "source": "database",
+                        "original_text": "apple",
+                        "food_id": 1,
+                    }],
+                    "last_action": "CONFIRMED",
+                }
+            )
+
+            # 6. Commit writes to DB and returns results
+            mock_commit.return_value = {
+                "pending_confirmations": [],
                 "processing_results": [
                     {
                         "food_name": "Apple",
                         "status": "LOGGED",
-                        "message": "Logged Apple Success",
+                        "message": "Logged Apple (95kcal)",
                         "amount": 1,
-                        "unit": "unit",
-                        "original_text": "apple"
+                        "unit": "g",
+                        "original_text": "apple",
+                        "source": "database",
                     }
                 ],
                 "last_action": "LOGGED"
@@ -79,7 +118,7 @@ class TestFullFlowIntegration:
             # Build the graph with an in-memory checkpointer for testing
             app = await define_graph(checkpointer=MemorySaver())
 
-            # Invoke with user message (use ainvoke for async graph)
+            # Invoke with user message
             final_state = await app.ainvoke(
                 {"messages": [("user", "I ate an apple")]},
                 config={"configurable": {"thread_id": "1"}}

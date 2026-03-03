@@ -1,7 +1,9 @@
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # type: ignore # noqa: F401 — re-exported for callers
 from langgraph.graph import END, StateGraph
 
-from src.agents.nodes.calculate_log_node import calculate_log_node
+from src.agents.nodes.calculate_macros_node import calculate_macros_node
+from src.agents.nodes.commit_node import commit_node
+from src.agents.nodes.confirmation_node import confirmation_node
 from src.agents.nodes.food_search_node import food_search_node
 from src.agents.nodes.input_node import input_parser_node
 from src.agents.nodes.response_node import response_node
@@ -24,24 +26,24 @@ async def define_graph(**kwargs):
         return "response"
 
     def route_after_selection(state: AgentState):
-        """Route based on selection result."""
+        """Route to calculate_macros for both DB matches and off-menu estimation."""
         action = state.get("last_action")
-        if action == "SELECTED":
-            return "calculate_log"
-        else:  # NO_MATCH
-            return "response"
+        if action in ["SELECTED", "NO_MATCH"]:
+            return "calculate_macros"
+        return "response"
 
-    def route_after_calculate(state: AgentState):
-        """Route back to food_search if more items pending, else to response."""
+    def route_after_calculate_macros(state: AgentState):
+        """Loop back if more items pending, else show batch for confirmation."""
         if state.get("pending_food_items", []):
             return "food_search"  # Process next item
-        else:
-            return "response"  # All items processed
+        return "confirmation"  # All items calculated, show batch
 
     workflow.add_node("input_parser", input_parser_node)
     workflow.add_node("food_search", food_search_node)
     workflow.add_node("agent_selection", agent_selection_node)
-    workflow.add_node("calculate_log", calculate_log_node)
+    workflow.add_node("calculate_macros", calculate_macros_node)
+    workflow.add_node("confirmation", confirmation_node)
+    workflow.add_node("commit", commit_node)
     workflow.add_node("stats_lookup", stats_lookup_node)
     workflow.add_node("response", response_node)
 
@@ -63,19 +65,23 @@ async def define_graph(**kwargs):
         "agent_selection",
         route_after_selection,
         {
-            "calculate_log": "calculate_log",
+            "calculate_macros": "calculate_macros",
             "response": "response",
         },
     )
 
     workflow.add_conditional_edges(
-        "calculate_log",
-        route_after_calculate,
+        "calculate_macros",
+        route_after_calculate_macros,
         {
             "food_search": "food_search",
-            "response": "response",
+            "confirmation": "confirmation",
         },
     )
+
+    # confirmation → uses Command return (dynamic routing, no conditional edges needed)
+    # commit → response (always)
+    workflow.add_edge("commit", "response")
 
     workflow.add_edge("stats_lookup", "response")
     workflow.add_edge("response", END)

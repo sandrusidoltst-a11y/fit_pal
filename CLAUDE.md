@@ -41,7 +41,9 @@ fit_pal/
 │   │       ├── input_node.py      # Input parser node
 │   │       ├── food_search_node.py # Food search node
 │   │       ├── selection_node.py  # Agent selection node
-│   │       ├── calculate_log_node.py # Calculate & log node
+│   │       ├── calculate_macros_node.py # Macro calculation (DB or LLM estimation)
+│   │       ├── confirmation_node.py # HITL batch confirmation via interrupt()
+│   │       ├── commit_node.py     # Batch DB write after confirmation
 │   │       ├── stats_node.py      # Stats lookup node
 │   │       └── response_node.py   # LLM response generator
 │   ├── services/
@@ -52,7 +54,9 @@ fit_pal/
 │   │   └── food_lookup.py         # Async @tool: search_food, calculate_food_macros + compute_food_macros helper
 │   ├── schemas/
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
-│   │   └── selection_schema.py    # FoodSelectionResult schema
+│   │   ├── selection_schema.py    # FoodSelectionResult schema
+│   │   ├── estimation_schema.py   # MacroEstimation (LLM off-menu output)
+│   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)
 │   ├── database.py                # Sync + async DB engines
 │   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py                    # Entry point
@@ -84,6 +88,8 @@ fit_pal/
 - **Multi-Item Loop**: Conditional routing processes food items sequentially with loop-back edges until the queue is empty.
 - **Pydantic for LLM Output**: Always use `.with_structured_output()` then `.model_dump()`. Never parse raw LLM strings.
 - **Reporting State**: `AgentState.daily_log_report` stores raw `QueriedLog` list — enables flexible LLM reasoning (averages, distributions) instead of pre-aggregated values.
+- **HITL Batch Confirmation**: Before any DB write, all food items are accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses LangGraph's `interrupt()` in a validation loop to present the batch and await user confirmation/rejection/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`.
+- **Off-Menu Estimation**: When food is not found in the DB (NO_MATCH), `calculate_macros_node` uses LLM with `MacroEstimation` structured output to estimate macros. Items are tagged with `source: "estimated"` for transparency. Estimated items have `food_id=None` in the database.
 
 ---
 
@@ -137,3 +143,5 @@ uv run pytest --lf -v
 | [.claude/skills/test-engineering/SKILL.md](.claude/skills/test-engineering/SKILL.md) | Skill | Test tiers, mock boundaries, file structure, AAA docstrings, graph-api patterns | **Before** writing any test; when a test fails unexpectedly; when adding a new node, route, or schema |
 | [.claude/skills/langchain-architecture/SKILL.md](.claude/skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management, type safety patterns, node/edge best practices | **Before** implementing any LangGraph node, edge, or state change |
 | [.claude/skills/langsmith-fetch/SKILL.md](.claude/skills/langsmith-fetch/SKILL.md) | Skill | Fetching and reading LangSmith traces via CLI | When debugging unexpected agent behaviour or tracing tool calls |
+| [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
+| [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |

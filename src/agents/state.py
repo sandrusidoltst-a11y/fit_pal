@@ -56,6 +56,9 @@ GraphAction = Literal[
     "NO_MATCH",
     "AMBIGUOUS",
     "LOGGED",
+    "AWAITING_CONFIRMATION",
+    "CONFIRMED",
+    "REJECTED",
 ]
 
 
@@ -68,6 +71,25 @@ class ProcessingResult(PendingFoodItem):
 
     status: Literal["LOGGED", "FAILED"]
     message: str
+    source: Optional[Literal["database", "estimated"]]
+
+
+class MacroResult(TypedDict):
+    """Calculated macros for a single food item, pending user confirmation.
+
+    Used by calculate_macros_node to accumulate batch previews
+    before presenting to user for HITL confirmation.
+    """
+
+    food_name: str
+    amount_g: float
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+    source: Literal["database", "estimated"]
+    original_text: str
+    food_id: Optional[int]
 
 
 class InputState(TypedDict):
@@ -122,3 +144,4 @@ class AgentState(TypedDict):
     search_results: List[SearchResult]
     selected_food_id: Optional[int]
     processing_results: List["ProcessingResult"]
+    pending_confirmations: List["MacroResult"]

@@ -36,5 +36,5 @@ async def test_graph_has_all_expected_nodes():
     graph = await define_graph(checkpointer=memory)
 
     node_names = set(graph.nodes.keys())
-    expected = {"input_parser", "food_search", "agent_selection", "calculate_log", "stats_lookup", "response"}
+    expected = {"input_parser", "food_search", "agent_selection", "calculate_macros", "confirmation", "commit", "stats_lookup", "response"}
     assert expected.issubset(node_names), f"Missing nodes: {expected - node_names}"

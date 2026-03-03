@@ -30,6 +30,7 @@ def basic_state():
         "search_results": [],
         "selected_food_id": None,
         "processing_results": [],
+        "pending_confirmations": [],
     }
 
 
@@ -77,24 +78,24 @@ def mock_search_food():
 
 @pytest.fixture
 def mock_calculate_macros():
-    """Mock calculate_food_macros tool on calculate_log_node."""
-    with patch("src.agents.nodes.calculate_log_node.calculate_food_macros") as mock:
+    """Mock calculate_food_macros tool on calculate_macros_node."""
+    with patch("src.agents.nodes.calculate_macros_node.calculate_food_macros") as mock:
         mock.ainvoke = AsyncMock()
         yield mock
 
 
 @pytest.fixture
 def mock_log_food_entry():
-    """Mock log_food_entry tool on calculate_log_node."""
-    with patch("src.agents.nodes.calculate_log_node.log_food_entry") as mock:
+    """Mock log_food_entry tool on commit_node."""
+    with patch("src.agents.nodes.commit_node.log_food_entry") as mock:
         mock.ainvoke = AsyncMock()
         yield mock
 
 
 @pytest.fixture
-def mock_query_food_logs_for_calc():
-    """Mock query_food_logs tool on calculate_log_node."""
-    with patch("src.agents.nodes.calculate_log_node.query_food_logs") as mock:
+def mock_query_food_logs_for_commit():
+    """Mock query_food_logs tool on commit_node."""
+    with patch("src.agents.nodes.commit_node.query_food_logs") as mock:
         mock.ainvoke = AsyncMock()
         yield mock
 

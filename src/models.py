@@ -29,7 +29,7 @@ class DailyLog(Base):
     __tablename__ = "daily_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    food_id: Mapped[int] = mapped_column(Integer, ForeignKey("food_items.id"), nullable=False)
+    food_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("food_items.id"), nullable=True)
     amount_g: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Nutritional values (denormalized for fast aggregation)

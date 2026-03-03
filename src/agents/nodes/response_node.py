@@ -32,7 +32,7 @@ def _build_context(state: AgentState) -> str:
             else str(consumed_at)
         )
 
-    if last_action in ("LOGGED", "FAILED", "NO_MATCH", "SELECTED"):
+    if last_action in ("LOGGED", "FAILED", "NO_MATCH", "SELECTED", "CONFIRMED", "REJECTED"):
         # Food logging flow — include per-item processing results
         processing_results = state.get("processing_results", [])
         context["processing_results"] = processing_results
