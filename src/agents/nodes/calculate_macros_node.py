@@ -3,7 +3,7 @@ import os
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agents.state import AgentState, MacroResult
-from src.config import get_llm_for_node
+from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.estimation_schema import MacroEstimation
 from src.tools.food_lookup import calculate_food_macros
 
@@ -84,7 +84,7 @@ async def _estimate_macros(
     food_name: str, amount_g: float, original_text: str
 ) -> MacroResult:
     """Use LLM to estimate macros for an off-menu food item."""
-    prompt_path = os.path.join(os.getcwd(), "prompts", "macro_estimation.md")
+    prompt_path = os.path.join(BASE_DIR, "prompts", "macro_estimation.md")
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()

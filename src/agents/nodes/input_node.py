@@ -4,7 +4,7 @@ from datetime import datetime
 from langchain_core.messages import SystemMessage
 
 from src.agents.state import AgentState
-from src.config import get_llm_for_node
+from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.input_schema import FoodIntakeEvent
 
 def input_parser_node(state: AgentState):
@@ -12,7 +12,7 @@ def input_parser_node(state: AgentState):
     Node to parse user input into structured food intake data.
     """
     # Load system prompt
-    prompt_path = os.path.join(os.getcwd(), "prompts", "input_parser.md")
+    prompt_path = os.path.join(BASE_DIR, "prompts", "input_parser.md")
     
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:

@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Command, interrupt
 
 from src.agents.state import AgentState, MacroResult
-from src.config import get_llm_for_node
+from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.confirmation_schema import ConfirmationResponse
 from src.tools.food_lookup import calculate_food_macros
 
@@ -112,7 +112,7 @@ async def _parse_confirmation(
     user_text: str, batch: list[MacroResult]
 ) -> ConfirmationResponse:
     """Use LLM to parse user's natural language confirmation response."""
-    prompt_path = os.path.join(os.getcwd(), "prompts", "confirmation_parser.md")
+    prompt_path = os.path.join(BASE_DIR, "prompts", "confirmation_parser.md")
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()

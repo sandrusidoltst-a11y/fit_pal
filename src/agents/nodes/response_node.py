@@ -5,7 +5,7 @@ from datetime import date, datetime
 from langchain_core.messages import SystemMessage
 
 from src.agents.state import AgentState
-from src.config import get_llm_for_node
+from src.config import BASE_DIR, get_llm_for_node
 
 
 def _serialize_date(obj):
@@ -70,7 +70,7 @@ def response_node(state: AgentState) -> dict:
     4. Invokes the LLM and returns the AIMessage for state update.
     """
     # Load system prompt (mirrors selection_node.py pattern)
-    prompt_path = os.path.join(os.getcwd(), "prompts", "response_generator.md")
+    prompt_path = os.path.join(BASE_DIR, "prompts", "response_generator.md")
 
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:

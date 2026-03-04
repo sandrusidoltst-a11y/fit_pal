@@ -1,7 +1,7 @@
 import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from src.config import get_llm_for_node
+from src.config import BASE_DIR, get_llm_for_node
 
 from src.agents.state import AgentState
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
@@ -34,7 +34,7 @@ def agent_selection_node(state: AgentState) -> dict:
         }
 
     # Multiple results - use LLM selection
-    prompt_path = os.path.join(os.getcwd(), "prompts", "agent_selection.md")
+    prompt_path = os.path.join(BASE_DIR, "prompts", "agent_selection.md")
 
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
