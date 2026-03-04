@@ -64,6 +64,7 @@ fit_pal/
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
 │   ├── graph_api/                 # Graph compilation + E2E flow tests via langgraph-sdk
+│   │   └── logs/                  # Server logs + error tracebacks (gitignored)
 │   └── conftest.py                # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb      # Analysis notebook
