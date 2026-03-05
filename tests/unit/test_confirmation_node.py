@@ -7,7 +7,7 @@ Scope:
 LLM Usage:
     MOCKED — _parse_confirmation LLM is mocked.
 """
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from langgraph.types import Command
 
