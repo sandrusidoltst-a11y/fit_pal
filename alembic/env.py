@@ -13,8 +13,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.database import SYNC_DATABASE_URL
-from src.models import Base  # noqa: F401 — registers all models with metadata
+from src.database import SYNC_DATABASE_URL  # noqa: E402
+from src.models import Base  # noqa: E402, F401 — registers all models with metadata
 
 config = context.config
 
