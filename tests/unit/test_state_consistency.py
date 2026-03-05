@@ -35,3 +35,7 @@ class TestGraphActionIntegrity:
             
         # Check that "LOGGED" is in GraphAction
         assert "LOGGED" in valid_actions, "Missing 'LOGGED' in GraphAction"
+
+        # Check HITL-specific actions
+        for action in ("AWAITING_CONFIRMATION", "CONFIRMED", "REJECTED"):
+            assert action in valid_actions, f"Missing '{action}' in GraphAction"

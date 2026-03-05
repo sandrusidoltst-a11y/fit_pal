@@ -21,7 +21,7 @@ from src.models import DailyLog
 
 async def create_log_entry(
     session: AsyncSession,
-    food_id: int,
+    food_id: Optional[int],
     amount_g: float,
     calories: float,
     protein: float,
@@ -161,7 +161,7 @@ def _serialize_log(log: DailyLog) -> dict:
 
 @tool
 async def log_food_entry(
-    food_id: int,
+    food_id: Optional[int],
     amount_g: float,
     calories: float,
     protein: float,

@@ -5,11 +5,17 @@ import time
 import urllib.request
 import urllib.error
 import atexit
+from pathlib import Path
+
 import pytest
 from langgraph_sdk import get_client
 
 
 LANGGRAPH_DEV_URL = "http://127.0.0.1:2024"
+LOGS_DIR = Path(__file__).parent / "logs"
+
+# Module-level handle so test_graph_flows._dump_thread_debug can read it.
+_server_log_path: Path | None = None
 
 
 def is_server_running(host: str = "127.0.0.1", port: int = 2024, timeout: float = 1.0) -> bool:
@@ -96,11 +102,17 @@ def auto_start_langgraph_server():
 
     print("[conftest] Starting langgraph dev server...")
 
-    # Use DEVNULL instead of PIPE to prevent buffer deadlocks that create zombie processes
+    # Write server output to a temp file so we can extract full tracebacks
+    # on test failure. Avoids PIPE (buffer deadlocks) and DEVNULL (loses errors).
+    global _server_log_path
+    LOGS_DIR.mkdir(exist_ok=True)
+    server_log_file = open(LOGS_DIR / "server.log", "w", encoding="utf-8")
+    _server_log_path = Path(server_log_file.name)
+
     process = subprocess.Popen(
         ["uv", "run", "langgraph", "dev"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=server_log_file,
+        stderr=subprocess.STDOUT,
     )
 
     atexit.register(cleanup_server, process)

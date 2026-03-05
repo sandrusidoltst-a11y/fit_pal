@@ -47,30 +47,33 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 ```mermaid
 flowchart TD
     START((START)) --> InputNode[Input Parser Node]
-    
+
     subgraph Core_Logic [Core Logic]
         InputNode --> ToolCall{Need Macros or History?}
-        
+
         ToolCall -- Need Macros --> SearchTool[1. Search Food Tool]
         SearchTool --> SelectNode[Agent Selection]
-        SelectNode --> CalcTool[2. Calculate Macros & Log]
-        
-        ToolCall -- Need History --> ReadLog[3. Read Daily Logs]
-        
-        CalcTool --> UpdateState[Update State Node]
-        ReadLog --> UpdateState
-        
+        SelectNode --> CalcMacros[2. Calculate Macros Preview]
+        CalcMacros -- More items --> SearchTool
+        CalcMacros -- All done --> Confirm[3. HITL Confirmation]
+        Confirm -- Confirmed --> Commit[4. Batch DB Write]
+        Confirm -- Rejected --> ResponseNode
+
+        ToolCall -- Need History --> ReadLog[5. Read Daily Logs]
+
+        Commit --> ResponseNode
+        ReadLog --> ResponseNode
+
         ToolCall -- No --> ResponseNode
     end
-    
-    UpdateState --> ResponseNode[Response Node]
-    ResponseNode --> END((END))
+
+    ResponseNode[Response Node] --> END((END))
 
     subgraph Database [SQLite DB]
         DailyLogsTable[(Daily Logs Table)]
     end
 
-    CalcTool -.-> DailyLogsTable
+    Commit -.-> DailyLogsTable
     ReadLog -.-> DailyLogsTable
 ```
 
@@ -81,7 +84,9 @@ flowchart TD
 | **Input Parser** | Extract structured data from natural language. | User Text | `FoodIntake` Pydantic Model |
 | **Food Search** | Find food candidates by name (returns ID/Name). | Food Name | List[{id, name}] |
 | **Agent Selection** | Intelligent selection of best match from search results. | User Msg + Results | Selected Food ID / "No Match" |
-| **Calc & Log** | Calculate macros, log to DB, and update daily state. | Food ID, Amount (g) | Updated `AgentState` |
+| **Calc Macros** | Calculate macros preview (DB lookup or LLM estimation). | Food ID, Amount (g) | `MacroResult` in `pending_confirmations` |
+| **Confirmation** | HITL batch confirmation via `interrupt()` loop. | `pending_confirmations` | `Command` → commit or response |
+| **Commit** | Batch DB write after user confirms. | Confirmed batch | Updated `AgentState` |
 | **Stats Lookup** | Retrieve historical log data (single day or range). | Current Date / Range | `daily_log_report` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
@@ -117,6 +122,7 @@ class AgentState(TypedDict):
     search_results: List[SearchResult]          # ✅ Type-safe: lookup results
     selected_food_id: Optional[int]             # Selected food ID from agent selection
     processing_results: List["ProcessingResult"] # ✅ Track per-item status for feedback
+    pending_confirmations: List["MacroResult"]  # ✅ Batch preview before DB write
 ```
 
 **Architectural Decision**: 
@@ -141,12 +147,14 @@ fit_pal/
 │   │   ├── nutritionist.py   # LangGraph definition
 │   │   ├── state.py         # Schema and TypedDict
 │   │   └── nodes/           # Node implementations
-│   │       ├── input_node.py      # Input parser node
-│   │       ├── food_search_node.py # Food search node
-│   │       ├── selection_node.py   # Agent selection node
-│   │       ├── calculate_log_node.py # Calculate & log node
-│   │       ├── stats_node.py       # Stats lookup node
-│   │       └── response_node.py    # LLM response generator
+│   │       ├── input_node.py          # Input parser node
+│   │       ├── food_search_node.py    # Food search node
+│   │       ├── selection_node.py      # Agent selection node
+│   │       ├── calculate_macros_node.py # Macro calc (DB or estimation)
+│   │       ├── confirmation_node.py   # HITL batch confirmation
+│   │       ├── commit_node.py         # Batch DB write
+│   │       ├── stats_node.py          # Stats lookup node
+│   │       └── response_node.py       # LLM response generator
 │   ├── services/            # Business logic + @tool wrappers
 │   │   └── daily_log_service.py  # CRUD services + log_food_entry / query_food_logs tools
 │   ├── scripts/
@@ -154,8 +162,10 @@ fit_pal/
 │   ├── tools/
 │   │   └── food_lookup.py   # Async search_food / calculate_food_macros tools
 │   ├── schemas/             # Pydantic models
-│   │   ├── input_schema.py  # FoodIntakeEvent schema
-│   │   └── selection_schema.py # FoodSelectionResult schema
+│   │   ├── input_schema.py        # FoodIntakeEvent schema
+│   │   ├── selection_schema.py    # FoodSelectionResult schema
+│   │   ├── estimation_schema.py   # MacroEstimation (off-menu)
+│   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit
 │   ├── database.py          # Sync + async DB engines (async-first)
 │   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
@@ -268,8 +278,11 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
 - **The "Off-Menu" Problem (Fallback Logic)**:
   - Implement a mechanism (e.g., an LLM estimation node or external API) to handle custom, branded, or complex foods when the local database returns a `NO_MATCH` from the search tool.
-- **Database Migrations (Alembic)**: 
-  - Install and configure Alembic to safely manage anticipated schema changes (User IDs, Targets) without destroying existing data.
+- ✅ **Database Migrations (Alembic)** (Completed 2026-03-05):
+  - ✅ Installed and configured Alembic with sync engine, autogenerate, and `render_as_batch` for SQLite.
+  - ✅ Baseline migration stamps existing schema and fixes `daily_logs.food_id` nullable (DDL was NOT NULL, model was nullable=True).
+  - ✅ ETL script (`ingest_simple_db.py`) updated to use `DELETE FROM` instead of `drop_all`/`create_all`.
+  - ✅ SQLite nullable false-positive filter in `env.py` (removable when migrating to PostgreSQL).
 - **User Identity & Timezones**: 
   - Add `user_id` tracking natively to SQLite checkpointer and data tables to support simulated multi-user structures.
   - Implement time-zone aware logging to correctly calculate "daily" rollovers based on the individual user's location.

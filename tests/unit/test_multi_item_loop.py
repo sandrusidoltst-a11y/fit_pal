@@ -1,25 +1,25 @@
 """
-Unit tests for Multi-Item Loop processing dynamics (`calculate_log_node.py` logic loop tracking).
+Unit tests for Multi-Item Loop processing dynamics (`calculate_macros_node.py` loop tracking).
 
 Scope:
     Purely isolated unit tests. Verify arrays modify successfully.
 
 LLM Usage:
-    NONE — calculate_log_node does not call an LLM natively.
+    NONE — calculate_macros_node DB path does not call an LLM.
 """
 from unittest.mock import AsyncMock
 
-from src.agents.nodes.calculate_log_node import calculate_log_node
+from src.agents.nodes.calculate_macros_node import calculate_macros_node
 
 
 class TestMultiItemLoopDraining:
     """Test standard array draining functionality."""
 
-    async def test_calculate_log_removes_first_item(self, basic_state, mock_calculate_macros, mock_log_food_entry, mock_query_food_logs_for_calc):
+    async def test_calculate_macros_removes_first_item(self, basic_state, mock_calculate_macros):
         """
         arrange: set multiple items inside pending_food_items array.
-        act:     run calculate_log_node.
-        assert:  verifies calculated item has successfully been detached from current index tracking.
+        act:     run calculate_macros_node.
+        assert:  verifies calculated item has been removed from pending and added to confirmations.
         """
         mock_calculate_macros.ainvoke = AsyncMock(return_value={
             "name": "Test Food",
@@ -29,7 +29,6 @@ class TestMultiItemLoopDraining:
             "carbs": 10,
             "fat": 5,
         })
-        mock_query_food_logs_for_calc.ainvoke = AsyncMock(return_value=[])
 
         basic_state["pending_food_items"] = [
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
@@ -37,17 +36,19 @@ class TestMultiItemLoopDraining:
         ]
         basic_state["selected_food_id"] = 1
 
-        result = await calculate_log_node(basic_state)
+        result = await calculate_macros_node(basic_state)
 
         assert len(result["pending_food_items"]) == 1
         assert result["pending_food_items"][0]["food_name"] == "rice"
-        assert result["last_action"] == "LOGGED"
+        assert result["last_action"] == "AWAITING_CONFIRMATION"
+        assert len(result["pending_confirmations"]) == 1
+        assert result["pending_confirmations"][0]["food_name"] == "chicken"
 
-    async def test_calculate_log_single_item(self, basic_state, mock_calculate_macros, mock_log_food_entry, mock_query_food_logs_for_calc):
+    async def test_calculate_macros_single_item(self, basic_state, mock_calculate_macros):
         """
-        arrange: setup state to reflect processing only a single remaining trackable metric.
-        act:     run calculate_log_node.
-        assert:  verifies processing accurately drops elements fully, triggering resolution state updates appropriately.
+        arrange: setup state to reflect processing only a single remaining item.
+        act:     run calculate_macros_node.
+        assert:  verifies processing drops the element and adds to confirmations.
         """
         mock_calculate_macros.ainvoke = AsyncMock(return_value={
             "name": "Test Food",
@@ -57,23 +58,23 @@ class TestMultiItemLoopDraining:
             "carbs": 10,
             "fat": 5,
         })
-        mock_query_food_logs_for_calc.ainvoke = AsyncMock(return_value=[])
 
         basic_state["pending_food_items"] = [
             {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "an apple"},
         ]
         basic_state["selected_food_id"] = 5
 
-        result = await calculate_log_node(basic_state)
+        result = await calculate_macros_node(basic_state)
 
         assert len(result["pending_food_items"]) == 0
-        assert result["last_action"] == "LOGGED"
+        assert result["last_action"] == "AWAITING_CONFIRMATION"
+        assert len(result["pending_confirmations"]) == 1
 
-    async def test_sequential_item_removal(self, basic_state, mock_calculate_macros, mock_log_food_entry, mock_query_food_logs_for_calc):
+    async def test_sequential_item_accumulation(self, basic_state, mock_calculate_macros):
         """
         arrange: initialize pending elements inside the state tracking construct.
         act:     call simulated iterative executions updating element arrays between sequences.
-        assert:  verifies final output array finishes at exactly zero components with finalized loop completions logic triggered.
+        assert:  verifies all items accumulate into pending_confirmations sequentially.
         """
         mock_calculate_macros.ainvoke = AsyncMock(return_value={
             "name": "Test Food",
@@ -83,7 +84,6 @@ class TestMultiItemLoopDraining:
             "carbs": 10,
             "fat": 5,
         })
-        mock_query_food_logs_for_calc.ainvoke = AsyncMock(return_value=[])
 
         items = [
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
@@ -94,35 +94,41 @@ class TestMultiItemLoopDraining:
         basic_state["selected_food_id"] = 5
 
         # Process first item
-        result = await calculate_log_node(basic_state)
+        result = await calculate_macros_node(basic_state)
         assert len(result["pending_food_items"]) == 2
-        assert result["pending_food_items"][0]["food_name"] == "rice"
+        assert len(result["pending_confirmations"]) == 1
 
         # Simulate processing second item
-        basic_state.update({"pending_food_items": result["pending_food_items"]})
-        result2 = await calculate_log_node(basic_state)
+        basic_state.update({
+            "pending_food_items": result["pending_food_items"],
+            "pending_confirmations": result["pending_confirmations"],
+        })
+        result2 = await calculate_macros_node(basic_state)
         assert len(result2["pending_food_items"]) == 1
-        assert result2["pending_food_items"][0]["food_name"] == "broccoli"
+        assert len(result2["pending_confirmations"]) == 2
 
         # Simulate processing third item
-        basic_state.update({"pending_food_items": result2["pending_food_items"]})
-        result3 = await calculate_log_node(basic_state)
+        basic_state.update({
+            "pending_food_items": result2["pending_food_items"],
+            "pending_confirmations": result2["pending_confirmations"],
+        })
+        result3 = await calculate_macros_node(basic_state)
         assert len(result3["pending_food_items"]) == 0
-        assert result3["last_action"] == "LOGGED"
+        assert len(result3["pending_confirmations"]) == 3
 
 
 class TestMultiItemLoopEdgeCases:
     """Test functionality corresponding with potential empty or error based states."""
 
-    async def test_calculate_log_empty_pending(self, basic_state):
+    async def test_calculate_macros_empty_pending(self, basic_state):
         """
         arrange: stage completely empty list without trackable references.
-        act:     run calculate_log_node.
+        act:     run calculate_macros_node.
         assert:  verifies bypassed checks output empty parameters seamlessly.
         """
         basic_state["pending_food_items"] = []
 
-        result = await calculate_log_node(basic_state)
+        result = await calculate_macros_node(basic_state)
 
         assert result == {}
 

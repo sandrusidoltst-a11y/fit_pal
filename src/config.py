@@ -22,6 +22,8 @@ GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4o")
 NODE_CONFIGS = {
     "input_node": {"temperature": 0.0},
     "selection_node": {"temperature": 0.0},
+    "estimation_node": {"temperature": 0.0},
+    "confirmation_node": {"temperature": 0.0},
     "response_node": {"temperature": 0.7},
     "default": {"temperature": 0.0}
 }

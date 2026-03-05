@@ -28,6 +28,7 @@ dev = [
     "pandas-stubs>=3.0.0.260204",
     "types-sqlalchemy>=1.4.53.38",
     "langgraph-sdk>=0.3.8",
+    "alembic>=1.18.4",
 ]
 
 [tool.pytest.ini_options]
