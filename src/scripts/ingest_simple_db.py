@@ -5,8 +5,10 @@ import sys
 # Add the project root to the python path to allow imports from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from sqlalchemy import text
+
 from src.database import get_db_session, engine
-from src.models import Base, FoodItem
+from src.models import FoodItem
 from src.config import BASE_DIR
 
 CSV_PATH = os.path.join(BASE_DIR, "data", "nutrients_csvfile.csv")
@@ -29,10 +31,11 @@ def ingest_data():
     
     session = get_db_session()
     
-    # Reset Database
-    print("Resetting database...")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    # Clear existing food data (preserves schema managed by Alembic)
+    print("Clearing existing food data...")
+    session.execute(text("DELETE FROM daily_logs"))
+    session.execute(text("DELETE FROM food_items"))
+    session.commit()
     
     items_to_add = []
     

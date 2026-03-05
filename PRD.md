@@ -278,8 +278,11 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
 - **The "Off-Menu" Problem (Fallback Logic)**:
   - Implement a mechanism (e.g., an LLM estimation node or external API) to handle custom, branded, or complex foods when the local database returns a `NO_MATCH` from the search tool.
-- **Database Migrations (Alembic)**: 
-  - Install and configure Alembic to safely manage anticipated schema changes (User IDs, Targets) without destroying existing data.
+- ✅ **Database Migrations (Alembic)** (Completed 2026-03-05):
+  - ✅ Installed and configured Alembic with sync engine, autogenerate, and `render_as_batch` for SQLite.
+  - ✅ Baseline migration stamps existing schema and fixes `daily_logs.food_id` nullable (DDL was NOT NULL, model was nullable=True).
+  - ✅ ETL script (`ingest_simple_db.py`) updated to use `DELETE FROM` instead of `drop_all`/`create_all`.
+  - ✅ SQLite nullable false-positive filter in `env.py` (removable when migrating to PostgreSQL).
 - **User Identity & Timezones**: 
   - Add `user_id` tracking natively to SQLite checkpointer and data tables to support simulated multi-user structures.
   - Implement time-zone aware logging to correctly calculate "daily" rollovers based on the individual user's location.
