@@ -63,3 +63,6 @@ my_prompts/
 
 # E2E test debug logs
 tests/graph_api/logs/
+
+#traces
+traces/
