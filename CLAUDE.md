@@ -36,9 +36,7 @@ fit_pal/
 ├── commit_logs/                   # History of commits
 ├── data/
 │   ├── nutrition.db               # Nutritional database (SQLite)
-│   ├── nutrients_csvfile.csv      # Source data (Simple CSV)
-│   ├── meal_plan.txt              # User's macro targets
-│   └── logs/                      # Historical daily logs
+│   └── nutrients_csvfile.csv      # Source data (Simple CSV)
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py        # LangGraph graph definition
@@ -57,14 +55,14 @@ fit_pal/
 │   ├── scripts/
 │   │   └── ingest_simple_db.py    # ETL script (CSV -> SQLite)
 │   ├── tools/
-│   │   └── food_lookup.py         # Async @tool: search_food, calculate_food_macros + compute_food_macros helper
+│   │   └── food_lookup.py         # Async @tool: search_food, calculate_food_macros, create_food_item + compute_food_macros helper
 │   ├── schemas/
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
 │   │   ├── estimation_schema.py   # MacroEstimation (LLM off-menu output)
 │   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)
 │   ├── database.py                # Sync + async DB engines
-│   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog)
+│   ├── models.py                  # SQLAlchemy models (FoodItem w/ source column, DailyLog)
 │   ├── main.py                    # Entry point
 │   └── config.py                  # Environment & LLM setup via get_llm_for_node()
 ├── tests/
@@ -79,6 +77,7 @@ fit_pal/
 ├── prompts/                       # System prompts and tool specs
 ├── scripts/
 │   └── print_trace.py             # LangSmith thread trace viewer (by thread_id)
+├── traces/                        # LangSmith trace exports (JSON)
 ├── langgraph.json                 # LangSmith Studio configuration
 ├── PRD.md
 └── README.md
@@ -98,7 +97,7 @@ fit_pal/
 - **Pydantic for LLM Output**: Always use `.with_structured_output()` then `.model_dump()`. Never parse raw LLM strings.
 - **Reporting State**: `AgentState.daily_log_report` stores raw `QueriedLog` list — enables flexible LLM reasoning (averages, distributions) instead of pre-aggregated values.
 - **HITL Batch Confirmation**: Before any DB write, all food items are accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses LangGraph's `interrupt()` in a validation loop to present the batch and await user confirmation/rejection/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`.
-- **Off-Menu Estimation**: When food is not found in the DB (NO_MATCH), `calculate_macros_node` uses LLM with `MacroEstimation` structured output to estimate macros. Items are tagged with `source: "estimated"` for transparency. Estimated items currently have `food_id=None` in the database (nullable FK, fixed via Alembic baseline migration).
+- **Off-Menu Estimation + Persistence**: When food is not found in the DB (NO_MATCH), `calculate_macros_node` uses LLM with `MacroEstimation` structured output to estimate macros. Items are tagged with `source: "estimated"` for transparency. At commit time, `commit_node` creates a `FoodItem` row with `source="estimated"` and back-calculated per-100g values, then uses the returned `food_id` for the `DailyLog` entry. On subsequent searches, `search_food` queries DB foods first, then falls back to estimated foods — so previously estimated items are reused without re-estimation. `FoodItem.source` column (`"database"` | `"estimated"`, NOT NULL, default `"database"`) enables this two-tier search.
 - **Schema Migrations**: All schema changes go through Alembic. Never use `Base.metadata.create_all()` or `drop_all()` in production code. ETL script (`ingest_simple_db.py`) clears data via `DELETE FROM`, not schema recreation. Run `uv run alembic check` to verify no drift.
 
 ---
@@ -161,6 +160,6 @@ uv run alembic revision --autogenerate -m "description"
 | [PRD.md](PRD.md) | Documentation | Full requirements, features, and specs | Feature planning / understanding scope |
 | [.claude/skills/test-engineering/SKILL.md](.claude/skills/test-engineering/SKILL.md) | Skill | Test tiers, mock boundaries, file structure, AAA docstrings, graph-api patterns | **Before** writing any test; when a test fails unexpectedly; when adding a new node, route, or schema |
 | [.claude/skills/langchain-architecture/SKILL.md](.claude/skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management, type safety patterns, node/edge best practices | **Before** implementing any LangGraph node, edge, or state change |
-| [.claude/skills/langsmith-fetch/SKILL.md](.claude/skills/langsmith-fetch/SKILL.md) | Skill | Fetching and reading LangSmith traces via CLI | When debugging unexpected agent behaviour or tracing tool calls |
+
 | [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |

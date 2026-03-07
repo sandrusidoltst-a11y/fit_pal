@@ -38,7 +38,7 @@ class TestAgentSelectionAutoRouting:
         act:     run agent_selection_node.
         assert:  returns SELECTED and the result's ID as selected_food_id.
         """
-        basic_state["search_results"] = [{"id": 45, "name": "Beef"}]
+        basic_state["search_results"] = [{"id": 45, "name": "Beef", "source": "database"}]
         basic_state["pending_food_items"] = [
             {"food_name": "beef", "amount": 100.0, "unit": "g", "original_text": "100g beef"}
         ]
@@ -54,7 +54,7 @@ class TestAgentSelectionAutoRouting:
         act:     run agent_selection_node.
         assert:  auto-selects first search result ID and doesn't crash.
         """
-        basic_state["search_results"] = [{"id": 45, "name": "Beef"}]
+        basic_state["search_results"] = [{"id": 45, "name": "Beef", "source": "database"}]
         basic_state["pending_food_items"] = []
 
         result = agent_selection_node(basic_state)
@@ -71,9 +71,9 @@ class TestAgentSelectionLLMRouting:
         assert:  Returns SELECTED with matching food ID.
         """
         basic_state["search_results"] = [
-            {"id": 165, "name": "Apples, raw"},
-            {"id": 275, "name": "Apple betty"},
-            {"id": 163, "name": "Apple juice canned"},
+            {"id": 165, "name": "Apples, raw", "source": "database"},
+            {"id": 275, "name": "Apple betty", "source": "database"},
+            {"id": 163, "name": "Apple juice canned", "source": "database"},
         ]
         basic_state["pending_food_items"] = [
             {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "I ate an apple"}
@@ -98,8 +98,8 @@ class TestAgentSelectionLLMRouting:
         assert:  Returns NO_MATCH, no food ID selected.
         """
         basic_state["search_results"] = [
-            {"id": 44, "name": "Bacon"},
-            {"id": 45, "name": "Beef"},
+            {"id": 44, "name": "Bacon", "source": "database"},
+            {"id": 45, "name": "Beef", "source": "database"},
         ]
         basic_state["pending_food_items"] = [
             {"food_name": "meat", "amount": 100.0, "unit": "g", "original_text": "some meat"}

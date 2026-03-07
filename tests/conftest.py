@@ -55,6 +55,7 @@ async def async_test_db_session():
             protein=31.0,
             fat=3.6,
             carbs=0.0,
+            source="database",
         )
         session.add(sample_food)
         await session.commit()
@@ -96,6 +97,14 @@ def mock_log_food_entry():
 def mock_query_food_logs_for_commit():
     """Mock query_food_logs tool on commit_node."""
     with patch("src.agents.nodes.commit_node.query_food_logs") as mock:
+        mock.ainvoke = AsyncMock()
+        yield mock
+
+
+@pytest.fixture
+def mock_create_food_item():
+    """Mock create_food_item tool on commit_node."""
+    with patch("src.agents.nodes.commit_node.create_food_item") as mock:
         mock.ainvoke = AsyncMock()
         yield mock
 

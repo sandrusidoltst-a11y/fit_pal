@@ -27,6 +27,7 @@ class SearchResult(TypedDict):
 
     id: int
     name: str
+    source: str
 
 
 class QueriedLog(TypedDict):

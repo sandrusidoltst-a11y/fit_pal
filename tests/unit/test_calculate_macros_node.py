@@ -111,6 +111,35 @@ class TestCalculateMacrosDBPath:
         assert result["pending_confirmations"][0] == existing
         assert result["pending_confirmations"][1]["food_name"] == "chicken"
 
+    async def test_db_path_preserves_estimated_source(self, basic_state, mock_calculate_macros):
+        """
+        arrange: mock calculate_food_macros returns source="estimated" (re-used estimated food).
+        act:     run calculate_macros_node with selected_food_id.
+        assert:  MacroResult preserves source="estimated" from DB.
+        """
+        mock_calculate_macros.ainvoke = AsyncMock(return_value={
+            "name": "Protein Shake",
+            "amount_g": 300,
+            "calories": 200,
+            "protein": 30,
+            "carbs": 15,
+            "fat": 3,
+            "source": "estimated",
+        })
+
+        basic_state.update({
+            "pending_food_items": [
+                {"food_name": "protein shake", "amount": 300.0, "unit": "g", "original_text": "a protein shake"}
+            ],
+            "selected_food_id": 42,
+        })
+
+        result = await calculate_macros_node(basic_state)
+
+        macro = result["pending_confirmations"][0]
+        assert macro["source"] == "estimated"
+        assert macro["food_id"] == 42
+
     async def test_pops_pending_item(self, basic_state, mock_calculate_macros):
         """
         arrange: set two pending items.

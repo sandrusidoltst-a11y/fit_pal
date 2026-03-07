@@ -139,9 +139,7 @@ fit_pal/
 ├── commit_logs/             # History of commits
 ├── data/
 │   ├── nutrition.db         # Nutritional database (SQLite)
-│   ├── nutrients_csvfile.csv # Source data
-│   ├── meal_plan.txt        # User's targets
-│   └── logs/                 # Historical daily logs
+│   └── nutrients_csvfile.csv # Source data
 ├── src/
 │   ├── agents/
 │   │   ├── nutritionist.py   # LangGraph definition
@@ -160,7 +158,7 @@ fit_pal/
 │   ├── scripts/
 │   │   └── ingest_simple_db.py # ETL script
 │   ├── tools/
-│   │   └── food_lookup.py   # Async search_food / calculate_food_macros tools
+│   │   └── food_lookup.py   # Async search_food / calculate_food_macros / create_food_item tools
 │   ├── schemas/             # Pydantic models
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
@@ -209,6 +207,7 @@ All values are normalized to **100g**.
 | `protein` | Float | grams | per 100g |
 | `carbs` | Float | grams | per 100g |
 | `fat` | Float | grams | per 100g |
+| `source` | String | - | `"database"` or `"estimated"` (NOT NULL, default `"database"`) |
 
 ### Daily Log Database
 Stores confirmed food entries for long-term tracking.
@@ -216,7 +215,7 @@ Stores confirmed food entries for long-term tracking.
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | Integer | Primary Key |
-| `food_id` | Integer | Foreign Key (FoodItem) |
+| `food_id` | Integer | Foreign Key (FoodItem), nullable for legacy estimated entries |
 | `amount_g` | Float | Quantity Consumed |
 | `calories` | Float | Calculated Calories |
 | `protein` | Float | Calculated Protein |
@@ -276,8 +275,12 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Service functions kept unchanged (accept session param for DI/testability); `@tool` wrappers create their own sessions and delegate
 - ✅ **Relative Time & Past Logging** (Completed 2026-02-24):
   - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
-- **The "Off-Menu" Problem (Fallback Logic)**:
-  - Implement a mechanism (e.g., an LLM estimation node or external API) to handle custom, branded, or complex foods when the local database returns a `NO_MATCH` from the search tool.
+- ✅ **The "Off-Menu" Problem (Fallback Logic)** (Completed 2026-03-07):
+  - ✅ LLM estimation via `MacroEstimation` structured output when DB returns NO_MATCH
+  - ✅ Estimated foods persisted as `FoodItem` rows with `source="estimated"` at commit time (back-calculated per-100g values)
+  - ✅ `search_food` two-tier search: DB foods first → estimated foods fallback (reuses past estimations)
+  - ✅ HITL batch confirmation via `interrupt()` loop — user confirms/rejects/edits before any DB write
+  - ✅ Estimated items tagged with `(estimated)` in confirmation preview for transparency
 - ✅ **Database Migrations (Alembic)** (Completed 2026-03-05):
   - ✅ Installed and configured Alembic with sync engine, autogenerate, and `render_as_batch` for SQLite.
   - ✅ Baseline migration stamps existing schema and fixes `daily_logs.food_id` nullable (DDL was NOT NULL, model was nullable=True).

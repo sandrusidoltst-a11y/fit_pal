@@ -55,7 +55,7 @@ async def calculate_macros_node(state: AgentState) -> dict:
             "protein": macros["protein"],
             "carbs": macros["carbs"],
             "fat": macros["fat"],
-            "source": "database",
+            "source": macros.get("source", "database"),
             "original_text": current_item.get("original_text", ""),
             "food_id": selected_food_id,
         }

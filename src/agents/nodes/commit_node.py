@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from src.agents.state import AgentState
 from src.services.daily_log_service import log_food_entry, query_food_logs
+from src.tools.food_lookup import create_food_item
 
 
 async def commit_node(state: AgentState) -> dict:
@@ -31,9 +32,25 @@ async def commit_node(state: AgentState) -> dict:
 
     # Write each item to DB
     for item in batch:
+        food_id = item.get("food_id")
+
+        # Create FoodItem for estimated items before logging
+        if item.get("source") == "estimated" and food_id is None and item["amount_g"] > 0:
+            amount_g = item["amount_g"]
+            created = await create_food_item.ainvoke(
+                {
+                    "name": item["food_name"],
+                    "calories_per_100g": round((item["calories"] / amount_g) * 100, 2),
+                    "protein_per_100g": round((item["protein"] / amount_g) * 100, 2),
+                    "carbs_per_100g": round((item["carbs"] / amount_g) * 100, 2),
+                    "fat_per_100g": round((item["fat"] / amount_g) * 100, 2),
+                }
+            )
+            food_id = created["id"]
+
         await log_food_entry.ainvoke(
             {
-                "food_id": item.get("food_id"),
+                "food_id": food_id,
                 "amount_g": item["amount_g"],
                 "calories": item["calories"],
                 "protein": item["protein"],

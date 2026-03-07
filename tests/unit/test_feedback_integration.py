@@ -52,7 +52,7 @@ class TestFullFlowIntegration:
 
             # 2. Food Search returns results
             mock_search.return_value = {
-                "search_results": [{"id": 1, "name": "Apple"}]
+                "search_results": [{"id": 1, "name": "Apple", "source": "database"}]
             }
 
             # 3. Selection returns choice

@@ -23,8 +23,8 @@ class TestFoodSearchNodeHappyPath:
         assert:  returns correctly populated search_results property on state payload.
         """
         mock_search_food.ainvoke = AsyncMock(return_value=[
-            {"id": 1, "name": "Chicken breast"},
-            {"id": 2, "name": "Chicken thigh"},
+            {"id": 1, "name": "Chicken breast", "source": "database"},
+            {"id": 2, "name": "Chicken thigh", "source": "database"},
         ])
 
         basic_state["pending_food_items"] = [

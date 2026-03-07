@@ -18,6 +18,7 @@ class FoodItem(Base):
     protein: Mapped[Optional[float]] = mapped_column(Float)
     fat: Mapped[Optional[float]] = mapped_column(Float)
     carbs: Mapped[Optional[float]] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String, nullable=False, server_default="database")
 
     # Relationship: one FoodItem -> many DailyLog entries
     logs: Mapped[list["DailyLog"]] = relationship("DailyLog", back_populates="food_item")

@@ -128,8 +128,8 @@ class TestAgentSelectionFeedback:
         """
         basic_state.update({
             "search_results": [
-                {"id": 1, "name": "Apple"},
-                {"id": 2, "name": "Apple Pie"}
+                {"id": 1, "name": "Apple", "source": "database"},
+                {"id": 2, "name": "Apple Pie", "source": "database"}
             ],
             "pending_food_items": [{"food_name": "Test Apple", "amount": 1, "unit": "medium", "original_text": "one medium apple"}],
         })
