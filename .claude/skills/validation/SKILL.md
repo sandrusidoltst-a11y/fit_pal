@@ -19,16 +19,22 @@ uv run ruff check .
 uv run mypy src/
 ```
 
-### Test Suites — Run in This Order
+### Test Suites — Run ALL Steps (in order)
 
 ```bash
-# Step 1 — Pre-commit gate (mandatory, fast ~15s)
+# Step 1 — Unit tests (mandatory, fast ~15s)
 uv run pytest tests/unit/ -v
 
-# Step 2 — After changing graph edges/nodes (server auto-starts via conftest)
+# Step 2 — E2E / Graph-API tests (MANDATORY — always run, server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s
+```
 
-# Single file during active development
+**Both steps are mandatory.** Never skip Step 2. The E2E tests catch integration issues (routing, HITL flow, DB writes) that unit tests cannot.
+
+### Utility Commands (for active development only)
+
+```bash
+# Single file
 uv run pytest tests/unit/test_<specific>.py -v
 
 # Last-failed retry loop
