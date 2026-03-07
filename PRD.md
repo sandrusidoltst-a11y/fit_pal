@@ -286,27 +286,63 @@ Stores confirmed food entries for long-term tracking.
   - ✅ Baseline migration stamps existing schema and fixes `daily_logs.food_id` nullable (DDL was NOT NULL, model was nullable=True).
   - ✅ ETL script (`ingest_simple_db.py`) updated to use `DELETE FROM` instead of `drop_all`/`create_all`.
   - ✅ SQLite nullable false-positive filter in `env.py` (removable when migrating to PostgreSQL).
-- **User Identity & Timezones**: 
-  - Add `user_id` tracking natively to SQLite checkpointer and data tables to support simulated multi-user structures.
-  - Implement time-zone aware logging to correctly calculate "daily" rollovers based on the individual user's location.
-- **Structured Macro Targets**: 
+- ⏳ **Structured Macro Targets** *(postponed — depends on User Identity from Phase 3)*:
   - Deprecate the concept of a "text file meal plan" in favor of strict, deterministic database columns (Target Calories, Protein, Carbs, Fats) per user.
-- **Remaining Macros & Assessment Reasoning**: 
+- ⏳ **Remaining Macros & Assessment Reasoning** *(postponed — depends on Structured Macro Targets)*:
   - Build out the LLM capability to perform logic against structured targets ("How many calories do I have left?" or "Can I eat this cookie?").
-- **Correction Workflow**: 
+- ⏳ **Correction Workflow** *(postponed)*:
   - Implement intents to allow users to update or delete past erroneous entries without relying on risky direct-database modifications.
-- **Context Limit Management**: 
+- ⏳ **Context Limit Management** *(postponed)*:
   - Introduce an automated trimming sequence within the graph to prune the `messages` array, preventing token overflow while preserving necessary recent dialogue.
 
-### Phase 3: API Deployment & Production Scaling
-- **API Serving Layer**:
-  - Build the outward-facing web server to host the LangGraph agent securely (evaluating highly concurrent FastAPI vs. managed LangGraph REST API).
-- **PostgreSQL / Supabase Migration**:
-  - Graduate from local SQLite to a production-grade PostgreSQL cloud database (e.g., Supabase) utilizing the exact same Async SQLAlchemy architecture established in Phase 2.
-- **Production State Persistence**:
-  - Swap the local SQLite Checkpointer for the official `AsyncPostgresSaver` checkpointer, unifying chat history and daily logs in the same cloud database environment.
+### Phase 3: Production Deployment (Supabase + LangGraph Platform + Chatbot)
+
+**Decisions made (2026-03-07):**
+- **Deployment**: LangGraph Platform (managed) — handles graph serving, API, and state persistence out of the box.
+- **Database**: Supabase PostgreSQL — for app data (`food_items`, `daily_logs`, user profiles). Replaces local SQLite.
+- **Auth**: Supabase Auth (email/password, OAuth).
+- **Checkpointer**: LangGraph Platform's managed PostgreSQL checkpointer (NOT Supabase) — keeps chat state separate from app data.
+- **Client**: WhatsApp chatbot (preferred, via Twilio) with Telegram as fallback.
+- **User Identity**: Moved from Phase 2 → Phase 3, since it couples tightly with Supabase Auth and multi-user support.
+
+**Implementation areas (detailed planning TBD):**
+
+- **3.1 Supabase Project Setup**:
+  - Create Supabase project and configure PostgreSQL connection.
+  - Migrate `food_items` and `daily_logs` schemas from SQLite to Supabase PostgreSQL.
+  - Update `src/database.py` async engine to point to Supabase PostgreSQL (connection string swap).
+  - Adapt Alembic config for PostgreSQL (remove SQLite-specific `render_as_batch` and nullable filter).
+  - Re-run ETL script (`ingest_simple_db.py`) against Supabase DB.
+
+- **3.2 User Identity & Auth**:
+  - Integrate Supabase Auth for user registration and login.
+  - Add `user_id` column to `daily_logs` table (foreign key to Supabase `auth.users`).
+  - Wire `user_id` through the LangGraph state and all tools/services.
+  - Implement time-zone aware logging for per-user "daily" rollovers.
+
+- **3.3 LangGraph Platform Deployment**:
+  - Deploy the graph to LangGraph Platform (managed hosting).
+  - Configure environment variables (Supabase URL, API keys, LLM keys) in LangGraph Platform.
+  - LangGraph Platform provides its own managed PostgreSQL checkpointer — no manual `AsyncPostgresSaver` setup needed.
+  - Verify graph runs end-to-end on the platform.
+
+- **3.4 WhatsApp / Telegram Chatbot Integration**:
+  - Set up Twilio for WhatsApp Business API integration.
+  - Build webhook handler that bridges Twilio ↔ LangGraph Platform API.
+  - Handle HITL `interrupt()` flow over WhatsApp (confirmation messages, user replies).
+  - Fallback: Telegram Bot API if WhatsApp/Twilio proves too complex for MVP.
+
+**Cost considerations (LangGraph Platform):**
+- Developer tier: Free (5K traces/month) — sufficient for initial development.
+- Plus tier: ~$0.001/node execution + $0.0007–$0.0036/min standby + $39/user/month (LangSmith Plus required).
+- Twilio WhatsApp: per-message pricing (varies by country).
+
+**MCP tooling:**
+- `supabase` MCP server configured (`https://mcp.supabase.com/mcp`) for Supabase docs, SQL, migrations during development.
+- `docs-langchain` MCP server for LangGraph Platform deployment docs.
 
 ### Phase 4: Polish & Intelligence
 - Enable LangSmith tracing.
 - Upgrade to Semantic Search for food lookup.
 - Proactive coaching logic (suggestions for ending the day).
+- Implement postponed Phase 2 items (Structured Macro Targets, Assessment Reasoning, Correction Workflow, Context Limit Management).
