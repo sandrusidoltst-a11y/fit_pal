@@ -295,51 +295,36 @@ Stores confirmed food entries for long-term tracking.
 - ⏳ **Context Limit Management** *(postponed)*:
   - Introduce an automated trimming sequence within the graph to prune the `messages` array, preventing token overflow while preserving necessary recent dialogue.
 
-### Phase 3: Production Deployment (Supabase + LangGraph Platform + Chatbot)
+### Phase 3: Production Deployment (Supabase + Self-Hosted LangGraph Server)
 
-**Decisions made (2026-03-07):**
-- **Deployment**: LangGraph Platform (managed) — handles graph serving, API, and state persistence out of the box.
-- **Database**: Supabase PostgreSQL — for app data (`food_items`, `daily_logs`, user profiles). Replaces local SQLite.
-- **Auth**: Supabase Auth (email/password, OAuth).
-- **Checkpointer**: LangGraph Platform's managed PostgreSQL checkpointer (NOT Supabase) — keeps chat state separate from app data.
-- **Client**: WhatsApp chatbot (preferred, via Twilio) with Telegram as fallback.
-- **User Identity**: Moved from Phase 2 → Phase 3, since it couples tightly with Supabase Auth and multi-user support.
+> **Detailed step-by-step plan**: [`docs/phase3-deployment-plan.md`](docs/phase3-deployment-plan.md)
 
-**Implementation areas (detailed planning TBD):**
+**Decisions made (2026-03-07, updated 2026-03-07):**
+- **Deployment**: Self-hosted LangGraph Standalone Server (Docker + Postgres + Redis) — open source, no per-seat cost.
+- **Database**: Supabase PostgreSQL — for app data (`food_items`, `daily_logs`). Replaces local SQLite. Keep SQLAlchemy + `asyncpg` as ORM (don't switch to Supabase Python client).
+- **Auth**: Supabase Auth (email/password, OAuth) as identity provider. LangGraph custom auth handler validates JWTs server-side.
+- **Checkpointer**: Server-managed `AsyncPostgresSaver` — auto-configured by the LangGraph standalone server (can use Supabase Postgres or separate instance).
+- **User Identity**: Moved from Phase 2 → Phase 3, since it couples tightly with Supabase Auth and multi-user support. Flows via `config["configurable"]`, not AgentState.
 
-- **3.1 Supabase Project Setup**:
-  - Create Supabase project and configure PostgreSQL connection.
-  - Migrate `food_items` and `daily_logs` schemas from SQLite to Supabase PostgreSQL.
-  - Update `src/database.py` async engine to point to Supabase PostgreSQL (connection string swap).
-  - Adapt Alembic config for PostgreSQL (remove SQLite-specific `render_as_batch` and nullable filter).
-  - Re-run ETL script (`ingest_simple_db.py`) against Supabase DB.
+**Implementation steps** *(see detailed plan for full breakdown)*:
+1. Supabase project setup + schema migration
+2. Add `user_id` columns (multi-user ready)
+3. Swap DB engine (SQLite → asyncpg + Supabase Postgres)
+4. Auth integration (Supabase JWT + LangGraph auth handler in `src/auth.py`)
+5. Row Level Security (defense in depth)
+6. Deploy LangGraph standalone server (Docker Compose)
+7. Smoke test end-to-end
 
-- **3.2 User Identity & Auth**:
-  - Integrate Supabase Auth for user registration and login.
-  - Add `user_id` column to `daily_logs` table (foreign key to Supabase `auth.users`).
-  - Wire `user_id` through the LangGraph state and all tools/services.
-  - Implement time-zone aware logging for per-user "daily" rollovers.
-
-- **3.3 LangGraph Platform Deployment**:
-  - Deploy the graph to LangGraph Platform (managed hosting).
-  - Configure environment variables (Supabase URL, API keys, LLM keys) in LangGraph Platform.
-  - LangGraph Platform provides its own managed PostgreSQL checkpointer — no manual `AsyncPostgresSaver` setup needed.
-  - Verify graph runs end-to-end on the platform.
-
-- **3.4 WhatsApp / Telegram Chatbot Integration**:
-  - Set up Twilio for WhatsApp Business API integration.
-  - Build webhook handler that bridges Twilio ↔ LangGraph Platform API.
-  - Handle HITL `interrupt()` flow over WhatsApp (confirmation messages, user replies).
-  - Fallback: Telegram Bot API if WhatsApp/Twilio proves too complex for MVP.
-
-**Cost considerations (LangGraph Platform):**
-- Developer tier: Free (5K traces/month) — sufficient for initial development.
-- Plus tier: ~$0.001/node execution + $0.0007–$0.0036/min standby + $39/user/month (LangSmith Plus required).
-- Twilio WhatsApp: per-message pricing (varies by country).
+**Cost estimate:**
+- LangGraph server: Free (open source, self-hosted)
+- VPS (Fly.io / Railway / DigitalOcean): ~$5–20/mo
+- Supabase: Free tier (500MB DB, 50k MAU)
+- LangSmith tracing: Free tier (5k traces/mo)
+- LLM API calls (OpenAI / Anthropic): Pay-as-you-go
 
 **MCP tooling:**
 - `supabase` MCP server configured (`https://mcp.supabase.com/mcp`) for Supabase docs, SQL, migrations during development.
-- `docs-langchain` MCP server for LangGraph Platform deployment docs.
+- `docs-langchain` MCP server for LangGraph deployment docs.
 
 ### Phase 4: Polish & Intelligence
 - Enable LangSmith tracing.

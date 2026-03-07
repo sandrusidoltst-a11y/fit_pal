@@ -53,7 +53,8 @@ fit_pal/
 │   ├── services/
 │   │   └── daily_log_service.py   # CRUD for daily logs + @tool wrappers (log_food_entry, query_food_logs)
 │   ├── scripts/
-│   │   └── ingest_simple_db.py    # ETL script (CSV -> SQLite)
+│   │   ├── ingest_simple_db.py    # ETL script (CSV -> SQLite)
+│   │   └── print_trace.py         # LangSmith thread trace viewer (by thread_id)
 │   ├── tools/
 │   │   └── food_lookup.py         # Async @tool: search_food, calculate_food_macros, create_food_item + compute_food_macros helper
 │   ├── schemas/
@@ -73,10 +74,9 @@ fit_pal/
 ├── notebooks/
 │   └── evaluate_lookup.ipynb      # Analysis notebook
 ├── docs/
+│   ├── phase3-deployment-plan.md  # Phase 3 deployment steps (Supabase + self-hosted LangGraph)
 │   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
-├── scripts/
-│   └── print_trace.py             # LangSmith thread trace viewer (by thread_id)
 ├── traces/                        # LangSmith trace exports (JSON)
 ├── langgraph.json                 # LangSmith Studio configuration
 ├── PRD.md
@@ -150,6 +150,7 @@ uv run alembic revision --autogenerate -m "description"
 | Server | Purpose | When to Use |
 |---|---|---|
 | `docs-langchain` | Real-time LangChain, LangGraph, and LangSmith documentation search | When implementing LangGraph features, researching SDK patterns, or verifying API signatures |
+| `supabase` | Supabase docs, SQL execution, migrations, project management | When working on Supabase integration, database setup, auth, or RLS policies |
 
 ---
 
