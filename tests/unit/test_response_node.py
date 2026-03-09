@@ -93,8 +93,8 @@ class TestBuildContext:
         """QUERY_DAILY_STATS should include daily_log_report, not processing_results."""
         logs = [
             {
-                "id": 1,
-                "food_id": 10,
+                "id": "log-uuid-1",
+                "food_id": "food-uuid-10",
                 "amount_g": 200.0,
                 "calories": 330.0,
                 "protein": 62.0,
@@ -197,8 +197,8 @@ class TestResponseNode:
 
         logs = [
             {
-                "id": 1,
-                "food_id": 10,
+                "id": "log-uuid-1",
+                "food_id": "food-uuid-10",
                 "amount_g": 200.0,
                 "calories": 330.0,
                 "protein": 62.0,

@@ -1,5 +1,6 @@
 import os
 import sys
+import uuid as uuid_mod
 
 # Ensure project root is in python path - MUST be before src imports
 sys.path.append(os.getcwd())
@@ -7,6 +8,7 @@ sys.path.append(os.getcwd())
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
+from langchain_core.runnables import RunnableConfig
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from unittest.mock import AsyncMock, patch
@@ -14,6 +16,13 @@ from unittest.mock import AsyncMock, patch
 from src.models import Base, FoodItem
 
 load_dotenv()
+
+TEST_USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+TEST_USER_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+TEST_CONFIG_A: RunnableConfig = {"configurable": {"user_id": TEST_USER_A}}
+TEST_CONFIG_B: RunnableConfig = {"configurable": {"user_id": TEST_USER_B}}
+
+SEED_FOOD_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
@@ -38,7 +47,7 @@ def basic_state():
 async def async_test_db_session():
     """Provides an async in-memory SQLite session for testing.
 
-    Creates all tables and seeds with a sample FoodItem (id=1).
+    Creates all tables and seeds with a sample FoodItem (UUID id).
     Session is automatically closed after each test.
     """
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -49,13 +58,14 @@ async def async_test_db_session():
     async with AsyncTestSession() as session:
         # Seed with sample food item for testing
         sample_food = FoodItem(
-            id=1,
+            id=uuid_mod.UUID(SEED_FOOD_ID),
             name="Test Chicken",
             calories=165.0,
             protein=31.0,
             fat=3.6,
             carbs=0.0,
             source="database",
+            user_id=None,  # shared database food
         )
         session.add(sample_food)
         await session.commit()

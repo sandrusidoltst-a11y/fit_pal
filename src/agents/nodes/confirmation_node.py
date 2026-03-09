@@ -2,6 +2,7 @@ import os
 from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
 
 from src.agents.state import AgentState, MacroResult
@@ -42,7 +43,7 @@ def _format_batch_preview(items: list[MacroResult]) -> dict:
 
 
 async def confirmation_node(
-    state: AgentState,
+    state: AgentState, config: RunnableConfig,
 ) -> Command[Literal["commit", "response"]]:
     """Present batch preview and await user confirmation via conversational interrupt loop.
 
@@ -102,7 +103,7 @@ async def confirmation_node(
 
         elif decision.action == "edit":
             # Apply edits to batch
-            batch = await _apply_edits(batch, decision.edits or [])
+            batch = await _apply_edits(batch, decision.edits or [], config)
             # Re-build preview with updated batch
             preview = _format_batch_preview(batch)
             # Loop continues → interrupt again with updated preview
@@ -140,7 +141,7 @@ async def _parse_confirmation(
 
 
 async def _apply_edits(
-    batch: list[MacroResult], edits: list
+    batch: list[MacroResult], edits: list, config: RunnableConfig,
 ) -> list[MacroResult]:
     """Apply user edits to the batch. Recalculate macros for amount changes."""
     # Process removals in reverse order to preserve indices
@@ -163,7 +164,7 @@ async def _apply_edits(
                 if item["food_id"] is not None:
                     # DB item — recalculate via tool
                     macros = await calculate_food_macros.ainvoke(
-                        {"food_id": item["food_id"], "amount_g": new_amount}
+                        {"food_id": item["food_id"], "amount_g": new_amount}, config=config
                     )
                     if "error" not in macros:
                         item["amount_g"] = new_amount

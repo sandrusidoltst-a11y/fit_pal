@@ -67,10 +67,16 @@ def parse_csv() -> list[dict]:
 
 def ingest_sqlite(items: list[dict]):
     """Insert via ORM — existing path for local SQLite dev."""
-    from src.database import get_db_session
-    from src.models import FoodItem
+    from sqlalchemy.orm import sessionmaker
 
-    session = get_db_session()
+    from src.config import DB_PATH
+    from src.models import Base, FoodItem
+
+    engine = create_engine(f"sqlite:///{DB_PATH}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
     session.execute(text("DELETE FROM daily_logs"))
     session.execute(text("DELETE FROM food_items"))
     session.commit()
@@ -79,6 +85,7 @@ def ingest_sqlite(items: list[dict]):
     session.add_all(food_items)
     session.commit()
     session.close()
+    engine.dispose()
 
 
 def ingest_postgres(items: list[dict]):

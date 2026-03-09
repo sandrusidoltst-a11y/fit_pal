@@ -24,6 +24,7 @@ from graph_api import conftest as _conftest
 
 ASSISTANT_ID = "fitpal"  # Must match the graph name in langgraph.json
 LOGS_DIR = Path(__file__).parent / "logs"
+DEV_USER_CONFIG = {"configurable": {"user_id": "00000000-0000-0000-0000-000000000001"}}
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ def _dump_error_log(thread, error_type, test_name="unknown"):
     return filepath
 
 
-async def _run(lg_client, thread, *, input=None, command=None, test_name="unknown"):
+async def _run(lg_client, thread, *, input=None, command=None, config=None, test_name="unknown"):
     """Execute a graph run via HTTP and fail clearly on BlockingError.
 
     Uses raise_error=False so we get the raw error dict instead of an opaque
@@ -88,6 +89,8 @@ async def _run(lg_client, thread, *, input=None, command=None, test_name="unknow
         kwargs["input"] = input
     if command is not None:
         kwargs["command"] = command
+    if config is not None:
+        kwargs["config"] = config
 
     result = await lg_client.runs.wait(thread, ASSISTANT_ID, **kwargs)
 
@@ -143,6 +146,7 @@ class TestChitchatPath:
         result = await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "Hello, how are you?"}]},
+            config=DEV_USER_CONFIG,
             test_name="test_greeting_routes_directly_to_response",
         )
 
@@ -163,6 +167,7 @@ class TestQueryStatsPath:
         result = await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "What did I eat today?"}]},
+            config=DEV_USER_CONFIG,
             test_name="test_query_todays_stats_completes",
         )
 
@@ -190,11 +195,12 @@ class TestFoodLoggingPath:
         await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "I ate 200g of chicken"}]},
+            config=DEV_USER_CONFIG,
             test_name=tn,
         )
         await _assert_interrupted(lg_client, thread)
 
-        result = await _run(lg_client, thread, command={"resume": "yes"}, test_name=tn)
+        result = await _run(lg_client, thread, command={"resume": "yes"}, config=DEV_USER_CONFIG, test_name=tn)
 
         messages = result.get("messages", [])
         assert len(messages) >= 2
@@ -215,11 +221,12 @@ class TestNoMatchPath:
         await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "I ate 200g of xyzfood99999abcde"}]},
+            config=DEV_USER_CONFIG,
             test_name=tn,
         )
         await _assert_interrupted(lg_client, thread)
 
-        result = await _run(lg_client, thread, command={"resume": "yes"}, test_name=tn)
+        result = await _run(lg_client, thread, command={"resume": "yes"}, config=DEV_USER_CONFIG, test_name=tn)
 
         messages = result.get("messages", [])
         assert len(messages) >= 2
@@ -241,11 +248,12 @@ class TestMultiItemPath:
         await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "I had 150g of chicken and 100g of rice"}]},
+            config=DEV_USER_CONFIG,
             test_name=tn,
         )
         await _assert_interrupted(lg_client, thread)
 
-        result = await _run(lg_client, thread, command={"resume": "yes"}, test_name=tn)
+        result = await _run(lg_client, thread, command={"resume": "yes"}, config=DEV_USER_CONFIG, test_name=tn)
 
         messages = result.get("messages", [])
         assert len(messages) >= 2
@@ -271,11 +279,12 @@ class TestFoodLoggingReject:
         await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "I ate 200g of chicken"}]},
+            config=DEV_USER_CONFIG,
             test_name=tn,
         )
         await _assert_interrupted(lg_client, thread)
 
-        result = await _run(lg_client, thread, command={"resume": "no cancel it"}, test_name=tn)
+        result = await _run(lg_client, thread, command={"resume": "no cancel it"}, config=DEV_USER_CONFIG, test_name=tn)
 
         messages = result.get("messages", [])
         assert len(messages) >= 2
@@ -303,16 +312,17 @@ class TestFoodLoggingEdit:
         await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "I ate 200g of chicken"}]},
+            config=DEV_USER_CONFIG,
             test_name=tn,
         )
         await _assert_interrupted(lg_client, thread)
 
         # Turn 2 — edit, should re-interrupt
-        await _run(lg_client, thread, command={"resume": "change chicken to 300g"}, test_name=tn)
+        await _run(lg_client, thread, command={"resume": "change chicken to 300g"}, config=DEV_USER_CONFIG, test_name=tn)
         await _assert_interrupted(lg_client, thread)
 
         # Turn 3 — confirm edited batch
-        result = await _run(lg_client, thread, command={"resume": "yes confirm"}, test_name=tn)
+        result = await _run(lg_client, thread, command={"resume": "yes confirm"}, config=DEV_USER_CONFIG, test_name=tn)
 
         messages = result.get("messages", [])
         assert len(messages) >= 2
@@ -337,6 +347,7 @@ class TestConversationMemory:
         result1 = await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "Hi, my name is Bob"}]},
+            config=DEV_USER_CONFIG,
             test_name="test_memory_persists_across_turns",
         )
         messages1 = result1.get("messages", [])
@@ -350,6 +361,7 @@ class TestConversationMemory:
         result2 = await _run(
             lg_client, thread,
             input={"messages": [{"role": "human", "content": "What's my name?"}]},
+            config=DEV_USER_CONFIG,
             test_name="test_memory_persists_across_turns",
         )
         messages2 = result2.get("messages", [])

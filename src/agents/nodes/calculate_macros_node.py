@@ -1,6 +1,7 @@
 import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
@@ -8,7 +9,7 @@ from src.schemas.estimation_schema import MacroEstimation
 from src.tools.food_lookup import calculate_food_macros
 
 
-async def calculate_macros_node(state: AgentState) -> dict:
+async def calculate_macros_node(state: AgentState, config: RunnableConfig) -> dict:
     """Calculate macros for the current food item (preview only, no DB write).
 
     Two paths:
@@ -30,7 +31,7 @@ async def calculate_macros_node(state: AgentState) -> dict:
     if selected_food_id:
         # DB path — use tool
         macros = await calculate_food_macros.ainvoke(
-            {"food_id": selected_food_id, "amount_g": amount}
+            {"food_id": selected_food_id, "amount_g": amount}, config=config
         )
         if "error" in macros:
             # Calculation failed — add FAILED result, skip this item

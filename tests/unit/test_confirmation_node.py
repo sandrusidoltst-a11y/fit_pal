@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 from langgraph.types import Command
 
+from tests.conftest import TEST_CONFIG_A
 from src.agents.nodes.confirmation_node import (
     _format_batch_preview,
     confirmation_node,
@@ -28,7 +29,7 @@ SAMPLE_BATCH = [
         "fat": 7.2,
         "source": "database",
         "original_text": "200g chicken",
-        "food_id": 1,
+        "food_id": "food-uuid-1",
     },
     {
         "food_name": "pizza",
@@ -101,7 +102,7 @@ class TestConfirmationNodeConfirm:
              patch("src.agents.nodes.confirmation_node._parse_confirmation", new_callable=AsyncMock) as mock_parse:
             mock_parse.return_value = ConfirmationResponse(action="confirm")
 
-            result = await confirmation_node(basic_state)
+            result = await confirmation_node(basic_state, TEST_CONFIG_A)
 
         assert isinstance(result, Command)
         assert result.goto == "commit"
@@ -123,7 +124,7 @@ class TestConfirmationNodeReject:
              patch("src.agents.nodes.confirmation_node._parse_confirmation", new_callable=AsyncMock) as mock_parse:
             mock_parse.return_value = ConfirmationResponse(action="reject")
 
-            result = await confirmation_node(basic_state)
+            result = await confirmation_node(basic_state, TEST_CONFIG_A)
 
         assert isinstance(result, Command)
         assert result.goto == "response"
@@ -151,7 +152,7 @@ class TestConfirmationNodeEdit:
                 "fat": 7.2,
                 "source": "database",
                 "original_text": "200g chicken",
-                "food_id": 1,
+                "food_id": "food-uuid-1",
             },
         ]
 
@@ -191,7 +192,7 @@ class TestConfirmationNodeEdit:
                 "fat": 5.4,
             })
 
-            result = await confirmation_node(basic_state)
+            result = await confirmation_node(basic_state, TEST_CONFIG_A)
 
         assert interrupt_call_count == 2
         assert isinstance(result, Command)
@@ -211,7 +212,7 @@ class TestConfirmationNodeEdgeCases:
         """
         basic_state["pending_confirmations"] = []
 
-        result = await confirmation_node(basic_state)
+        result = await confirmation_node(basic_state, TEST_CONFIG_A)
 
         assert isinstance(result, Command)
         assert result.goto == "response"

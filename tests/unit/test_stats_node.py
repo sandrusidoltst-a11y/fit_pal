@@ -10,6 +10,7 @@ LLM Usage:
 from datetime import date, datetime
 from unittest.mock import AsyncMock
 
+from tests.conftest import TEST_CONFIG_A
 from src.agents.nodes.stats_node import stats_lookup_node
 
 
@@ -29,8 +30,8 @@ class TestStatsNodeSingleDay:
         })
 
         mock_query_food_logs_for_stats.ainvoke = AsyncMock(return_value=[{
-            "id": 1,
-            "food_id": 101,
+            "id": "log-uuid-1",
+            "food_id": "food-uuid-101",
             "amount_g": 100.0,
             "calories": 150.0,
             "protein": 10.0,
@@ -41,16 +42,16 @@ class TestStatsNodeSingleDay:
             "original_text": "100g chicken",
         }])
 
-        result = await stats_lookup_node(basic_state)
+        result = await stats_lookup_node(basic_state, TEST_CONFIG_A)
 
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
-            {"target_date": "2023-10-27"}
+            {"target_date": "2023-10-27"}, config=TEST_CONFIG_A
         )
 
         assert "daily_log_report" in result
         report = result["daily_log_report"]
         assert len(report) == 1
-        assert report[0]["id"] == 1
+        assert report[0]["id"] == "log-uuid-1"
         assert report[0]["calories"] == 150.0
         assert report[0]["original_text"] == "100g chicken"
 
@@ -74,9 +75,9 @@ class TestStatsNodeDateRange:
 
         mock_query_food_logs_for_stats.ainvoke = AsyncMock(return_value=[])
 
-        result = await stats_lookup_node(basic_state)
+        result = await stats_lookup_node(basic_state, TEST_CONFIG_A)
 
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
-            {"target_date": "2023-10-25", "end_date": "2023-10-27"}
+            {"target_date": "2023-10-25", "end_date": "2023-10-27"}, config=TEST_CONFIG_A
         )
         assert result["daily_log_report"] == []

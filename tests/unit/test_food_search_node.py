@@ -10,6 +10,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock
 
+from tests.conftest import TEST_CONFIG_A
 from src.agents.nodes.food_search_node import food_search_node
 
 
@@ -23,21 +24,23 @@ class TestFoodSearchNodeHappyPath:
         assert:  returns correctly populated search_results property on state payload.
         """
         mock_search_food.ainvoke = AsyncMock(return_value=[
-            {"id": 1, "name": "Chicken breast", "source": "database"},
-            {"id": 2, "name": "Chicken thigh", "source": "database"},
+            {"id": "food-uuid-1", "name": "Chicken breast", "source": "database"},
+            {"id": "food-uuid-2", "name": "Chicken thigh", "source": "database"},
         ])
 
         basic_state["pending_food_items"] = [
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"}
         ]
 
-        result = await food_search_node(basic_state)
+        result = await food_search_node(basic_state, TEST_CONFIG_A)
 
-        mock_search_food.ainvoke.assert_called_once()
+        mock_search_food.ainvoke.assert_called_once_with(
+            {"query": "chicken"}, config=TEST_CONFIG_A
+        )
         assert "search_results" in result
         assert isinstance(result["search_results"], list)
         assert len(result["search_results"]) == 2
-        assert result["search_results"][0]["id"] == 1
+        assert result["search_results"][0]["id"] == "food-uuid-1"
 
 
 class TestFoodSearchNodeEdgeCases:
@@ -51,6 +54,6 @@ class TestFoodSearchNodeEdgeCases:
         """
         basic_state["pending_food_items"] = []
 
-        result = await food_search_node(basic_state)
+        result = await food_search_node(basic_state, TEST_CONFIG_A)
 
         assert result["search_results"] == []

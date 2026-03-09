@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 
+from langchain_core.runnables import RunnableConfig
+
 from src.agents.state import AgentState
 from src.services.daily_log_service import log_food_entry, query_food_logs
 from src.tools.food_lookup import create_food_item
 
 
-async def commit_node(state: AgentState) -> dict:
+async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
     """Write all confirmed food items to the database in batch.
 
     Only called after user confirms via confirmation_node.
@@ -44,7 +46,8 @@ async def commit_node(state: AgentState) -> dict:
                     "protein_per_100g": round((item["protein"] / amount_g) * 100, 2),
                     "carbs_per_100g": round((item["carbs"] / amount_g) * 100, 2),
                     "fat_per_100g": round((item["fat"] / amount_g) * 100, 2),
-                }
+                },
+                config=config,
             )
             food_id = created["id"]
 
@@ -58,7 +61,8 @@ async def commit_node(state: AgentState) -> dict:
                 "fat": item["fat"],
                 "timestamp": timestamp.isoformat(),
                 "original_text": item.get("original_text", ""),
-            }
+            },
+            config=config,
         )
 
         processing_results.append(
@@ -77,7 +81,8 @@ async def commit_node(state: AgentState) -> dict:
     updated_report = []
     if consumed_at:
         updated_report = await query_food_logs.ainvoke(
-            {"target_date": str(consumed_at.date())}
+            {"target_date": str(consumed_at.date())},
+            config=config,
         )
 
     return {

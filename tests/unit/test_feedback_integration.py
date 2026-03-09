@@ -52,12 +52,12 @@ class TestFullFlowIntegration:
 
             # 2. Food Search returns results
             mock_search.return_value = {
-                "search_results": [{"id": 1, "name": "Apple", "source": "database"}]
+                "search_results": [{"id": "food-uuid-1", "name": "Apple", "source": "database"}]
             }
 
             # 3. Selection returns choice
             mock_select.return_value = {
-                "selected_food_id": 1,
+                "selected_food_id": "food-uuid-1",
                 "last_action": "SELECTED"
             }
 
@@ -73,7 +73,7 @@ class TestFullFlowIntegration:
                     "fat": 0.3,
                     "source": "database",
                     "original_text": "apple",
-                    "food_id": 1,
+                    "food_id": "food-uuid-1",
                 }],
                 "last_action": "AWAITING_CONFIRMATION",
                 "selected_food_id": None,
@@ -92,7 +92,7 @@ class TestFullFlowIntegration:
                         "fat": 0.3,
                         "source": "database",
                         "original_text": "apple",
-                        "food_id": 1,
+                        "food_id": "food-uuid-1",
                     }],
                     "last_action": "CONFIRMED",
                 }

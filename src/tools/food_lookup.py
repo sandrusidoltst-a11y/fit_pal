@@ -1,5 +1,10 @@
+import uuid as uuid_mod
+
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from sqlalchemy import select
+
+from src.config import DEFAULT_DEV_USER_ID
 from src.database import get_async_db_session
 from src.models import FoodItem
 
@@ -18,15 +23,16 @@ def compute_food_macros(food: FoodItem, amount_g: float) -> dict:
 
 
 @tool
-async def search_food(query: str) -> list[dict]:
+async def search_food(query: str, config: RunnableConfig) -> list[dict]:
     """
     Search for food items by name.
     Returns a list of candidates with ID, Name, and source.
     Searches database foods first, then falls back to estimated foods.
     Use this to find the correct food_id before calculating macros.
     """
+    user_id = config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
     async with get_async_db_session() as session:
-        # First: search database foods
+        # First: search shared database foods (no user filter)
         stmt = (
             select(FoodItem.id, FoodItem.name)
             .where(FoodItem.name.ilike(f"%{query}%"), FoodItem.source == "database")
@@ -34,26 +40,27 @@ async def search_food(query: str) -> list[dict]:
         )
         results = (await session.execute(stmt)).all()
         if results:
-            return [{"id": r.id, "name": r.name, "source": "database"} for r in results]
+            return [{"id": str(r.id), "name": r.name, "source": "database"} for r in results]
 
-        # Fallback: search estimated foods
+        # Fallback: search THIS USER's estimated foods
         stmt = (
             select(FoodItem.id, FoodItem.name)
             .where(FoodItem.name.ilike(f"%{query}%"), FoodItem.source == "estimated")
+            .where(FoodItem.user_id == uuid_mod.UUID(user_id))
             .limit(10)
         )
         results = (await session.execute(stmt)).all()
-        return [{"id": r.id, "name": r.name, "source": "estimated"} for r in results]
+        return [{"id": str(r.id), "name": r.name, "source": "estimated"} for r in results]
 
 
 @tool
-async def calculate_food_macros(food_id: int, amount_g: float) -> dict:
+async def calculate_food_macros(food_id: str, amount_g: float) -> dict:
     """
     Calculate nutritional values for a specific food item and amount (in grams).
     Returns dictionary with Name, Calories, Protein, Fat, Carbs.
     """
     async with get_async_db_session() as session:
-        food = await session.get(FoodItem, food_id)
+        food = await session.get(FoodItem, uuid_mod.UUID(food_id))
         if not food:
             return {"error": f"Food item with ID {food_id} not found"}
         result = compute_food_macros(food, amount_g)
@@ -69,8 +76,10 @@ async def create_food_item(
     carbs_per_100g: float,
     fat_per_100g: float,
     source: str = "estimated",
+    config: RunnableConfig = None,
 ) -> dict:
     """Create a new FoodItem in the database. Returns the created item's id and name."""
+    user_id = config["configurable"].get("user_id", DEFAULT_DEV_USER_ID) if config else DEFAULT_DEV_USER_ID
     async with get_async_db_session() as session:
         food_item = FoodItem(
             name=name,
@@ -79,8 +88,9 @@ async def create_food_item(
             fat=fat_per_100g,
             carbs=carbs_per_100g,
             source=source,
+            user_id=uuid_mod.UUID(user_id),
         )
         session.add(food_item)
         await session.commit()
         await session.refresh(food_item)
-        return {"id": food_item.id, "name": food_item.name}
+        return {"id": str(food_item.id), "name": food_item.name}

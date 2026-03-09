@@ -10,7 +10,13 @@ load_dotenv()
 # Project Root (calculated relative to this file: src/config.py -> src -> root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
-DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+_supabase_url = os.getenv("SUPABASE_DB_URL")
+if _supabase_url:
+    DATABASE_URL = _supabase_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+else:
+    DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 GLOBAL_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4o")

@@ -9,6 +9,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import TEST_CONFIG_A
 from src.agents.nodes.calculate_macros_node import calculate_macros_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
@@ -32,7 +33,7 @@ class TestCalculateMacrosFeedback:
                     "original_text": "one medium apple"
                 }
             ],
-            "selected_food_id": 123
+            "selected_food_id": "food-uuid-123"
         })
 
         mock_calculate_macros.ainvoke = AsyncMock(return_value={
@@ -44,7 +45,7 @@ class TestCalculateMacrosFeedback:
             "fat": 0.3,
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert "pending_confirmations" in result
         assert len(result["pending_confirmations"]) == 1
@@ -69,7 +70,7 @@ class TestCalculateMacrosFeedback:
             "fat": 5,
             "source": "database",
             "original_text": "prev",
-            "food_id": 1,
+            "food_id": "food-uuid-1",
         }
 
         basic_state.update({
@@ -81,7 +82,7 @@ class TestCalculateMacrosFeedback:
                     "original_text": "one medium apple"
                 }
             ],
-            "selected_food_id": 123,
+            "selected_food_id": "food-uuid-123",
             "pending_confirmations": [existing]
         })
 
@@ -94,7 +95,7 @@ class TestCalculateMacrosFeedback:
             "fat": 0,
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_confirmations"]) == 2
         assert result["pending_confirmations"][0] == existing
@@ -128,8 +129,8 @@ class TestAgentSelectionFeedback:
         """
         basic_state.update({
             "search_results": [
-                {"id": 1, "name": "Apple", "source": "database"},
-                {"id": 2, "name": "Apple Pie", "source": "database"}
+                {"id": "food-uuid-1", "name": "Apple", "source": "database"},
+                {"id": "food-uuid-2", "name": "Apple Pie", "source": "database"}
             ],
             "pending_food_items": [{"food_name": "Test Apple", "amount": 1, "unit": "medium", "original_text": "one medium apple"}],
         })
