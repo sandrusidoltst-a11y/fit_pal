@@ -1,24 +1,26 @@
+import argparse
 import csv
 import os
 import sys
 
-# Add the project root to the python path to allow imports from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from sqlalchemy import text
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
-from src.database import get_db_session
-from src.models import FoodItem
 from src.config import BASE_DIR
 
+load_dotenv()
+
 CSV_PATH = os.path.join(BASE_DIR, "data", "nutrients_csvfile.csv")
+
 
 def clean_val(val):
     """Cleans numeric values from CSV (handles 't', 'a', commas)."""
     if not val:
         return 0.0
     val = val.strip().lower()
-    if val in ['t', 'a']: # Trace amounts or other non-numeric markers found in this specific CSV
+    if val in ['t', 'a']:
         return 0.0
     val = val.replace(',', '')
     try:
@@ -26,77 +28,106 @@ def clean_val(val):
     except ValueError:
         return 0.0
 
-def ingest_data():
-    print(f"Reading CSV from: {CSV_PATH}")
-    
-    session = get_db_session()
-    
-    # Clear existing food data (preserves schema managed by Alembic)
-    print("Clearing existing food data...")
-    session.execute(text("DELETE FROM daily_logs"))
-    session.execute(text("DELETE FROM food_items"))
-    session.commit()
-    
-    items_to_add = []
-    
+
+def parse_csv() -> list[dict]:
+    """Parse CSV and normalize all values to per-100g. Pure data, no DB dependency."""
+    items = []
     with open(CSV_PATH, mode='r', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
-        
         for row in reader:
             name = row.get("Food")
-            row.get("Measure")
             grams_str = row.get("Grams")
-            calories_str = row.get("Calories")
-            protein_str = row.get("Protein")
-            fat_str = row.get("Fat")
-            carbs_str = row.get("Carbohydrates") # Column name in CSV is "Carbohydrates" or "Carbs"? Checking file view... it was "Carbs" on line 1?
-            # Re-checking View File output for CSV header: "Food,Measure,Grams,Calories,Protein,Fat,Sat.Fat,Fiber,Carbs,Category"
-            carbs_str = row.get("Carbs")
-            
+
             if not name or not grams_str:
                 continue
-                
+
             grams = clean_val(grams_str)
             if grams == 0:
                 print(f"Skipping {name} due to 0 grams.")
                 continue
-            
-            calories = clean_val(calories_str)
-            protein = clean_val(protein_str)
-            fat = clean_val(fat_str)
-            carbs = clean_val(carbs_str)
+
+            calories = clean_val(row.get("Calories"))
+            protein = clean_val(row.get("Protein"))
+            fat = clean_val(row.get("Fat"))
+            carbs = clean_val(row.get("Carbs"))
             category = row.get("Category")
 
-            # Handle ambiguous names by prepending category (requested by user)
-            # Specifically for "Breads, cereals, fastfood,grains" which has entries like "White, 20 slices"
             if category and "Breads" in category:
-                # Prepend the category to make the name unique and descriptive
-                # e.g. "Breads, cereals, fastfood,grains - White, 20 slices"
-                # Consolidate the long category name for readability if preferred, 
-                # but user asked for "bread category details".
                 name = f"{category} - {name}"
-            
-            # Normalize to 100g
-            # Formula: (val / grams) * 100
-            norm_calories = (calories / grams) * 100
-            norm_protein = (protein / grams) * 100
-            norm_fat = (fat / grams) * 100
-            norm_carbs = (carbs / grams) * 100
-            
-            food_item = FoodItem(
-                name=name,
-                calories=round(norm_calories, 2),
-                protein=round(norm_protein, 2),
-                fat=round(norm_fat, 2),
-                carbs=round(norm_carbs, 2)
-            )
-            items_to_add.append(food_item)
 
-    print(f"Adding {len(items_to_add)} items to database...")
-    session.add_all(items_to_add)
+            items.append({
+                "name": name,
+                "calories": round((calories / grams) * 100, 2),
+                "protein": round((protein / grams) * 100, 2),
+                "fat": round((fat / grams) * 100, 2),
+                "carbs": round((carbs / grams) * 100, 2),
+            })
+    return items
+
+
+def ingest_sqlite(items: list[dict]):
+    """Insert via ORM — existing path for local SQLite dev."""
+    from src.database import get_db_session
+    from src.models import FoodItem
+
+    session = get_db_session()
+    session.execute(text("DELETE FROM daily_logs"))
+    session.execute(text("DELETE FROM food_items"))
+    session.commit()
+
+    food_items = [FoodItem(**item) for item in items]
+    session.add_all(food_items)
     session.commit()
     session.close()
-    print("Ingestion complete!")
+
+
+def ingest_postgres(items: list[dict]):
+    """Insert via raw SQL — bypasses ORM model (which still has integer PKs).
+
+    Postgres tables use UUID PKs (auto-generated by gen_random_uuid()),
+    so we insert without specifying id.
+    """
+    db_url = os.getenv("SUPABASE_DB_URL")
+    if not db_url:
+        raise ValueError("SUPABASE_DB_URL not set in environment. Add it to .env")
+
+    engine = create_engine(db_url)
+    with engine.connect() as conn:
+        conn.execute(text("DELETE FROM daily_logs"))
+        conn.execute(text("DELETE FROM food_items"))
+        conn.commit()
+
+        conn.execute(
+            text("""
+                INSERT INTO food_items (name, calories, protein, fat, carbs, source)
+                VALUES (:name, :calories, :protein, :fat, :carbs, 'database')
+            """),
+            items,
+        )
+        conn.commit()
+    engine.dispose()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Ingest nutrition CSV into database")
+    parser.add_argument(
+        "--target",
+        choices=["sqlite", "supabase"],
+        default="sqlite",
+        help="Target database (default: sqlite)",
+    )
+    args = parser.parse_args()
+
+    items = parse_csv()
+    print(f"Parsed {len(items)} food items from CSV")
+
+    if args.target == "sqlite":
+        ingest_sqlite(items)
+    else:
+        ingest_postgres(items)
+
+    print(f"Ingestion complete! Target: {args.target}, items: {len(items)}")
+
 
 if __name__ == "__main__":
-    ingest_data()
+    main()
