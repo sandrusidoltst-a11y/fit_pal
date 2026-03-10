@@ -32,7 +32,7 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 - **User Interface (UI)**: No Web or Desktop UI in this phase.
 - **API (REST/GraphQL)**: No external API endpoints.
 - **Image Recognition**: Photo-to-macros conversion.
-- **Multi-User Support**: Initial version is a local, single-user logic instance.
+- **Multi-User Support**: Data layer is multi-user ready (`user_id` scoping), but auth integration is pending (Phase 3, Step 4).
 
 ## 5. User Stories
 1. **As a user**, I want to type "I had a 200g steak" so that the agent automatically finds the protein and fat content.
@@ -69,7 +69,7 @@ flowchart TD
 
     ResponseNode[Response Node] --> END((END))
 
-    subgraph Database [SQLite DB]
+    subgraph Database [Supabase PostgreSQL]
         DailyLogsTable[(Daily Logs Table)]
     end
 
@@ -120,14 +120,14 @@ class AgentState(TypedDict):
     end_date: Optional[date]                    # End date for range queries
     last_action: "GraphAction"                  # ✅ Strictly typed literal
     search_results: List[SearchResult]          # ✅ Type-safe: lookup results
-    selected_food_id: Optional[int]             # Selected food ID from agent selection
+    selected_food_id: Optional[str]             # Selected food ID (UUID string) from agent selection
     processing_results: List["ProcessingResult"] # ✅ Track per-item status for feedback
     pending_confirmations: List["MacroResult"]  # ✅ Batch preview before DB write
 ```
 
 **Architectural Decision**: 
 - **Multiple Schemas**: Separation of `InputState` from `AgentState` ensures LangSmith Studio displays a clean Chat UI rather than a full state form.
-- **TypedDict for state**: Ensures type safety, IDE autocomplete, and proper serialization to SQLite checkpointer
+- **TypedDict for state**: Ensures type safety, IDE autocomplete, and proper serialization to Postgres checkpointer
 - **AnyMessage Typing**: Enforces proper LangChain message semantics (`HumanMessage`, `AIMessage`).
 - **Pydantic for LLM output**: Used with `.with_structured_output()` for validation, then converted to dict via `.model_dump()`
 - **Strict Literal types**: `GraphAction` enforces valid state transitions across the graph
@@ -189,7 +189,7 @@ fit_pal/
 - **Schema Validation**: Pydantic v2.
 - **LLM Model**: Claude 3.5 Sonnet or GPT-4o.
 - **Data Processing**: Pandas (for CSV/Database lookup).
-- **Storage**: SQLite + SQLAlchemy (`aiosqlite` async-first; sync engine retained for ETL scripts).
+- **Storage**: Supabase PostgreSQL + SQLAlchemy (`asyncpg` async-first; `psycopg2` sync engine retained for ETL scripts).
 - **Language**: Python 3.13+.
 - **Package Manager**: uv (Required for dependency management).
 
@@ -201,21 +201,23 @@ All values are normalized to **100g**.
 
 | Column | Type | Unit | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | Integer | - | Primary Key |
+| `id` | UUID | - | Primary Key (uuid4) |
 | `name` | String | - | Food Name (e.g., "Rice", "Breads... - White") |
 | `calories`| Float | kcal | per 100g |
 | `protein` | Float | grams | per 100g |
 | `carbs` | Float | grams | per 100g |
 | `fat` | Float | grams | per 100g |
 | `source` | String | - | `"database"` or `"estimated"` (NOT NULL, default `"database"`) |
+| `user_id` | UUID | - | Owner (nullable for shared DB foods, indexed) |
 
 ### Daily Log Database
 Stores confirmed food entries for long-term tracking.
 
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| `id` | Integer | Primary Key |
-| `food_id` | Integer | Foreign Key (FoodItem), nullable for legacy estimated entries |
+| `id` | UUID | Primary Key (uuid4) |
+| `food_id` | UUID | Foreign Key (FoodItem), nullable for legacy estimated entries |
+| `user_id` | UUID | Owner (NOT NULL, indexed) |
 | `amount_g` | Float | Quantity Consumed |
 | `calories` | Float | Calculated Calories |
 | `protein` | Float | Calculated Protein |
@@ -307,9 +309,9 @@ Stores confirmed food entries for long-term tracking.
 - **User Identity**: Moved from Phase 2 → Phase 3, since it couples tightly with Supabase Auth and multi-user support. Flows via `config["configurable"]`, not AgentState.
 
 **Implementation steps** *(see detailed plan for full breakdown)*:
-1. Supabase project setup + schema migration
-2. Add `user_id` columns (multi-user ready)
-3. Swap DB engine (SQLite → asyncpg + Supabase Postgres)
+1. ✅ Supabase project setup + schema migration
+2. ✅ Add `user_id` columns (multi-user ready) + migrate PKs to UUID
+3. ✅ Swap DB engine (SQLite → asyncpg + Supabase Postgres) + extract `get_user_id()` helper + migrate test DB to Supabase
 4. Auth integration (Supabase JWT + LangGraph auth handler in `src/auth.py`)
 5. Row Level Security (defense in depth)
 6. Deploy LangGraph standalone server (Docker Compose)
