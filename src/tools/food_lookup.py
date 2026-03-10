@@ -4,7 +4,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from sqlalchemy import select
 
-from src.config import DEFAULT_DEV_USER_ID
+from src.config import get_user_id
 from src.database import get_async_db_session
 from src.models import FoodItem
 
@@ -30,7 +30,7 @@ async def search_food(query: str, config: RunnableConfig) -> list[dict]:
     Searches database foods first, then falls back to estimated foods.
     Use this to find the correct food_id before calculating macros.
     """
-    user_id = config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
+    user_id = get_user_id(config)
     async with get_async_db_session() as session:
         # First: search shared database foods (no user filter)
         stmt = (
@@ -79,7 +79,7 @@ async def create_food_item(
     config: RunnableConfig = None,
 ) -> dict:
     """Create a new FoodItem in the database. Returns the created item's id and name."""
-    user_id = config["configurable"].get("user_id", DEFAULT_DEV_USER_ID) if config else DEFAULT_DEV_USER_ID
+    user_id = get_user_id(config)
     async with get_async_db_session() as session:
         food_item = FoodItem(
             name=name,

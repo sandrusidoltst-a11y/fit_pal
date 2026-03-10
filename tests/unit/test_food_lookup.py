@@ -41,8 +41,8 @@ class TestSearchFoodSharedAccess:
 
         assert len(results_a) >= 1
         assert len(results_b) >= 1
-        assert results_a[0]["name"] == "Test Chicken"
-        assert results_b[0]["name"] == "Test Chicken"
+        assert any(r["name"] == "Test Chicken" for r in results_a)
+        assert any(r["name"] == "Test Chicken" for r in results_b)
 
 
 class TestSearchFoodEstimatedIsolation:

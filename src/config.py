@@ -1,6 +1,12 @@
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING, Any
+
 from dotenv import load_dotenv
-from typing import Any
+
+if TYPE_CHECKING:
+    from langchain_core.runnables import RunnableConfig
 
 from langchain.chat_models import init_chat_model
 
@@ -11,6 +17,13 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
 DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+
+def get_user_id(config: RunnableConfig | None) -> str:
+    """Extract user_id from LangGraph config, falling back to dev default."""
+    if config:
+        return config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
+    return DEFAULT_DEV_USER_ID
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")
 if _supabase_url:

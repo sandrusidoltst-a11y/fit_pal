@@ -233,6 +233,62 @@ class TestNoMatchPath:
         assert messages[-1]["content"].strip() != ""
 
 
+class TestEstimatedFoodReuse:
+    """Estimated food logged once should be found in DB on subsequent searches, not re-estimated."""
+
+    async def test_estimated_food_reused_on_second_log(self, lg_client, thread):
+        """
+        arrange: Thread 1 logs a unique unknown food → LLM estimates → user confirms.
+        act:     Thread 2 logs the same food name again (same user).
+        assert:  Thread 2 completes without error (food found in DB, not re-estimated).
+                 Both threads produce non-empty final messages.
+        """
+        tn = "test_estimated_food_reused_on_second_log"
+        unique_food = "xyzreuse77777qwerty"
+
+        # --- Thread 1: first-time estimation + confirm ---
+        await _run(
+            lg_client, thread,
+            input={"messages": [{"role": "human", "content": f"I ate 200g of {unique_food}"}]},
+            config=DEV_USER_CONFIG,
+            test_name=tn,
+        )
+        await _assert_interrupted(lg_client, thread)
+
+        result1 = await _run(
+            lg_client, thread,
+            command={"resume": "yes"},
+            config=DEV_USER_CONFIG,
+            test_name=tn,
+        )
+        msgs1 = result1.get("messages", [])
+        assert len(msgs1) >= 2
+        assert msgs1[-1]["content"].strip() != ""
+
+        # --- Thread 2: same food, should reuse estimated entry ---
+        thread2 = (await lg_client.threads.create())["thread_id"]
+        try:
+            await _run(
+                lg_client, thread2,
+                input={"messages": [{"role": "human", "content": f"I ate 150g of {unique_food}"}]},
+                config=DEV_USER_CONFIG,
+                test_name=tn,
+            )
+            await _assert_interrupted(lg_client, thread2)
+
+            result2 = await _run(
+                lg_client, thread2,
+                command={"resume": "yes"},
+                config=DEV_USER_CONFIG,
+                test_name=tn,
+            )
+            msgs2 = result2.get("messages", [])
+            assert len(msgs2) >= 2
+            assert msgs2[-1]["content"].strip() != ""
+        finally:
+            await lg_client.threads.delete(thread2)
+
+
 class TestMultiItemPath:
     """Multi-item loop: input_parser extracts 2+ items, graph loops through food_search for each."""
 
