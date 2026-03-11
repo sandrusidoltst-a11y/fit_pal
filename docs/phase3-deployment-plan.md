@@ -6,21 +6,60 @@ Deploy FitPal as a multi-user production service using:
 - **Supabase** — Postgres database + user authentication
 - **LangGraph Standalone Server** — self-hosted (Docker + Postgres + Redis)
 - **LangSmith** — tracing/monitoring (free tier, 5k traces/mo)
+- **Telegram Bot** — primary messaging interface (WhatsApp planned for later)
 
 ### Cost Estimate
 | Service | Cost |
 |---|---|
 | LangGraph library + server | Free (open source) |
-| VPS (Fly.io / Railway / DigitalOcean) | ~$5–20/mo |
+| VPS (Fly.io / Railway / DigitalOcean) | ~$5–20/mo (runs all 3 containers) |
 | Supabase (DB + Auth) | Free tier (500MB DB, 50k MAU) |
 | LangSmith tracing | Free tier (5k traces/mo) |
 | LLM API calls (OpenAI / Anthropic) | Pay-as-you-go |
 
+### Infrastructure Architecture
+
+```
+┌─────────────────────────────────────────┐
+│  VPS (~$5-20/mo) — Docker Compose       │
+│                                         │
+│  ┌───────────────────┐  Container 1     │
+│  │ LangGraph API     │  (your agent)    │
+│  │ Server            │                  │
+│  └───────────────────┘                  │
+│                                         │
+│  ┌───────────────────┐  Container 2     │
+│  │ Postgres 16       │  (checkpoints,   │
+│  │                   │   threads)       │
+│  └───────────────────┘                  │
+│                                         │
+│  ┌───────────────────┐  Container 3     │
+│  │ Redis 6           │  (task queue,    │
+│  │                   │   streaming)     │
+│  └───────────────────┘                  │
+└─────────────┬───────────────────────────┘
+              │  network call
+              ▼
+    ┌──────────────────┐
+    │ Supabase Cloud   │  ← separate service (free tier)
+    │ (food_items,     │     app data + auth
+    │  daily_logs,     │
+    │  users)          │
+    └──────────────────┘
+```
+
+### Key Infrastructure Decisions
+- **Checkpoint DB is separate from app DB.** A local Postgres container on the VPS stores threads/checkpoints (managed automatically by the LangGraph server). Supabase Postgres stores app data (food_items, daily_logs). This avoids schema collision and resource competition.
+- **You never write checkpointer code.** `define_graph(**kwargs)` accepts `checkpointer` from kwargs — the server injects its own. Any manually configured checkpointer is replaced by the built-in one.
+- **Redis is lightweight.** Handles task queue and real-time event streaming. Small footprint.
+
 ---
 
-## Step 1: Supabase Project Setup
+## Step 1: Supabase Project Setup ✅
 
 **Goal**: Create the Supabase project and migrate the schema from SQLite to Postgres.
+
+**Status**: Complete.
 
 - Create a Supabase project (choose region closest to VPS)
 - Recreate `food_items` and `daily_logs` tables via Supabase migration (not Alembic — Supabase manages its own migrations)
@@ -34,9 +73,11 @@ Deploy FitPal as a multi-user production service using:
 
 ---
 
-## Step 2: Add User Identity (user_id columns)
+## Step 2: Add User Identity (user_id columns) ✅
 
 **Goal**: Make the schema multi-user ready.
+
+**Status**: Complete.
 
 - Add `user_id` (UUID, NOT NULL) column to `daily_logs`
 - Add `user_id` (UUID, nullable) column to `food_items` — only populated for `source="estimated"` items; NULL for shared `source="database"` items
@@ -49,16 +90,17 @@ Deploy FitPal as a multi-user production service using:
 
 ---
 
-## Step 3: Swap Database Engine
+## Step 3: Swap Database Engine ✅
 
 **Goal**: Switch FitPal from local SQLite to Supabase Postgres.
+
+**Status**: Complete.
 
 - Replace `aiosqlite` with `asyncpg` (`uv add asyncpg`)
 - Update `src/config.py`: `DATABASE_URL` reads from env var pointing to Supabase Postgres
 - Update `src/database.py`: remove SQLite-specific settings (`check_same_thread`, etc.)
-- Update Alembic config: remove `render_as_batch=True` and the nullable-ops filter (SQLite workarounds)
-- Decide on Alembic role going forward: Alembic for local dev migrations, Supabase migrations for production — or one unified path
-- Run existing tests against Postgres (or keep test DB on in-memory SQLite for speed)
+- Alembic removed — Supabase migrations manage production schema
+- Tests migrated to run against Supabase Postgres test DB (`TEST_DATABASE_URL` env var)
 
 ---
 
@@ -66,18 +108,105 @@ Deploy FitPal as a multi-user production service using:
 
 **Goal**: Authenticate users and flow `user_id` into the graph.
 
-- Set up Supabase Auth (email/password to start; OAuth later)
-- Create `src/auth.py` — LangGraph custom auth handler:
-  - Validates Supabase JWT from `Authorization: Bearer <token>` header
-  - Extracts `user_id` from JWT `sub` claim
-  - Returns `{"identity": user_id}` for LangGraph to inject into `config`
-- Register auth handler in `langgraph.json` under `"auth"` key
-- Nodes access user identity via `config["configurable"]["langgraph_auth_user"]["identity"]`
+### Authentication Flow (Messaging Platform)
 
-### Key Decision
+FitPal is a conversational bot on Telegram/WhatsApp — there is no web login page. The messaging platform authenticates the user (they verified their phone to use Telegram). The bot gateway trusts that identity.
+
+```
+User (Telegram)
+    │
+    ▼
+Bot Gateway (webhook server)     ← identifies user by phone/chat_id
+    │
+    ▼
+LangGraph Server (FitPal agent)  ← receives JWT, validates via auth handler
+    │
+    ▼
+Supabase (DB + Auth)             ← issues JWTs, stores users
+```
+
+**Login flow (no login page needed):**
+1. User sends first message on Telegram
+2. Bot Gateway receives webhook with user's `chat_id` / phone number
+3. Gateway checks Supabase Auth — does this user exist?
+   - **No** → Gateway calls `supabase.auth.admin.create_user()` to auto-register (no OTP needed for server-side admin API)
+   - **Yes** → User already exists
+4. Gateway generates/retrieves a JWT for this user
+5. Gateway calls LangGraph API with `Authorization: Bearer <jwt>` and the user's message
+6. LangGraph auth handler validates the JWT, extracts `user_id`, injects into config
+7. All nodes access user identity via `get_user_id(config)` — queries are scoped
+
+### Implementation Steps
+
+- **4a.** Create `src/security/auth.py` — LangGraph custom auth handler:
+  ```python
+  @auth.authenticate
+  async def get_current_user(authorization: str | None):
+      # Validate JWT via Supabase /auth/v1/user endpoint
+      # Extract user_id from response
+      # Return {"identity": user_id, "is_authenticated": True}
+  ```
+- **4b.** Update `get_user_id()` in `src/config.py` to support both dev and production paths:
+  ```python
+  def get_user_id(config):
+      if config:
+          # Production: auth handler populates this
+          auth_user = config["configurable"].get("langgraph_auth_user")
+          if auth_user:
+              return auth_user["identity"]
+          # Dev/Studio: manual config or fallback
+          return config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
+      return DEFAULT_DEV_USER_ID
+  ```
+- **4c.** Create `langgraph.production.json` with auth key:
+  ```json
+  {
+    "auth": { "path": "./src/security/auth.py:auth" }
+  }
+  ```
+- **4d.** Add `@auth.on` resource authorization handler to scope threads/runs to owning user
+- **4e.** Unit test the auth handler (mock Supabase HTTP call)
+- **4f.** Create a test user in Supabase Auth (manual, for E2E validation)
+
+### Key Decisions
 - Supabase Auth is the **identity provider** (issues JWTs)
-- LangGraph auth handler is the **validator** (checks JWTs server-side)
-- Service role key used only for admin/ETL operations, never in the graph
+- LangGraph auth handler is the **validator** (checks JWTs server-side via `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`)
+- Service role key used only for admin/ETL/gateway operations, never in the graph
+- **Auto-registration**: Users are created automatically on first message — no signup flow needed
+- Nodes access user identity via `config["configurable"]["langgraph_auth_user"]["identity"]` in production, falling back to `config["configurable"]["user_id"]` in dev
+
+### Environment Isolation (Dev vs Production)
+
+```
+┌─────────────────────────────────┐
+│  Development (local)            │
+│                                 │
+│  langgraph dev                  │
+│  → Studio (no auth)             │
+│  → langgraph.json (no auth key) │
+│  → .env → test DB               │
+│  → user_id = DEFAULT_DEV_USER_ID│
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  Production (VPS Docker)        │
+│                                 │
+│  langgraph up -c langgraph      │
+│    .production.json             │
+│  → auth handler active          │
+│  → .env.production → prod DB    │
+│  → user_id from JWT             │
+│  → traces → LangSmith Cloud     │──→ smith.langchain.com
+└─────────────────────────────────┘
+```
+
+| | Dev (Studio) | Production |
+|---|---|---|
+| Config file | `langgraph.json` | `langgraph.production.json` |
+| Auth | None — `DEFAULT_DEV_USER_ID` | Supabase Auth + JWT validation |
+| DB | Supabase test project | Supabase prod project |
+| Monitoring | Studio (interactive) | LangSmith Cloud (traces, replays) |
+| Run command | `langgraph dev` | `langgraph up -c langgraph.production.json` |
 
 ---
 
@@ -94,43 +223,75 @@ Deploy FitPal as a multi-user production service using:
 
 ---
 
-## Step 6: Deploy LangGraph Standalone Server
+## Step 6: Telegram Bot Gateway
+
+**Goal**: Connect FitPal to Telegram as the user-facing interface.
+
+### Architecture
+- Telegram Bot API (python-telegram-bot or aiogram)
+- Webhook server receives messages, maps `chat_id` to Supabase user
+- Calls LangGraph API with JWT + user message
+- Returns agent response to Telegram chat
+
+### Thread Management (Session-Based)
+- **Strategy**: One thread per conversation session, with inactivity timeout (~30 min)
+- On each message: find the user's latest thread — if it's less than 30 min old, reuse it; otherwise, create a new one
+- HITL interrupt/resume always works (happens within the same session)
+- Context stays manageable (a few exchanges per session, not months of history)
+- Daily stats queries scope by date via `consumed_at` in the DB — not by thread
+
+### Key Decisions
+- **Telegram first**, WhatsApp later (keep dev simple)
+- **Auto-registration**: First message auto-creates Supabase user from Telegram `chat_id`
+- **Session threads with timeout**: Balances HITL safety, context size, and natural chat UX
+- Thread mapping stored as: `user_id → latest_thread_id + last_activity_timestamp`
+
+---
+
+## Step 7: Deploy LangGraph Standalone Server
 
 **Goal**: Run FitPal as a production API server.
 
+- Build Docker image: `langgraph build -c langgraph.production.json`
 - Set up Docker Compose with:
   - LangGraph server container (runs the graph)
-  - Redis container (task queue)
-  - Postgres for checkpoints (can reuse Supabase or separate instance)
+  - Postgres 16 container (checkpoints + threads — auto-managed by server)
+  - Redis 6 container (task queue + streaming)
 - Environment variables:
   - `DATABASE_URL` → Supabase Postgres (app data)
-  - `REDIS_URL` → Redis instance
-  - Checkpoint Postgres connection (server auto-manages `AsyncPostgresSaver`)
-  - `SUPABASE_JWT_SECRET` → for auth handler JWT validation
+  - `DATABASE_URI` → local Postgres container (checkpoints — `postgres://postgres:postgres@langgraph-postgres:5432/postgres`)
+  - `REDIS_URI` → local Redis container (`redis://langgraph-redis:6379`)
+  - `SUPABASE_URL` → Supabase project URL (for auth handler)
+  - `SUPABASE_SERVICE_KEY` → service role key (for auth handler)
+  - `LANGSMITH_API_KEY` → for tracing
   - LLM API keys (OpenAI/Anthropic)
 - Deploy to VPS (Fly.io, Railway, DigitalOcean, or similar)
 - Verify: API endpoints respond, auth works, HITL interrupt/resume works over HTTP
 
 ### What stays the same (no code changes needed)
 - `define_graph(**kwargs)` — server injects its own checkpointer
-- `langgraph.json` — already the deployment manifest
+- `langgraph.json` / `langgraph.production.json` — deployment manifest
 - HITL `interrupt()` + `Command` pattern — works identically over the API
 - All node implementations and tool-first architecture
 
 ---
 
-## Step 7: Smoke Test & Validation
+## Step 8: Smoke Test & Validation
 
 **Goal**: Verify end-to-end flow in production.
 
 - Create a test user via Supabase Auth
 - Authenticate and get JWT
-- Use `langgraph-sdk` client to:
+- Test via `langgraph-sdk` client:
   - Create a thread
   - Log food ("I had 200g of chicken and a banana")
   - Verify HITL interrupt → confirm → commit flow
   - Query daily stats
   - Verify data is scoped to the test user
+- Test via Telegram bot:
+  - Send first message → verify auto-registration
+  - Log food → verify HITL flow over Telegram
+  - Verify session thread reuse and timeout
 - Check LangSmith traces are flowing
 - Run security check: verify user A cannot see user B's data
 
@@ -140,14 +301,17 @@ Deploy FitPal as a multi-user production service using:
 
 ```
 Step 1: Supabase project + schema ──┐
-Step 2: Add user_id columns ────────┤ (can be done together)
+Step 2: Add user_id columns ────────┤ ✅ Complete
 Step 3: Swap DB engine ─────────────┘
-Step 4: Auth integration
+Step 4: Auth integration (Supabase Auth + LangGraph handler)
 Step 5: RLS policies
-Step 6: Deploy standalone server
-Step 7: Smoke test
+Step 6: Telegram bot gateway
+Step 7: Deploy standalone server (Docker Compose on VPS)
+Step 8: Smoke test & validation
 ```
 
-Steps 1–3 can be developed and tested locally before touching deployment.
-Steps 4–5 require a running Supabase project but can be tested locally.
-Step 6 is the actual deployment — everything before it is preparation.
+Steps 1–3: Complete.
+Steps 4–5: Require Supabase project (exists). Can be developed and unit-tested locally.
+Step 6: Can be developed in parallel with steps 4–5.
+Step 7: The actual deployment — everything before it is preparation.
+Step 8: Post-deployment validation.
