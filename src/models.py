@@ -1,7 +1,8 @@
+import uuid as uuid_mod
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Uuid, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
 
 
@@ -12,13 +13,14 @@ class Base(DeclarativeBase):
 class FoodItem(Base):
     __tablename__ = "food_items"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, primary_key=True, default=uuid_mod.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     calories: Mapped[Optional[float]] = mapped_column(Float)
     protein: Mapped[Optional[float]] = mapped_column(Float)
     fat: Mapped[Optional[float]] = mapped_column(Float)
     carbs: Mapped[Optional[float]] = mapped_column(Float)
     source: Mapped[str] = mapped_column(String, nullable=False, server_default="database")
+    user_id: Mapped[Optional[uuid_mod.UUID]] = mapped_column(Uuid, nullable=True, index=True)
 
     # Relationship: one FoodItem -> many DailyLog entries
     logs: Mapped[list["DailyLog"]] = relationship("DailyLog", back_populates="food_item")
@@ -29,8 +31,9 @@ class DailyLog(Base):
 
     __tablename__ = "daily_logs"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    food_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("food_items.id"), nullable=True)
+    id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, primary_key=True, default=uuid_mod.uuid4)
+    food_id: Mapped[Optional[uuid_mod.UUID]] = mapped_column(Uuid, ForeignKey("food_items.id"), nullable=True)
+    user_id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, nullable=False, index=True)
     amount_g: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Nutritional values (denormalized for fast aggregation)

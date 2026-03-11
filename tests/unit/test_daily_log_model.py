@@ -7,8 +7,10 @@ Scope:
 LLM Usage:
     NONE — models contain no internal logical loops calling LLMs.
 """
+import uuid as uuid_mod
 from datetime import datetime, timezone
 
+from tests.conftest import SEED_FOOD_ID, TEST_USER_A
 from src.models import DailyLog
 
 
@@ -22,7 +24,8 @@ class TestDailyLogModelCreation:
         assert:  validate object passes through validation schemas returning completely constructed database entity references.
         """
         log = DailyLog(
-            food_id=1,
+            food_id=uuid_mod.UUID(SEED_FOOD_ID),
+            user_id=uuid_mod.UUID(TEST_USER_A),
             amount_g=100.0,
             calories=165.0,
             protein=31.0,
@@ -35,7 +38,8 @@ class TestDailyLogModelCreation:
         await async_test_db_session.commit()
 
         assert log.id is not None
-        assert log.food_id == 1
+        assert log.food_id == uuid_mod.UUID(SEED_FOOD_ID)
+        assert log.user_id == uuid_mod.UUID(TEST_USER_A)
         assert log.amount_g == 100.0
         assert log.calories == 165.0
         assert log.protein == 31.0
@@ -50,7 +54,8 @@ class TestDailyLogModelCreation:
         assert:  triggers server-default function natively executing schema instructions to generate value automatically safely matching requirements.
         """
         log = DailyLog(
-            food_id=1,
+            food_id=uuid_mod.UUID(SEED_FOOD_ID),
+            user_id=uuid_mod.UUID(TEST_USER_A),
             amount_g=50.0,
             calories=82.5,
             protein=15.5,
@@ -70,7 +75,8 @@ class TestDailyLogModelCreation:
         assert:  schema correctly registers constraints without failing on exceptions while safely asserting null traits properly persist.
         """
         log = DailyLog(
-            food_id=1,
+            food_id=uuid_mod.UUID(SEED_FOOD_ID),
+            user_id=uuid_mod.UUID(TEST_USER_A),
             amount_g=100.0,
             calories=165.0,
             protein=31.0,
@@ -94,7 +100,8 @@ class TestDailyLogModelCreation:
         assert:  safely ensures variables return fully parsed mappings.
         """
         log = DailyLog(
-            food_id=1,
+            food_id=uuid_mod.UUID(SEED_FOOD_ID),
+            user_id=uuid_mod.UUID(TEST_USER_A),
             amount_g=100.0,
             calories=165.0,
             protein=31.0,
@@ -120,8 +127,11 @@ class TestDailyLogModelRelationships:
         """
         from src.models import FoodItem
 
+        food_uuid = uuid_mod.UUID(SEED_FOOD_ID)
+
         log = DailyLog(
-            food_id=1,
+            food_id=food_uuid,
+            user_id=uuid_mod.UUID(TEST_USER_A),
             amount_g=200.0,
             calories=330.0,
             protein=62.0,
@@ -138,7 +148,7 @@ class TestDailyLogModelRelationships:
         assert log.food_item.name == "Test Chicken"
 
         # Test FoodItem -> DailyLog direction
-        food = await async_test_db_session.get(FoodItem, 1)
+        food = await async_test_db_session.get(FoodItem, food_uuid)
         await async_test_db_session.refresh(food, ["logs"])
         assert len(food.logs) == 1
         assert food.logs[0].id == log.id

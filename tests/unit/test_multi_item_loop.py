@@ -9,6 +9,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock
 
+from tests.conftest import TEST_CONFIG_A
 from src.agents.nodes.calculate_macros_node import calculate_macros_node
 
 
@@ -34,9 +35,9 @@ class TestMultiItemLoopDraining:
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
             {"food_name": "rice", "amount": 200.0, "unit": "g", "original_text": "200g rice"},
         ]
-        basic_state["selected_food_id"] = 1
+        basic_state["selected_food_id"] = "food-uuid-1"
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_food_items"]) == 1
         assert result["pending_food_items"][0]["food_name"] == "rice"
@@ -62,9 +63,9 @@ class TestMultiItemLoopDraining:
         basic_state["pending_food_items"] = [
             {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "an apple"},
         ]
-        basic_state["selected_food_id"] = 5
+        basic_state["selected_food_id"] = "food-uuid-5"
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_food_items"]) == 0
         assert result["last_action"] == "AWAITING_CONFIRMATION"
@@ -91,10 +92,10 @@ class TestMultiItemLoopDraining:
             {"food_name": "broccoli", "amount": 150.0, "unit": "g", "original_text": "150g broccoli"},
         ]
         basic_state["pending_food_items"] = items
-        basic_state["selected_food_id"] = 5
+        basic_state["selected_food_id"] = "food-uuid-5"
 
         # Process first item
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
         assert len(result["pending_food_items"]) == 2
         assert len(result["pending_confirmations"]) == 1
 
@@ -103,7 +104,7 @@ class TestMultiItemLoopDraining:
             "pending_food_items": result["pending_food_items"],
             "pending_confirmations": result["pending_confirmations"],
         })
-        result2 = await calculate_macros_node(basic_state)
+        result2 = await calculate_macros_node(basic_state, TEST_CONFIG_A)
         assert len(result2["pending_food_items"]) == 1
         assert len(result2["pending_confirmations"]) == 2
 
@@ -112,7 +113,7 @@ class TestMultiItemLoopDraining:
             "pending_food_items": result2["pending_food_items"],
             "pending_confirmations": result2["pending_confirmations"],
         })
-        result3 = await calculate_macros_node(basic_state)
+        result3 = await calculate_macros_node(basic_state, TEST_CONFIG_A)
         assert len(result3["pending_food_items"]) == 0
         assert len(result3["pending_confirmations"]) == 3
 
@@ -128,7 +129,7 @@ class TestMultiItemLoopEdgeCases:
         """
         basic_state["pending_food_items"] = []
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert result == {}
 

@@ -12,7 +12,7 @@ class SelectionStatus(str, Enum):
 
 class FoodSelectionResult(BaseModel):
     status: SelectionStatus = Field(..., description="Selection outcome")
-    food_id: Optional[int] = Field(
+    food_id: Optional[str] = Field(
         None, description="Selected food item ID (null if NO_MATCH or AMBIGUOUS)"
     )
     confidence: Optional[str] = Field(

@@ -25,7 +25,7 @@ class SearchResult(TypedDict):
     from src/tools/food_lookup.py.
     """
 
-    id: int
+    id: str
     name: str
     source: str
 
@@ -36,8 +36,8 @@ class QueriedLog(TypedDict):
     Contains raw log data retrieved from the database.
     """
 
-    id: int
-    food_id: int
+    id: str
+    food_id: Optional[str]
     amount_g: float
     calories: float
     protein: float
@@ -90,7 +90,7 @@ class MacroResult(TypedDict):
     fat: float
     source: Literal["database", "estimated"]
     original_text: str
-    food_id: Optional[int]
+    food_id: Optional[str]
 
 
 class InputState(TypedDict):
@@ -143,6 +143,6 @@ class AgentState(TypedDict):
     end_date: Optional[date]
     last_action: GraphAction
     search_results: List[SearchResult]
-    selected_food_id: Optional[int]
+    selected_food_id: Optional[str]
     processing_results: List["ProcessingResult"]
     pending_confirmations: List["MacroResult"]

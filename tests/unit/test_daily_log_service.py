@@ -1,9 +1,11 @@
 """Unit tests for the daily_log_service async CRUD operations."""
 
+import uuid as uuid_mod
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
+from tests.conftest import SEED_FOOD_ID, TEST_USER_A, TEST_USER_B
 from src.services.daily_log_service import (
     create_log_entry,
     get_daily_totals,
@@ -18,7 +20,8 @@ async def test_create_log_entry(async_test_db_session):
 
     log = await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=100.0,
         calories=165.0,
         protein=31.0,
@@ -30,7 +33,8 @@ async def test_create_log_entry(async_test_db_session):
     )
 
     assert log.id is not None
-    assert log.food_id == 1
+    assert log.food_id == uuid_mod.UUID(SEED_FOOD_ID)
+    assert log.user_id == uuid_mod.UUID(TEST_USER_A)
     assert log.amount_g == 100.0
     assert log.calories == 165.0
     assert log.meal_type == "lunch"
@@ -39,7 +43,7 @@ async def test_create_log_entry(async_test_db_session):
 
 async def test_get_daily_totals_empty(async_test_db_session):
     """Test querying totals for a date with no entries returns zeros."""
-    totals = await get_daily_totals(async_test_db_session, date.today())
+    totals = await get_daily_totals(async_test_db_session, TEST_USER_A, date.today())
 
     assert totals["calories"] == pytest.approx(0.0)
     assert totals["protein"] == pytest.approx(0.0)
@@ -55,7 +59,8 @@ async def test_get_daily_totals_with_entries(async_test_db_session):
     # Create two log entries
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=100.0,
         calories=165.0,
         protein=31.0,
@@ -65,7 +70,8 @@ async def test_get_daily_totals_with_entries(async_test_db_session):
     )
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=50.0,
         calories=82.5,
         protein=15.5,
@@ -74,7 +80,7 @@ async def test_get_daily_totals_with_entries(async_test_db_session):
         timestamp=now,
     )
 
-    totals = await get_daily_totals(async_test_db_session, today)
+    totals = await get_daily_totals(async_test_db_session, TEST_USER_A, today)
 
     assert totals["calories"] == pytest.approx(247.5, abs=0.1)
     assert totals["protein"] == pytest.approx(46.5, abs=0.1)
@@ -91,7 +97,8 @@ async def test_get_logs_by_date(async_test_db_session):
     # Create entries for today and yesterday
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=100.0,
         calories=165.0,
         protein=31.0,
@@ -102,7 +109,8 @@ async def test_get_logs_by_date(async_test_db_session):
     )
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=50.0,
         calories=82.5,
         protein=15.5,
@@ -113,12 +121,12 @@ async def test_get_logs_by_date(async_test_db_session):
     )
 
     # Query today only
-    today_logs = await get_logs_by_date(async_test_db_session, today)
+    today_logs = await get_logs_by_date(async_test_db_session, TEST_USER_A, today)
     assert len(today_logs) == 1
     assert today_logs[0].meal_type == "lunch"
 
     # Query yesterday
-    yesterday_logs = await get_logs_by_date(async_test_db_session, yesterday.date())
+    yesterday_logs = await get_logs_by_date(async_test_db_session, TEST_USER_A, yesterday.date())
     assert len(yesterday_logs) == 1
     assert yesterday_logs[0].meal_type == "dinner"
 
@@ -133,7 +141,8 @@ async def test_get_logs_by_date_range(async_test_db_session):
         ts = now - timedelta(days=i)
         await create_log_entry(
             async_test_db_session,
-            food_id=1,
+            user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID,
             amount_g=100.0,
             calories=165.0,
             protein=31.0,
@@ -144,12 +153,12 @@ async def test_get_logs_by_date_range(async_test_db_session):
 
     # Query last 2 days (today and yesterday)
     start = today - timedelta(days=1)
-    logs = await get_logs_by_date_range(async_test_db_session, start, today)
+    logs = await get_logs_by_date_range(async_test_db_session, TEST_USER_A, start, today)
     assert len(logs) == 2
 
     # Query all 3 days
     start_all = today - timedelta(days=2)
-    all_logs = await get_logs_by_date_range(async_test_db_session, start_all, today)
+    all_logs = await get_logs_by_date_range(async_test_db_session, TEST_USER_A, start_all, today)
     assert len(all_logs) == 3
 
 
@@ -161,7 +170,8 @@ async def test_get_daily_totals_multiple_foods(async_test_db_session):
     # Simulate 3 meals
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=200.0,
         calories=330.0,
         protein=62.0,
@@ -172,7 +182,8 @@ async def test_get_daily_totals_multiple_foods(async_test_db_session):
     )
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=150.0,
         calories=247.5,
         protein=46.5,
@@ -183,7 +194,8 @@ async def test_get_daily_totals_multiple_foods(async_test_db_session):
     )
     await create_log_entry(
         async_test_db_session,
-        food_id=1,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
         amount_g=100.0,
         calories=165.0,
         protein=31.0,
@@ -193,8 +205,103 @@ async def test_get_daily_totals_multiple_foods(async_test_db_session):
         meal_type="dinner",
     )
 
-    totals = await get_daily_totals(async_test_db_session, today)
+    totals = await get_daily_totals(async_test_db_session, TEST_USER_A, today)
 
     assert totals["calories"] == pytest.approx(742.5, abs=0.1)
     assert totals["protein"] == pytest.approx(139.5, abs=0.1)
     assert totals["fat"] == pytest.approx(16.2, abs=0.1)
+
+
+class TestUserDataIsolation:
+    """Verify user data isolation at the service layer."""
+
+    async def test_get_logs_by_date_filters_by_user(self, async_test_db_session):
+        """
+        arrange: User A logs chicken, User B logs rice, same date.
+        act:     query logs for User A.
+        assert:  Only chicken returned, not rice.
+        """
+        now = datetime.now(timezone.utc)
+        today = now.date()
+
+        await create_log_entry(
+            async_test_db_session, user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID, amount_g=200, calories=330, protein=62,
+            carbs=0, fat=7.2, timestamp=now, meal_type="lunch",
+            original_text="200g chicken",
+        )
+        await create_log_entry(
+            async_test_db_session, user_id=TEST_USER_B,
+            food_id=SEED_FOOD_ID, amount_g=150, calories=195, protein=4,
+            carbs=42, fat=0.4, timestamp=now, meal_type="lunch",
+            original_text="150g rice",
+        )
+
+        logs_a = await get_logs_by_date(async_test_db_session, TEST_USER_A, today)
+        assert len(logs_a) == 1
+        assert logs_a[0].original_text == "200g chicken"
+
+    async def test_get_daily_totals_filters_by_user(self, async_test_db_session):
+        """
+        arrange: User A logs 200 cal, User B logs 500 cal, same date.
+        act:     get_daily_totals for User A.
+        assert:  Total is 200, not 700.
+        """
+        now = datetime.now(timezone.utc)
+        today = now.date()
+
+        await create_log_entry(
+            async_test_db_session, user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID, amount_g=100, calories=200, protein=20,
+            carbs=10, fat=5, timestamp=now,
+        )
+        await create_log_entry(
+            async_test_db_session, user_id=TEST_USER_B,
+            food_id=SEED_FOOD_ID, amount_g=200, calories=500, protein=50,
+            carbs=30, fat=15, timestamp=now,
+        )
+
+        totals = await get_daily_totals(async_test_db_session, TEST_USER_A, today)
+        assert totals["calories"] == pytest.approx(200.0)
+
+    async def test_get_logs_by_date_range_filters_by_user(self, async_test_db_session):
+        """
+        arrange: User A and B both log on 3 consecutive days.
+        act:     get_logs_by_date_range for User A.
+        assert:  Only User A's logs returned.
+        """
+        now = datetime.now(timezone.utc)
+        today = now.date()
+
+        for i in range(3):
+            ts = now - timedelta(days=i)
+            await create_log_entry(
+                async_test_db_session, user_id=TEST_USER_A,
+                food_id=SEED_FOOD_ID, amount_g=100, calories=165, protein=31,
+                carbs=0, fat=3.6, timestamp=ts,
+            )
+            await create_log_entry(
+                async_test_db_session, user_id=TEST_USER_B,
+                food_id=SEED_FOOD_ID, amount_g=100, calories=165, protein=31,
+                carbs=0, fat=3.6, timestamp=ts,
+            )
+
+        start = today - timedelta(days=2)
+        logs_a = await get_logs_by_date_range(async_test_db_session, TEST_USER_A, start, today)
+        assert len(logs_a) == 3  # only User A's 3 entries
+
+    async def test_create_log_entry_stores_user_id(self, async_test_db_session):
+        """
+        arrange: Create log with user_id=user_a.
+        act:     Query the row directly.
+        assert:  row.user_id matches user_a.
+        """
+        now = datetime.now(timezone.utc)
+
+        log = await create_log_entry(
+            async_test_db_session, user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID, amount_g=100, calories=165, protein=31,
+            carbs=0, fat=3.6, timestamp=now,
+        )
+
+        assert log.user_id == uuid_mod.UUID(TEST_USER_A)

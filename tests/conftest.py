@@ -1,5 +1,7 @@
 import os
+import ssl as _ssl
 import sys
+import uuid as uuid_mod
 
 # Ensure project root is in python path - MUST be before src imports
 sys.path.append(os.getcwd())
@@ -7,13 +9,23 @@ sys.path.append(os.getcwd())
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from langchain_core.runnables import RunnableConfig
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from unittest.mock import AsyncMock, patch
 
-from src.models import Base, FoodItem
+from src.config import DATABASE_URL
+from src.models import FoodItem
 
 load_dotenv()
+
+TEST_USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+TEST_USER_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+TEST_CONFIG_A: RunnableConfig = {"configurable": {"user_id": TEST_USER_A}}
+TEST_CONFIG_B: RunnableConfig = {"configurable": {"user_id": TEST_USER_B}}
+
+SEED_FOOD_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
@@ -36,31 +48,54 @@ def basic_state():
 
 @pytest_asyncio.fixture
 async def async_test_db_session():
-    """Provides an async in-memory SQLite session for testing.
+    """Provides an async Supabase Postgres session for testing.
 
-    Creates all tables and seeds with a sample FoodItem (id=1).
-    Session is automatically closed after each test.
+    Uses transaction rollback for isolation — all test data (including seed)
+    is visible during the test but rolled back at the end, leaving the real
+    DB untouched.
     """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Build engine with SSL context for asyncpg (mirrors src/database.py)
+    engine_kwargs: dict = {}
+    if "asyncpg" in DATABASE_URL:
+        ctx = _ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = _ssl.CERT_NONE
+        engine_kwargs["connect_args"] = {"ssl": ctx}
 
-    AsyncTestSession = async_sessionmaker(engine, expire_on_commit=False)
-    async with AsyncTestSession() as session:
+    engine = create_async_engine(DATABASE_URL, **engine_kwargs)
+    async with engine.connect() as connection:
+        # Outer transaction — will be rolled back at the end
+        transaction = await connection.begin()
+        # Nested savepoint so session.commit() releases savepoint, not outer TX
+        await connection.begin_nested()
+
+        session = AsyncSession(bind=connection, expire_on_commit=False)
+
+        # Re-create savepoint after each commit so multiple commits work
+        @event.listens_for(session.sync_session, "after_transaction_end")
+        def restart_savepoint(sync_session, trans):
+            if trans.nested and not trans._parent.nested:
+                sync_session.begin_nested()
+
         # Seed with sample food item for testing
         sample_food = FoodItem(
-            id=1,
+            id=uuid_mod.UUID(SEED_FOOD_ID),
             name="Test Chicken",
             calories=165.0,
             protein=31.0,
             fat=3.6,
             carbs=0.0,
             source="database",
+            user_id=None,  # shared database food
         )
         session.add(sample_food)
-        await session.commit()
+        await session.flush()  # make visible within TX, don't commit outer
 
         yield session
+
+        # Cleanup
+        await session.close()
+        await transaction.rollback()
 
     await engine.dispose()
 

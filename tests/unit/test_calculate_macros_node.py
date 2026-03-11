@@ -9,6 +9,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import TEST_CONFIG_A
 from src.agents.nodes.calculate_macros_node import calculate_macros_node
 
 
@@ -34,19 +35,23 @@ class TestCalculateMacrosDBPath:
             "pending_food_items": [
                 {"food_name": "chicken", "amount": 200.0, "unit": "g", "original_text": "200g chicken"}
             ],
-            "selected_food_id": 1,
+            "selected_food_id": "food-uuid-1",
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_confirmations"]) == 1
         macro = result["pending_confirmations"][0]
         assert macro["food_name"] == "chicken"
         assert macro["source"] == "database"
-        assert macro["food_id"] == 1
+        assert macro["food_id"] == "food-uuid-1"
         assert macro["calories"] == 330
         assert result["pending_food_items"] == []
         assert result["selected_food_id"] is None
+        # Verify config forwarded
+        mock_calculate_macros.ainvoke.assert_called_once_with(
+            {"food_id": "food-uuid-1", "amount_g": 200.0}, config=TEST_CONFIG_A
+        )
 
     async def test_db_path_error(self, basic_state, mock_calculate_macros):
         """
@@ -60,10 +65,10 @@ class TestCalculateMacrosDBPath:
             "pending_food_items": [
                 {"food_name": "mystery", "amount": 100.0, "unit": "g", "original_text": "100g mystery"}
             ],
-            "selected_food_id": 999,
+            "selected_food_id": "food-uuid-999",
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["processing_results"]) == 1
         assert result["processing_results"][0]["status"] == "FAILED"
@@ -85,7 +90,7 @@ class TestCalculateMacrosDBPath:
             "fat": 0.6,
             "source": "database",
             "original_text": "200g rice",
-            "food_id": 2,
+            "food_id": "food-uuid-2",
         }
 
         mock_calculate_macros.ainvoke = AsyncMock(return_value={
@@ -101,11 +106,11 @@ class TestCalculateMacrosDBPath:
             "pending_food_items": [
                 {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"}
             ],
-            "selected_food_id": 1,
+            "selected_food_id": "food-uuid-1",
             "pending_confirmations": [existing],
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_confirmations"]) == 2
         assert result["pending_confirmations"][0] == existing
@@ -131,14 +136,14 @@ class TestCalculateMacrosDBPath:
             "pending_food_items": [
                 {"food_name": "protein shake", "amount": 300.0, "unit": "g", "original_text": "a protein shake"}
             ],
-            "selected_food_id": 42,
+            "selected_food_id": "food-uuid-42",
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         macro = result["pending_confirmations"][0]
         assert macro["source"] == "estimated"
-        assert macro["food_id"] == 42
+        assert macro["food_id"] == "food-uuid-42"
 
     async def test_pops_pending_item(self, basic_state, mock_calculate_macros):
         """
@@ -160,10 +165,10 @@ class TestCalculateMacrosDBPath:
                 {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"},
                 {"food_name": "rice", "amount": 200.0, "unit": "g", "original_text": "200g rice"},
             ],
-            "selected_food_id": 1,
+            "selected_food_id": "food-uuid-1",
         })
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_food_items"]) == 1
         assert result["pending_food_items"][0]["food_name"] == "rice"
@@ -199,7 +204,7 @@ class TestCalculateMacrosEstimationPath:
             mock_llm.with_structured_output.return_value = mock_structured
             mock_structured.ainvoke = AsyncMock(return_value=mock_estimation)
 
-            result = await calculate_macros_node(basic_state)
+            result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert len(result["pending_confirmations"]) == 1
         macro = result["pending_confirmations"][0]
@@ -220,6 +225,6 @@ class TestCalculateMacrosEdgeCases:
         """
         basic_state["pending_food_items"] = []
 
-        result = await calculate_macros_node(basic_state)
+        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
 
         assert result == {}

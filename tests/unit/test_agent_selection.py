@@ -38,14 +38,14 @@ class TestAgentSelectionAutoRouting:
         act:     run agent_selection_node.
         assert:  returns SELECTED and the result's ID as selected_food_id.
         """
-        basic_state["search_results"] = [{"id": 45, "name": "Beef", "source": "database"}]
+        basic_state["search_results"] = [{"id": "food-uuid-45", "name": "Beef", "source": "database"}]
         basic_state["pending_food_items"] = [
             {"food_name": "beef", "amount": 100.0, "unit": "g", "original_text": "100g beef"}
         ]
 
         result = agent_selection_node(basic_state)
 
-        assert result["selected_food_id"] == 45
+        assert result["selected_food_id"] == "food-uuid-45"
         assert result["last_action"] == "SELECTED"
 
     def test_selection_empty_pending_items(self, basic_state):
@@ -54,11 +54,11 @@ class TestAgentSelectionAutoRouting:
         act:     run agent_selection_node.
         assert:  auto-selects first search result ID and doesn't crash.
         """
-        basic_state["search_results"] = [{"id": 45, "name": "Beef", "source": "database"}]
+        basic_state["search_results"] = [{"id": "food-uuid-45", "name": "Beef", "source": "database"}]
         basic_state["pending_food_items"] = []
 
         result = agent_selection_node(basic_state)
-        assert result["selected_food_id"] == 45
+        assert result["selected_food_id"] == "food-uuid-45"
 
 
 class TestAgentSelectionLLMRouting:
@@ -71,9 +71,9 @@ class TestAgentSelectionLLMRouting:
         assert:  Returns SELECTED with matching food ID.
         """
         basic_state["search_results"] = [
-            {"id": 165, "name": "Apples, raw", "source": "database"},
-            {"id": 275, "name": "Apple betty", "source": "database"},
-            {"id": 163, "name": "Apple juice canned", "source": "database"},
+            {"id": "food-uuid-165", "name": "Apples, raw", "source": "database"},
+            {"id": "food-uuid-275", "name": "Apple betty", "source": "database"},
+            {"id": "food-uuid-163", "name": "Apple juice canned", "source": "database"},
         ]
         basic_state["pending_food_items"] = [
             {"food_name": "apple", "amount": 150.0, "unit": "g", "original_text": "I ate an apple"}
@@ -84,11 +84,11 @@ class TestAgentSelectionLLMRouting:
             mock_structured = MagicMock()
             mock_get_llm.return_value = mock_llm
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.invoke.return_value = FoodSelectionResult(status="SELECTED", food_id=165)
+            mock_structured.invoke.return_value = FoodSelectionResult(status="SELECTED", food_id="food-uuid-165")
 
             result = agent_selection_node(basic_state)
 
-        assert result["selected_food_id"] == 165
+        assert result["selected_food_id"] == "food-uuid-165"
         assert result["last_action"] == "SELECTED"
 
     def test_selection_multiple_results_ambiguous(self, basic_state):
@@ -98,8 +98,8 @@ class TestAgentSelectionLLMRouting:
         assert:  Returns NO_MATCH, no food ID selected.
         """
         basic_state["search_results"] = [
-            {"id": 44, "name": "Bacon", "source": "database"},
-            {"id": 45, "name": "Beef", "source": "database"},
+            {"id": "food-uuid-44", "name": "Bacon", "source": "database"},
+            {"id": "food-uuid-45", "name": "Beef", "source": "database"},
         ]
         basic_state["pending_food_items"] = [
             {"food_name": "meat", "amount": 100.0, "unit": "g", "original_text": "some meat"}
