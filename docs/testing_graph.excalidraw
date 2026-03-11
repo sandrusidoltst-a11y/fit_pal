@@ -2776,8 +2776,8 @@
     {
       "type": "text",
       "id": "legend",
-      "x": 730,
-      "y": 1560,
+      "x": 742.6733074797862,
+      "y": 949.5690552868584,
       "width": 500,
       "height": 18,
       "text": "★ = new tests added on add_users branch (user_id scoping)",
@@ -2795,8 +2795,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 160001,
-      "version": 2,
-      "versionNonce": 1549025095,
+      "version": 41,
+      "versionNonce": 925195879,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2807,7 +2807,7 @@
       "index": "b08",
       "frameId": null,
       "roundness": null,
-      "updated": 1773181975905,
+      "updated": 1773209757195,
       "autoResize": true
     }
   ],
