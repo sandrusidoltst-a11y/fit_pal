@@ -18,7 +18,10 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | LLM Models | Claude 3.5 Sonnet / GPT-4o — configured via `src/config.py` |
 | Storage | Supabase PostgreSQL + SQLAlchemy (`asyncpg` async engine; `psycopg2` sync engine for ETL scripts only) |
 | Primary Keys | UUID (`sqlalchemy.Uuid`, `uuid.uuid4` default) |
-| User Scoping | `user_id` column on `food_items` + `daily_logs`; extracted via `get_user_id(config)` from `RunnableConfig` |
+| Auth | Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) |
+| User Scoping | `user_id` column on `food_items` + `daily_logs`; extracted via `get_user_id(config)` from `RunnableConfig` (checks `langgraph_auth_user` first, then `user_id`, then dev default) |
+| RLS | Supabase Row Level Security on `food_items` + `daily_logs` (defense-in-depth; service role bypasses) |
+| Telegram Gateway | aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL over Telegram |
 | Package Manager | `uv` — strictly enforced (see Package Management below) |
 | Language | Python 3.13+ |
 | Dev Server | `langgraph dev` → LangSmith Studio |
@@ -58,10 +61,15 @@ fit_pal/
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
 │   │   ├── estimation_schema.py   # MacroEstimation (LLM off-menu output)
 │   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)
+│   ├── security/
+│   │   └── auth.py                # LangGraph custom auth handler (@auth.authenticate + @auth.on)
 │   ├── database.py                # Async DB engine (asyncpg) + sync engine for ETL
 │   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog — UUID PKs, user_id scoped)
 │   ├── main.py                    # Entry point
 │   └── config.py                  # Environment & LLM setup via get_llm_for_node() + get_user_id()
+├── bot/
+│   ├── gateway.py                 # Telegram bot gateway (aiogram v3 webhook, HITL relay)
+│   └── supabase_admin.py          # Supabase admin helpers (user creation, JWT generation)
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
 │   ├── graph_api/                 # Graph compilation + E2E flow tests via langgraph-sdk
@@ -74,7 +82,8 @@ fit_pal/
 │   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
 ├── traces/                        # LangSmith trace exports (JSON)
-├── langgraph.json                 # LangSmith Studio configuration
+├── langgraph.json                 # LangSmith Studio configuration (dev, no auth)
+├── langgraph.production.json      # Production configuration (with auth handler)
 ├── PRD.md
 └── README.md
 ```
