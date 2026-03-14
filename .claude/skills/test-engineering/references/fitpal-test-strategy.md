@@ -5,6 +5,7 @@
 > **"Test your logic, not your dependencies."**
 >
 > Unit tests verify code transforms inputs into outputs correctly.
+> Integration tests verify SQL, ORM, and data isolation against the real database.
 > Graph-api tests verify the graph compiles and runs correctly through its HTTP API runtime.
 > Never blur the boundary.
 
@@ -16,6 +17,7 @@
 tests/
 ├── conftest.py               # Shared fixtures for ALL test types
 ├── unit/                     # Fast, deterministic, zero real I/O
+├── integration/              # Real Supabase DB, no server needed
 └── graph_api/                # Graph compilation + E2E flows via langgraph-sdk
 ```
 
@@ -23,15 +25,23 @@ tests/
 
 ---
 
-## 3. The Two Test Tiers
+## 3. The Three Test Tiers
 
 ### Unit (`tests/unit/`)
 
 - No real LLM API calls — always mock via `patch("src.agents.nodes.X.get_llm_for_node")`
-- No real file-based DB — use `async_test_db_session` fixture or mock tools
-- Runs in milliseconds — no network, no disk I/O beyond in-memory SQLite
+- No real DB — mock tools or use pure logic
+- Runs in milliseconds — no network, no disk I/O
 - Deterministic — same input → same result
-- Tests ONE unit: a node function, a service method, or a routing function
+- Tests ONE unit: a node function, a routing function, or pure logic
+
+### Integration (`tests/integration/`)
+
+- Uses `async_test_db_session` fixture — real Supabase Postgres connection
+- Tests service functions, ORM models, and tool user-scoping against the real DB
+- Network-dependent (Supabase round-trip) — slower than unit tests
+- Transaction-rollback isolation — no permanent data changes
+- No LangGraph server needed
 
 ### Graph-API (`tests/graph_api/`)
 
@@ -55,7 +65,7 @@ tests/
 
 Nodes never import DB sessions or service functions directly — they only call tools. So mock the **tools on the node's module**, not DB sessions or services.
 
-### 4.2 Never Mock in Service Unit Tests
+### 4.2 Never Mock in Integration Tests (`tests/integration/`)
 
 | Thing | Why |
 |---|---|
@@ -92,7 +102,8 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 | Routing functions (all branches) | `unit/test_feedback_logic.py` | Every `GraphAction` maps to a valid next node |
 | Multi-item loop drain | `unit/test_multi_item_loop.py` | `pending_food_items` reaches `[]` after N iterations |
 | Schema enum consistency | `unit/test_state_consistency.py` | `ActionType`, `SelectionStatus`, `GraphAction` stay in sync |
-| Service layer write → read | `unit/test_daily_log_service.py` | `create_log_entry` → `get_logs_by_date` returns record |
+| Service layer write → read | `integration/test_daily_log_service.py` | `create_log_entry` → `get_logs_by_date` returns record |
+| User data isolation | `integration/test_food_lookup.py` | Estimated foods scoped to owner, shared foods visible to all |
 | Full graph — all routing paths | `graph_api/test_graph_flows.py` | Each path covered: food log, stats, chitchat, no-match |
 
 ---
@@ -104,7 +115,7 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 | Fixture | What it provides |
 |---|---|
 | `basic_state` | Complete `AgentState` dict with all keys set to empty defaults |
-| `async_test_db_session` | Real async in-memory SQLite with `FoodItem(id=1)` seeded |
+| `async_test_db_session` | Real async Supabase Postgres session with `FoodItem(id=SEED_FOOD_ID)` seeded (used by `integration/` tests) |
 | `mock_search_food` | Mock `search_food` tool for `food_search_node` |
 | `mock_calculate_macros` | Mock `calculate_food_macros` tool for `calculate_log_node` |
 | `mock_log_food_entry` | Mock `log_food_entry` tool for `calculate_log_node` |
@@ -120,7 +131,10 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 | A new node that calls tools | Mock tools (`.ainvoke = AsyncMock`) | `unit/test_<node>.py` |
 | A new node that calls LLM | Mock LLM (`patch get_llm_for_node`) | `unit/test_<node>.py` |
 | A new routing function | Mock tools, test all `GraphAction` branches | `unit/test_<routing>.py` |
-| A new service function | Real DB (`async_test_db_session`), zero mocks | `unit/test_<service>.py` |
+| Pure logic (auth, config, helpers) | No mocks needed, no DB | `unit/test_<module>.py` |
+| A new service function | Real DB (`async_test_db_session`), zero mocks | `integration/test_<service>.py` |
+| An ORM model (constraints, relationships) | Real DB (`async_test_db_session`), zero mocks | `integration/test_<model>.py` |
+| Tool user-scoping or data isolation | Real DB + `_patch_session` helper | `integration/test_<tool>.py` |
 | A new Pydantic schema field | Unit test for node handling | `unit/test_<node>.py` |
 | A new graph edge or compile change | Real `MemorySaver` + graph-api for the path | `graph_api/` |
 | Prompt quality evaluation | Use LangSmith Studio traces, not pytest | N/A |
@@ -133,5 +147,6 @@ Service functions accept `session` as a parameter (DI). Inject the test session,
 |---|---|---|
 | After any code change | `uv run pytest tests/unit/ -v` | Unit only |
 | Before `/commit` | `uv run pytest tests/unit/ -v` | Unit only — mandatory gate |
+| After changing service/model/tool code | `uv run pytest tests/integration/ -v` | Integration (real DB) |
 | After changing graph edges/nodes | `uv run pytest tests/graph_api/ -v -s` | Graph-api |
-| Before PR merge | `uv run pytest tests/unit/ -v && uv run pytest tests/graph_api/ -v -s` | Both tiers |
+| Before PR merge | `uv run pytest tests/ -v -s` | All tiers |

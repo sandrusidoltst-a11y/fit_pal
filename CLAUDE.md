@@ -72,6 +72,7 @@ fit_pal/
 │   └── supabase_admin.py          # Supabase admin helpers (user creation, JWT generation)
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
+│   ├── integration/               # Real Supabase DB tests (service layer, models, tool scoping)
 │   ├── graph_api/                 # Graph compilation + E2E flow tests via langgraph-sdk
 │   │   └── logs/                  # Server logs + error tracebacks (gitignored)
 │   └── conftest.py                # Pytest shared fixtures
@@ -129,6 +130,9 @@ Run before every commit and after every implementation task.
 ```bash
 # Pre-commit — mandatory gate (fast, ~15s, unit tests only)
 uv run pytest tests/unit/ -v
+
+# Integration — real Supabase DB (service layer, models, tool scoping)
+uv run pytest tests/integration/ -v
 
 # Graph-API suite — after changing graph edges/nodes (server auto-starts via conftest)
 uv run pytest tests/graph_api/ -v -s

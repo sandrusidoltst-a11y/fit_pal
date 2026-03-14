@@ -19,34 +19,84 @@ uv run ruff check .
 uv run mypy src/
 ```
 
-### Test Suites — Run ALL Steps (in order)
+### Test Suites — Select Based on Changes
+
+**Before running any tests**, analyze the diff to determine which suites are needed, then **present a confirmation message to the user** using the format below. Do NOT run tests until the user confirms.
+
+#### Step 1: Analyze changes
 
 ```bash
-# Step 1 — Unit tests (mandatory, fast ~15s)
-uv run pytest tests/unit/ -v
-
-# Step 2 — E2E / Graph-API tests (MANDATORY — always run, server auto-starts via conftest)
-uv run pytest tests/graph_api/ -v -s
+git diff HEAD
+git ls-files --others --exclude-standard
 ```
 
-**Both steps are mandatory.** Never skip Step 2. The E2E tests catch integration issues (routing, HITL flow, DB writes) that unit tests cannot.
+#### Step 2: Determine which suites to run
 
-### Utility Commands (for active development only)
+Use this decision matrix against the changed files:
+
+| Changed files touch... | Unit | Integration | Graph-API |
+|---|---|---|---|
+| `src/agents/nodes/` (node logic) | YES | — | — |
+| `src/schemas/` (Pydantic schemas) | YES | — | — |
+| `src/config.py`, `src/security/` | YES | — | — |
+| `bot/` (gateway, admin) | YES | — | — |
+| `prompts/` (system prompts) | YES | — | — |
+| `src/services/` (service layer) | YES | YES | — |
+| `src/models.py` (ORM models) | YES | YES | — |
+| `src/tools/` (food_lookup, etc.) | YES | YES | — |
+| `src/database.py` (engine/session) | YES | YES | — |
+| `src/agents/nutritionist.py` (graph edges) | YES | — | YES |
+| `langgraph.json` / `langgraph.production.json` | — | — | YES |
+| `tests/unit/` only | YES | — | — |
+| `tests/integration/` only | — | YES | — |
+| `tests/graph_api/` only | — | — | YES |
+| Docs / skills / non-code only | — | — | — |
+
+**Unit tests are always included** unless the change is docs-only. Integration and Graph-API are added only when relevant.
+
+#### Step 3: Present confirmation to user
+
+Before running, show the user a message like this:
+
+```
+Validation plan based on changes to [list changed areas]:
+
+  RUN:  Unit tests (tests/unit/)          — always required
+  RUN:  Integration tests (tests/integration/) — [reason, e.g. "services/daily_log_service.py changed"]
+  SKIP: Graph-API tests (tests/graph_api/)     — [reason, e.g. "no graph edge or config changes"]
+
+Proceed?
+```
+
+Wait for user confirmation, then run only the confirmed suites in order.
+
+#### Commands
 
 ```bash
-# Single file
-uv run pytest tests/unit/test_<specific>.py -v
+# Unit (fast ~5s, offline)
+uv run pytest tests/unit/ -v
+
+# Integration (real Supabase DB)
+uv run pytest tests/integration/ -v
+
+# Graph-API (server auto-starts via conftest)
+uv run pytest tests/graph_api/ -v -s
+
+# Single file during development
+uv run pytest tests/<tier>/test_<specific>.py -v
 
 # Last-failed retry loop
 uv run pytest --lf -v
 ```
 
-### Test Tier Decision
+### Test Tier Decision (for writing new tests)
 
 ```
-Does the test mock any I/O (LLM, DB, tools)?
+Does the test mock ALL I/O (LLM, DB, tools)?
   YES → tests/unit/
-  NO, tests compilation or full graph via HTTP API → tests/graph_api/
+  NO  → Does it need the real DB but NOT the LangGraph server?
+    YES → tests/integration/
+    NO  → tests/graph_api/
 ```
 
 ## 2. Critical Paths — Must Always Pass
@@ -56,12 +106,13 @@ These flows must never lose test coverage. Verify these specifically after any c
 | Critical Path | Test File | What to Watch |
 |---|---|---|
 | `define_graph()` compilation | `graph_api/test_graph_compilation.py` | Must compile with `MemorySaver()` without `TypeError` |
-| Input parsing → all `GraphAction` outcomes | `test_input_parser.py` | `LOG_FOOD`, `QUERY_DAILY_STATS`, `CHITCHAT`, `CONFIRM_ESTIMATION` |
-| Routing functions (all branches) | `test_feedback_logic.py` | Every `GraphAction` maps to a valid next node |
-| Multi-item loop drain | `test_multi_item_loop.py` | `pending_food_items` reaches `[]` after N iterations |
-| HITL flow | `test_calculate_log_node.py` | `CONFIRM_ESTIMATION` → `calculate_log_node` → `LOGGED` |
-| Schema enum consistency | `test_state_consistency.py` | `ActionType`, `SelectionStatus`, `GraphAction` stay in sync |
-| Service layer write → read | `test_daily_log_service.py` | `create_log_entry` → `get_logs_by_date` returns correct record |
+| Input parsing → all `GraphAction` outcomes | `unit/test_input_parser.py` | `LOG_FOOD`, `QUERY_DAILY_STATS`, `CHITCHAT`, `CONFIRM_ESTIMATION` |
+| Routing functions (all branches) | `unit/test_feedback_logic.py` | Every `GraphAction` maps to a valid next node |
+| Multi-item loop drain | `unit/test_multi_item_loop.py` | `pending_food_items` reaches `[]` after N iterations |
+| HITL flow | `unit/test_calculate_log_node.py` | `CONFIRM_ESTIMATION` → `calculate_log_node` → `LOGGED` |
+| Schema enum consistency | `unit/test_state_consistency.py` | `ActionType`, `SelectionStatus`, `GraphAction` stay in sync |
+| Service layer write → read | `integration/test_daily_log_service.py` | `create_log_entry` → `get_logs_by_date` returns correct record |
+| User data isolation | `integration/test_food_lookup.py` | Estimated foods scoped to owner, shared foods visible to all |
 
 ## 3. Code Review
 
