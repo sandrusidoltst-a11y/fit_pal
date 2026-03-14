@@ -6,8 +6,10 @@ message relay, and HITL interrupt/resume flow.
 """
 
 import hmac
+import logging
 import os
 from datetime import datetime, timedelta, timezone
+from typing import TypedDict
 
 import httpx
 from aiogram import Bot, Dispatcher, Router
@@ -16,6 +18,8 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 
 from bot.supabase_admin import get_or_create_user, refresh_session
+
+logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "")
@@ -27,9 +31,20 @@ LANGGRAPH_API_URL = os.environ.get("LANGGRAPH_API_URL", "http://localhost:2024")
 ASSISTANT_ID = "fitpal"
 SESSION_TIMEOUT = timedelta(minutes=30)
 
+
+class SessionData(TypedDict):
+    """Telegram user session -- tracks auth tokens and LangGraph thread state."""
+
+    user_id: str
+    thread_id: str
+    last_activity: datetime
+    access_token: str
+    refresh_token: str
+    interrupted: bool
+
+
 # In-memory session store: chat_id -> session dict
-# Keys: user_id, thread_id, last_activity, access_token, refresh_token, interrupted
-user_sessions: dict[int, dict] = {}
+user_sessions: dict[int, SessionData] = {}
 
 router = Router()
 
@@ -93,14 +108,17 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
     if last_activity is None or (now - last_activity) > SESSION_TIMEOUT:
         try:
             session["thread_id"] = await _create_thread(session["access_token"])
+            logger.info("Created new thread %s for chat_id=%s", session["thread_id"], chat_id)
         except httpx.HTTPStatusError:
             # Token might be expired, try refresh
             try:
-                tokens = refresh_session(session["refresh_token"])
+                tokens = await refresh_session(session["refresh_token"])
                 session["access_token"] = tokens["access_token"]
                 session["refresh_token"] = tokens["refresh_token"]
                 session["thread_id"] = await _create_thread(session["access_token"])
+                logger.info("Session refreshed and new thread created for chat_id=%s", chat_id)
             except Exception:
+                logger.exception("Failed to create thread for chat_id=%s", chat_id)
                 await message.answer(
                     "Session expired. Please send the invite code again to reconnect."
                 )
@@ -145,20 +163,24 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
         if e.response.status_code == 401:
             # Token expired mid-conversation, try refresh
             try:
-                tokens = refresh_session(session["refresh_token"])
+                tokens = await refresh_session(session["refresh_token"])
                 session["access_token"] = tokens["access_token"]
                 session["refresh_token"] = tokens["refresh_token"]
+                logger.info("Token refreshed mid-conversation for chat_id=%s", chat_id)
                 await message.answer("Session refreshed. Please resend your message.")
             except Exception:
+                logger.exception("Token refresh failed for chat_id=%s", chat_id)
                 await message.answer(
                     "Session expired. Please send the invite code again to reconnect."
                 )
                 user_sessions.pop(chat_id, None)
         else:
+            logger.exception("Error relaying message for chat_id=%s", chat_id)
             await message.answer(
                 "Something went wrong processing your request. Please try again."
             )
     except Exception:
+        logger.exception("Error relaying message for chat_id=%s", chat_id)
         await message.answer(
             "Something went wrong processing your request. Please try again."
         )
@@ -178,7 +200,7 @@ async def handle_message(message: Message) -> None:
         # Passphrase check for new users
         if hmac.compare_digest(message.text.strip(), BOT_PASSPHRASE):
             try:
-                result = get_or_create_user(chat_id)
+                result = await get_or_create_user(chat_id)
                 thread_id = await _create_thread(result["access_token"])
                 user_sessions[chat_id] = {
                     "user_id": result["user_id"],
@@ -188,10 +210,12 @@ async def handle_message(message: Message) -> None:
                     "refresh_token": result["refresh_token"],
                     "interrupted": False,
                 }
+                logger.info("User registered for chat_id=%s, is_new=%s", chat_id, result.get("is_new"))
                 await message.answer(
                     "Welcome to FitPal! You can start logging food now."
                 )
             except Exception:
+                logger.exception("Registration failed for chat_id=%s", chat_id)
                 await message.answer(
                     "Something went wrong during registration. Please try again."
                 )

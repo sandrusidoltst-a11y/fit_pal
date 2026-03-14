@@ -7,23 +7,27 @@ deterministic passwords so Telegram users never need credentials.
 
 import hashlib
 import hmac
+import logging
 import os
 
-from supabase import Client, create_client
+from supabase import AsyncClient, acreate_client
 from supabase_auth.errors import AuthApiError
+
+logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 BOT_PASSPHRASE = os.environ.get("BOT_PASSPHRASE", "")
+BOT_PASSWORD_SEED = os.environ.get("BOT_PASSWORD_SEED", "") or BOT_PASSPHRASE
 
-_supabase_admin: Client | None = None
+_supabase_admin: AsyncClient | None = None
 
 
-def _get_client() -> Client:
+async def _get_client() -> AsyncClient:
     """Lazy-initialize the Supabase admin client (avoids import-time errors when env vars are unset)."""
     global _supabase_admin
     if _supabase_admin is None:
-        _supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        _supabase_admin = await acreate_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     return _supabase_admin
 
 
@@ -42,28 +46,32 @@ def _server_password(telegram_chat_id: int) -> str:
 
     The password is never shown to the user -- it's an implementation detail
     that allows the gateway to call sign_in_with_password() to obtain a JWT.
-    Uses HMAC with BOT_PASSPHRASE as key so passwords change if passphrase rotates.
+    Uses HMAC with BOT_PASSWORD_SEED as key. This is separate from
+    BOT_PASSPHRASE so the invite code can be rotated without breaking
+    existing user accounts.
     """
     return hmac.new(
-        BOT_PASSPHRASE.encode(),
+        BOT_PASSWORD_SEED.encode(),
         str(telegram_chat_id).encode(),
         hashlib.sha256,
     ).hexdigest()
 
 
-def get_or_create_user(telegram_chat_id: int) -> dict:
+async def get_or_create_user(telegram_chat_id: int) -> dict:
     """Get or create a Supabase Auth user for a Telegram chat ID.
 
     Returns dict with keys: user_id, access_token, refresh_token, is_new.
     """
     email = _synthetic_email(telegram_chat_id)
     password = _server_password(telegram_chat_id)
+    client = await _get_client()
 
     # Try signing in first (existing user)
     try:
-        response = _get_client().auth.sign_in_with_password(
+        response = await client.auth.sign_in_with_password(
             {"email": email, "password": password}
         )
+        logger.info("Signed in existing user for chat_id=%s", telegram_chat_id)
         return {
             "user_id": response.user.id,
             "access_token": response.session.access_token,
@@ -71,10 +79,10 @@ def get_or_create_user(telegram_chat_id: int) -> dict:
             "is_new": False,
         }
     except AuthApiError:
-        pass  # User doesn't exist yet, create below
+        logger.debug("User not found for chat_id=%s, creating new user", telegram_chat_id)
 
     # Create new user via admin API
-    _get_client().auth.admin.create_user(
+    await client.auth.admin.create_user(
         {
             "email": email,
             "password": password,
@@ -84,9 +92,10 @@ def get_or_create_user(telegram_chat_id: int) -> dict:
     )
 
     # Sign in to get a session with tokens
-    response = _get_client().auth.sign_in_with_password(
+    response = await client.auth.sign_in_with_password(
         {"email": email, "password": password}
     )
+    logger.info("Created new user for chat_id=%s", telegram_chat_id)
     return {
         "user_id": response.user.id,
         "access_token": response.session.access_token,
@@ -95,12 +104,14 @@ def get_or_create_user(telegram_chat_id: int) -> dict:
     }
 
 
-def refresh_session(refresh_token: str) -> dict:
+async def refresh_session(refresh_token: str) -> dict:
     """Refresh an expired session using the refresh token.
 
     Returns dict with keys: access_token, refresh_token.
     """
-    response = _get_client().auth.refresh_session(refresh_token)
+    client = await _get_client()
+    response = await client.auth.refresh_session(refresh_token)
+    logger.info("Refreshed session")
     return {
         "access_token": response.session.access_token,
         "refresh_token": response.session.refresh_token,
