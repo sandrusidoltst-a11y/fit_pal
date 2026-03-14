@@ -20,8 +20,17 @@ DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def get_user_id(config: RunnableConfig | None) -> str:
-    """Extract user_id from LangGraph config, falling back to dev default."""
+    """Extract user_id from LangGraph config, falling back to dev default.
+
+    Production: auth handler populates langgraph_auth_user.
+    Dev/Studio: manual config["configurable"]["user_id"] or fallback.
+    """
     if config:
+        # Production path: auth handler sets this
+        auth_user = config["configurable"].get("langgraph_auth_user")
+        if auth_user:
+            return auth_user["identity"]
+        # Dev/Studio path: manual user_id in config
         return config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
     return DEFAULT_DEV_USER_ID
 

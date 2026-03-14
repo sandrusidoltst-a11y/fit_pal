@@ -32,7 +32,7 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 - **User Interface (UI)**: No Web or Desktop UI in this phase.
 - **API (REST/GraphQL)**: No external API endpoints.
 - **Image Recognition**: Photo-to-macros conversion.
-- **Multi-User Support**: Data layer is multi-user ready (`user_id` scoping), but auth integration is pending (Phase 3, Step 4).
+- **Multi-User Support**: Auth integration complete (Supabase JWT + LangGraph auth handler). Telegram bot gateway built but not yet deployed.
 
 ## 5. User Stories
 1. **As a user**, I want to type "I had a 200g steak" so that the agent automatically finds the protein and fat content.
@@ -164,17 +164,23 @@ fit_pal/
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
 │   │   ├── estimation_schema.py   # MacroEstimation (off-menu)
 │   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit
-│   ├── database.py          # Sync + async DB engines (async-first)
+│   ├── security/
+│   │   └── auth.py          # LangGraph custom auth handler (@auth.authenticate + @auth.on)
+│   ├── database.py          # Async DB engine (asyncpg) + sync engine for ETL
 │   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
 │   └── config.py            # Environment & LLM setup
+├── bot/
+│   ├── gateway.py           # Telegram bot gateway (aiogram v3 webhook, HITL relay)
+│   └── supabase_admin.py    # Supabase admin helpers (user creation, JWT generation)
 ├── tests/
 │   ├── unit/                # Fast, deterministic tests (mocked DB/LLM)
 │   ├── graph_api/           # Graph compilation + E2E flow tests via langgraph-sdk
 │   └── conftest.py          # Pytest shared fixtures
 ├── notebooks/
 │   └── evaluate_lookup.ipynb # Analysis notebook
-├── langgraph.json       # LangSmith Studio configuration
+├── langgraph.json           # LangSmith Studio configuration (dev, no auth)
+├── langgraph.production.json # Production configuration (with auth handler)
 ├── PRD.md
 └── README.md
 ```
@@ -190,6 +196,9 @@ fit_pal/
 - **LLM Model**: Claude 3.5 Sonnet or GPT-4o.
 - **Data Processing**: Pandas (for CSV/Database lookup).
 - **Storage**: Supabase PostgreSQL + SQLAlchemy (`asyncpg` async-first; `psycopg2` sync engine retained for ETL scripts).
+- **Auth**: Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) + RLS on `food_items`/`daily_logs`.
+- **Telegram Gateway**: aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL relay.
+- **HTTP Client**: httpx (async — JWT validation, LangGraph API calls from gateway).
 - **Language**: Python 3.13+.
 - **Package Manager**: uv (Required for dependency management).
 
@@ -312,10 +321,11 @@ Stores confirmed food entries for long-term tracking.
 1. ✅ Supabase project setup + schema migration
 2. ✅ Add `user_id` columns (multi-user ready) + migrate PKs to UUID
 3. ✅ Swap DB engine (SQLite → asyncpg + Supabase Postgres) + extract `get_user_id()` helper + migrate test DB to Supabase
-4. Auth integration (Supabase JWT + LangGraph auth handler in `src/auth.py`)
-5. Row Level Security (defense in depth)
-6. Deploy LangGraph standalone server (Docker Compose)
-7. Smoke test end-to-end
+4. ✅ Auth integration (Supabase JWT + LangGraph custom auth handler in `src/security/auth.py`, `langgraph.production.json`)
+5. ✅ Row Level Security (defense in depth) — RLS enabled on `food_items` + `daily_logs` with user-scoped policies
+6. ✅ Telegram bot gateway (`bot/gateway.py`) — aiogram v3 webhook, passphrase access control, auto-registration, HITL over Telegram
+7. Deploy LangGraph standalone server (Docker Compose) + Telegram webhook setup
+8. Smoke test end-to-end
 
 **Cost estimate:**
 - LangGraph server: Free (open source, self-hosted)
