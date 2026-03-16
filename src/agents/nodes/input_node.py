@@ -1,11 +1,14 @@
 import os
 from datetime import datetime
 
+import structlog
 from langchain_core.messages import SystemMessage
 
 from src.agents.state import AgentState
 from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.input_schema import FoodIntakeEvent
+
+logger = structlog.get_logger(__name__)
 
 def input_parser_node(state: AgentState):
     """
@@ -19,7 +22,7 @@ def input_parser_node(state: AgentState):
             system_prompt = f.read()
     except FileNotFoundError:
         # Fallback or error logging
-        print(f"Warning: Prompt file not found at {prompt_path}")
+        logger.warning("Prompt file not found, using fallback", path=prompt_path)
         system_prompt = "You are a helpful nutrition assistant. Parse food intake."
 
     llm = get_llm_for_node("input_node")
@@ -40,6 +43,8 @@ def input_parser_node(state: AgentState):
 
     # Invoke LLM
     result = structured_llm.invoke(messages)
+
+    logger.info("Input parsed", action=result.action.value, items=len(result.items))
 
     # Prepare state updates
     updates = {

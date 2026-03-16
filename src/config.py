@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
+import structlog
 from dotenv import load_dotenv
+
+logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
@@ -32,6 +35,7 @@ def get_user_id(config: RunnableConfig | None) -> str:
             return auth_user["identity"]
         # Dev/Studio path: manual user_id in config
         return config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
+    logger.warning("No auth user in config, falling back to DEFAULT_DEV_USER_ID", user_id=DEFAULT_DEV_USER_ID)
     return DEFAULT_DEV_USER_ID
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")
@@ -40,8 +44,12 @@ if _supabase_url:
 else:
     DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
+logger.info("Database backend resolved", backend="asyncpg (Supabase)" if _supabase_url else "sqlite (local)")
+
 GLOBAL_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4o")
+
+logger.info("LLM config loaded", provider=GLOBAL_PROVIDER, model=GLOBAL_MODEL)
 
 # LLM Configuration Hierarchy
 # 1. Node-Specific Settings (NODE_CONFIGS): Highest priority. If a node defines a parameter (e.g., 'temperature', 'provider', 'max_tokens'), it takes precedence.

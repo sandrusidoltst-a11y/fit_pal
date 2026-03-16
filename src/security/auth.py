@@ -1,10 +1,16 @@
 import os
 
 import httpx
+import structlog
 from langgraph_sdk import Auth
+
+logger = structlog.get_logger(__name__)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+if not SUPABASE_URL:
+    logger.warning("SUPABASE_URL not configured — auth will reject all requests")
 
 auth = Auth()
 
@@ -20,12 +26,14 @@ async def get_current_user(
     On any failure, raises a 401 HTTPException.
     """
     if not authorization:
+        logger.warning("Auth rejected: missing authorization header")
         raise Auth.exceptions.HTTPException(
             status_code=401, detail="Missing authorization header"
         )
 
     parts = authorization.split(" ", 1)
     if len(parts) != 2 or parts[0].lower() != "bearer":
+        logger.warning("Auth rejected: invalid authorization scheme")
         raise Auth.exceptions.HTTPException(
             status_code=401, detail="Invalid authorization scheme"
         )
@@ -40,17 +48,20 @@ async def get_current_user(
                     "apikey": SUPABASE_SERVICE_KEY,
                 },
             )
-    except (httpx.HTTPError, ConnectionError) as e:
+    except (httpx.HTTPError, ConnectionError):
+        logger.exception("Auth failed: could not reach Supabase")
         raise Auth.exceptions.HTTPException(
             status_code=401, detail="Failed to validate token"
-        ) from e
+        )
 
     if response.status_code != 200:
+        logger.warning("Auth rejected: invalid or expired token", status=response.status_code)
         raise Auth.exceptions.HTTPException(
             status_code=401, detail="Invalid or expired token"
         )
 
     user = response.json()
+    logger.debug("Auth successful", user_id=user["id"])
     return {
         "identity": user["id"],
         "is_authenticated": True,

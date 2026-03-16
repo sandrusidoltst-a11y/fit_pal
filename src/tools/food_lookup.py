@@ -1,6 +1,9 @@
 import uuid as uuid_mod
 
+import structlog
 from langchain_core.runnables import RunnableConfig
+
+logger = structlog.get_logger(__name__)
 from langchain_core.tools import tool
 from sqlalchemy import select
 
@@ -40,6 +43,7 @@ async def search_food(query: str, config: RunnableConfig) -> list[dict]:
         )
         results = (await session.execute(stmt)).all()
         if results:
+            logger.debug("search_food matched", query=query, matched=len(results), source="database")
             return [{"id": str(r.id), "name": r.name, "source": "database"} for r in results]
 
         # Fallback: search THIS USER's estimated foods
@@ -50,6 +54,8 @@ async def search_food(query: str, config: RunnableConfig) -> list[dict]:
             .limit(10)
         )
         results = (await session.execute(stmt)).all()
+        if not results:
+            logger.info("search_food no results from DB or estimated foods", query=query)
         return [{"id": str(r.id), "name": r.name, "source": "estimated"} for r in results]
 
 
@@ -62,6 +68,7 @@ async def calculate_food_macros(food_id: str, amount_g: float) -> dict:
     async with get_async_db_session() as session:
         food = await session.get(FoodItem, uuid_mod.UUID(food_id))
         if not food:
+            logger.warning("calculate_food_macros: food not found", food_id=food_id)
             return {"error": f"Food item with ID {food_id} not found"}
         result = compute_food_macros(food, amount_g)
         result["source"] = food.source
@@ -93,4 +100,5 @@ async def create_food_item(
         session.add(food_item)
         await session.commit()
         await session.refresh(food_item)
+        logger.info("Created food item", name=name, food_id=str(food_item.id), source=source)
         return {"id": str(food_item.id), "name": food_item.name}

@@ -1,10 +1,13 @@
 from datetime import datetime, timezone
 
+import structlog
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.state import AgentState
 from src.services.daily_log_service import log_food_entry, query_food_logs
 from src.tools.food_lookup import create_food_item
+
+logger = structlog.get_logger(__name__)
 
 
 async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -16,7 +19,10 @@ async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
     batch = state.get("pending_confirmations", [])
 
     if not batch:
+        logger.warning("Commit node called with empty batch")
         return {}
+
+    logger.info("Committing confirmed batch", items=len(batch))
 
     # Prepare timestamp
     consumed_at = state.get("consumed_at")

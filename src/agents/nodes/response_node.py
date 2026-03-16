@@ -2,10 +2,13 @@ import json
 import os
 from datetime import date, datetime
 
+import structlog
 from langchain_core.messages import SystemMessage
 
 from src.agents.state import AgentState
 from src.config import BASE_DIR, get_llm_for_node
+
+logger = structlog.get_logger(__name__)
 
 
 def _serialize_date(obj):
@@ -76,7 +79,7 @@ def response_node(state: AgentState) -> dict:
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
     except FileNotFoundError:
-        print(f"Warning: Prompt file not found at {prompt_path}")
+        logger.warning("Response prompt file not found, using fallback", path=prompt_path)
         system_prompt = (
             "You are FitPal, a helpful fitness and nutrition coach. "
             "Respond based on the provided context."
