@@ -175,6 +175,7 @@ fit_pal/
 │   └── supabase_admin.py    # Supabase admin helpers (user creation, JWT generation)
 ├── tests/
 │   ├── unit/                # Fast, deterministic tests (mocked DB/LLM)
+│   ├── integration/         # Real Supabase DB tests (service layer, models, tool scoping)
 │   ├── graph_api/           # Graph compilation + E2E flow tests via langgraph-sdk
 │   └── conftest.py          # Pytest shared fixtures
 ├── notebooks/
@@ -197,8 +198,9 @@ fit_pal/
 - **Data Processing**: Pandas (for CSV/Database lookup).
 - **Storage**: Supabase PostgreSQL + SQLAlchemy (`asyncpg` async-first; `psycopg2` sync engine retained for ETL scripts).
 - **Auth**: Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) + RLS on `food_items`/`daily_logs`.
-- **Telegram Gateway**: aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL relay.
+- **Telegram Gateway**: aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration via async Supabase client, HITL relay, `SessionData` TypedDict, structured logging.
 - **HTTP Client**: httpx (async — JWT validation, LangGraph API calls from gateway).
+- **Supabase Admin**: `bot/supabase_admin.py` — async `acreate_client`, `BOT_PASSWORD_SEED` for passphrase rotation safety, HMAC-based deterministic passwords.
 - **Language**: Python 3.13+.
 - **Package Manager**: uv (Required for dependency management).
 

@@ -68,8 +68,8 @@ fit_pal/
 │   ├── main.py                    # Entry point
 │   └── config.py                  # Environment & LLM setup via get_llm_for_node() + get_user_id()
 ├── bot/
-│   ├── gateway.py                 # Telegram bot gateway (aiogram v3 webhook, HITL relay)
-│   └── supabase_admin.py          # Supabase admin helpers (user creation, JWT generation)
+│   ├── gateway.py                 # Telegram bot gateway (aiogram v3 webhook, HITL relay, SessionData TypedDict, structured logging)
+│   └── supabase_admin.py          # Supabase admin helpers (async client, BOT_PASSWORD_SEED, user creation, JWT generation)
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
 │   ├── integration/               # Real Supabase DB tests (service layer, models, tool scoping)
@@ -165,3 +165,4 @@ uv run pytest --lf -v
 
 | [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
+| [.claude/skills/sync-context/SKILL.md](.claude/skills/sync-context/SKILL.md) | Skill | Synchronize CLAUDE.md and project skills with actual state | After significant refactors, new skills added, or structural changes |
