@@ -1,7 +1,10 @@
+import structlog
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.state import AgentState
 from src.tools.food_lookup import search_food
+
+logger = structlog.get_logger(__name__)
 
 
 async def food_search_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -14,6 +17,7 @@ async def food_search_node(state: AgentState, config: RunnableConfig) -> dict:
     pending_items = state.get("pending_food_items", [])
 
     if not pending_items:
+        logger.warning("food_search_node called with empty pending_food_items")
         return {"search_results": []}
 
     # Search for first pending item

@@ -1,5 +1,6 @@
 import os
 
+import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
@@ -7,6 +8,8 @@ from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.estimation_schema import MacroEstimation
 from src.tools.food_lookup import calculate_food_macros
+
+logger = structlog.get_logger(__name__)
 
 
 async def calculate_macros_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -34,6 +37,7 @@ async def calculate_macros_node(state: AgentState, config: RunnableConfig) -> di
             {"food_id": selected_food_id, "amount_g": amount}, config=config
         )
         if "error" in macros:
+            logger.error("Macro calculation failed", food=food_name, error=macros["error"])
             # Calculation failed — add FAILED result, skip this item
             result_item = {
                 **current_item,
@@ -62,6 +66,7 @@ async def calculate_macros_node(state: AgentState, config: RunnableConfig) -> di
         }
     else:
         # Estimation path — use LLM
+        logger.info("Estimating macros via LLM", food=food_name, amount_g=amount)
         macro_result = await _estimate_macros(
             food_name, amount, current_item.get("original_text", "")
         )
@@ -90,6 +95,7 @@ async def _estimate_macros(
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
     except FileNotFoundError:
+        logger.warning("Estimation prompt file not found, using fallback")
         system_prompt = (
             "Estimate nutritional values for the given food item and amount."
         )

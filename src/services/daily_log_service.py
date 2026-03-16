@@ -9,6 +9,10 @@ session — these are used by graph nodes and are available for LLM tool-calling
 """
 
 import uuid as uuid_mod
+
+import structlog
+
+logger = structlog.get_logger(__name__)
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
@@ -202,6 +206,7 @@ async def log_food_entry(
             timestamp=parsed_ts,
             original_text=original_text or None,
         )
+        logger.info("Daily log created", log_id=str(log.id), user_id=user_id, calories=calories)
         return {"id": str(log.id), "status": "logged"}
 
 
@@ -216,4 +221,5 @@ async def query_food_logs(target_date: str, end_date: str = "", config: Runnable
             logs = await get_logs_by_date_range(session, user_id, parsed_date, parsed_end)
         else:
             logs = await get_logs_by_date(session, user_id, parsed_date)
+        logger.debug("Queried food logs", user_id=user_id, date=target_date, results=len(logs))
         return [_serialize_log(log) for log in logs]

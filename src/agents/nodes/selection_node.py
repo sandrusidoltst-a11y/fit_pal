@@ -1,7 +1,10 @@
 import os
 
+import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from src.config import BASE_DIR, get_llm_for_node
+
+logger = structlog.get_logger(__name__)
 
 from src.agents.state import AgentState
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
@@ -40,7 +43,7 @@ def agent_selection_node(state: AgentState) -> dict:
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
     except FileNotFoundError:
-        print(f"Warning: Prompt file not found at {prompt_path}")
+        logger.warning("Prompt file not found, using fallback", path=prompt_path)
         system_prompt = "Select the most appropriate food item from the search results."
 
     llm = get_llm_for_node("selection_node")
@@ -61,14 +64,14 @@ def agent_selection_node(state: AgentState) -> dict:
 
     # Validate LLM response consistency
     if result.status == SelectionStatus.SELECTED and result.food_id is None:
-        print("Warning: LLM returned SELECTED without food_id, treating as NO_MATCH")
+        logger.warning("LLM returned SELECTED without food_id, treating as NO_MATCH")
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
         }
 
     if result.status == SelectionStatus.AMBIGUOUS:
-        print("Warning: LLM returned AMBIGUOUS (not supported in MVP), treating as NO_MATCH")
+        logger.warning("LLM returned AMBIGUOUS (not supported in MVP), treating as NO_MATCH")
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",

@@ -1,6 +1,7 @@
 import os
 from typing import Literal
 
+import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
@@ -9,6 +10,8 @@ from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.confirmation_schema import ConfirmationResponse
 from src.tools.food_lookup import calculate_food_macros
+
+logger = structlog.get_logger(__name__)
 
 
 def _format_batch_preview(items: list[MacroResult]) -> dict:
@@ -56,6 +59,7 @@ async def confirmation_node(
     batch = list(state.get("pending_confirmations", []))
 
     if not batch:
+        logger.warning("Confirmation node called with empty batch, skipping to response")
         return Command(goto="response")
 
     preview = _format_batch_preview(batch)
@@ -65,6 +69,8 @@ async def confirmation_node(
 
         # Parse user response with LLM
         decision = await _parse_confirmation(user_response, batch)
+
+        logger.info("User confirmation", action=decision.action, items=len(batch))
 
         if decision.action == "confirm":
             return Command(
@@ -118,6 +124,7 @@ async def _parse_confirmation(
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
     except FileNotFoundError:
+        logger.warning("Confirmation prompt file not found, using fallback")
         system_prompt = (
             "Parse the user's response to a food logging confirmation prompt."
         )
@@ -151,6 +158,7 @@ async def _apply_edits(
     )
     for idx in remove_indices:
         if 0 <= idx < len(batch):
+            logger.info("User edit: removed item", index=idx)
             batch.pop(idx)
 
     # Process amount changes
@@ -160,6 +168,7 @@ async def _apply_edits(
                 item = batch[edit.item_index]
                 old_amount = item["amount_g"]
                 new_amount = edit.new_amount_g
+                logger.info("User edit: changed amount", index=edit.item_index, old_g=old_amount, new_g=new_amount)
 
                 if item["food_id"] is not None:
                     # DB item — recalculate via tool
