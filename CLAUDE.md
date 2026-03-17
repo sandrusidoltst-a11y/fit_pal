@@ -24,6 +24,7 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | Telegram Gateway | aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL over Telegram |
 | Package Manager | `uv` — strictly enforced (see Package Management below) |
 | Language | Python 3.13+ |
+| Logging | `structlog` — structured logging across all `src/` modules (nodes, tools, services, auth, config) |
 | Dev Server | `langgraph dev` → LangSmith Studio |
 
 ---
@@ -80,6 +81,8 @@ fit_pal/
 │   └── evaluate_lookup.ipynb      # Analysis notebook
 ├── docs/
 │   ├── phase3-deployment-plan.md  # Phase 3 deployment steps (Supabase + self-hosted LangGraph)
+│   ├── auth_flow.excalidraw       # Auth flow diagram (Excalidraw source)
+│   ├── testing_graph.excalidraw   # Testing architecture diagram (Excalidraw source)
 │   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
 ├── traces/                        # LangSmith trace exports (JSON)
@@ -162,7 +165,6 @@ uv run pytest --lf -v
 | [PRD.md](PRD.md) | Documentation | Full requirements, features, and specs | Feature planning / understanding scope |
 | [.claude/skills/test-engineering/SKILL.md](.claude/skills/test-engineering/SKILL.md) | Skill | Test tiers, mock boundaries, file structure, AAA docstrings, graph-api patterns | **Before** writing any test; when a test fails unexpectedly; when adding a new node, route, or schema |
 | [.claude/skills/langchain-architecture/SKILL.md](.claude/skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management, type safety patterns, node/edge best practices | **Before** implementing any LangGraph node, edge, or state change |
-
 | [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
 | [.claude/skills/sync-context/SKILL.md](.claude/skills/sync-context/SKILL.md) | Skill | Synchronize CLAUDE.md and project skills with actual state | After significant refactors, new skills added, or structural changes |

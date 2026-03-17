@@ -27,12 +27,12 @@ The MVP focuses on the core utility: accurately parsing natural language food in
 - **Natural Language Parsing**: Converting "I ate 50g of chicken" into structured JSON using LLM and Pydantic.
 - **Stateful Tracking**: Maintaining daily totals within a LangGraph session (short-term memory).
 - **Core Reasoning**: Answering questions based on the current state.
+- **Multi-User Support**: Supabase Auth (JWT) + LangGraph custom auth handler + RLS on `food_items`/`daily_logs`. Telegram bot gateway with passphrase access control and auto-registration.
 
 ### Out-of-Scope (❌)
 - **User Interface (UI)**: No Web or Desktop UI in this phase.
 - **API (REST/GraphQL)**: No external API endpoints.
 - **Image Recognition**: Photo-to-macros conversion.
-- **Multi-User Support**: Auth integration complete (Supabase JWT + LangGraph auth handler). Telegram bot gateway built but not yet deployed.
 
 ## 5. User Stories
 1. **As a user**, I want to type "I had a 200g steak" so that the agent automatically finds the protein and fat content.
@@ -201,6 +201,7 @@ fit_pal/
 - **Telegram Gateway**: aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration via async Supabase client, HITL relay, `SessionData` TypedDict, structured logging.
 - **HTTP Client**: httpx (async — JWT validation, LangGraph API calls from gateway).
 - **Supabase Admin**: `bot/supabase_admin.py` — async `acreate_client`, `BOT_PASSWORD_SEED` for passphrase rotation safety, HMAC-based deterministic passwords.
+- **Logging**: `structlog` — structured logging across all `src/` modules (nodes, tools, services, auth, config).
 - **Language**: Python 3.13+.
 - **Package Manager**: uv (Required for dependency management).
 
