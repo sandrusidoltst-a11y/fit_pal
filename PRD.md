@@ -346,3 +346,4 @@ Stores confirmed food entries for long-term tracking.
 - Upgrade to Semantic Search for food lookup.
 - Proactive coaching logic (suggestions for ending the day).
 - Implement postponed Phase 2 items (Structured Macro Targets, Assessment Reasoning, Correction Workflow, Context Limit Management).
+- **Fuzzy Input Disambiguation**: When the input parser encounters ambiguous or misspelled food names (e.g., "bannh" could be "banana" or "banh mi"), present the user with multiple candidate interpretations to choose from instead of silently picking one. Reduces mislogged foods caused by typos or shorthand.

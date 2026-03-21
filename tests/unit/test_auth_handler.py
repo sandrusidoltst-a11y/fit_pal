@@ -128,12 +128,13 @@ class TestGetUserIdPriority:
 
     def test_falls_back_to_manual_user_id(self):
         """
-        arrange: Config with only user_id (no langgraph_auth_user).
+        arrange: Config with only user_id as valid UUID (no langgraph_auth_user).
         act:     Call get_user_id.
         assert:  Returns the user_id value.
         """
-        config = {"configurable": {"user_id": "manual-user-uuid"}}
-        assert get_user_id(config) == "manual-user-uuid"
+        valid_uuid = "11111111-1111-1111-1111-111111111111"
+        config = {"configurable": {"user_id": valid_uuid}}
+        assert get_user_id(config) == valid_uuid
 
     def test_falls_back_to_default(self):
         """
@@ -151,3 +152,21 @@ class TestGetUserIdPriority:
         assert:  Returns DEFAULT_DEV_USER_ID.
         """
         assert get_user_id(None) == DEFAULT_DEV_USER_ID
+
+    def test_non_uuid_user_id_falls_back_to_default(self):
+        """
+        arrange: Config with a non-UUID user_id (e.g. Studio-injected string).
+        act:     Call get_user_id.
+        assert:  Ignores the non-UUID value and returns DEFAULT_DEV_USER_ID.
+        """
+        config = {"configurable": {"user_id": "studio-generated-string"}}
+        assert get_user_id(config) == DEFAULT_DEV_USER_ID
+
+    def test_empty_string_user_id_falls_back_to_default(self):
+        """
+        arrange: Config with empty string user_id.
+        act:     Call get_user_id.
+        assert:  Returns DEFAULT_DEV_USER_ID.
+        """
+        config = {"configurable": {"user_id": ""}}
+        assert get_user_id(config) == DEFAULT_DEV_USER_ID
