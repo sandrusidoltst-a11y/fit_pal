@@ -316,7 +316,7 @@ Stores confirmed food entries for long-term tracking.
 **Decisions made (2026-03-07, updated 2026-03-07):**
 - **Deployment**: Self-hosted LangGraph Standalone Server (Docker + Postgres + Redis) — open source, no per-seat cost.
 - **Database**: Supabase PostgreSQL — for app data (`food_items`, `daily_logs`). Replaces local SQLite. Keep SQLAlchemy + `asyncpg` as ORM (don't switch to Supabase Python client).
-- **Auth**: Supabase Auth (email/password, OAuth) as identity provider. LangGraph custom auth handler validates JWTs server-side.
+- **Auth**: Supabase Auth (email/password, OAuth) as identity provider. LangGraph custom auth handler (`@auth.authenticate`) was implemented in `src/security/auth.py` but **cannot run in self-hosted lite mode** — requires enterprise license (`LANGGRAPH_CLOUD_LICENSE_KEY`). Current deployment relies on **network isolation** (LangGraph server has no public URL, only reachable via Railway internal DNS) + **bot-level passphrase authentication**. The bot passes `user_id` directly in request config instead of JWT. See "Security: Auth Limitation" below.
 - **Checkpointer**: Server-managed `AsyncPostgresSaver` — auto-configured by the LangGraph standalone server (can use Supabase Postgres or separate instance).
 - **User Identity**: Moved from Phase 2 → Phase 3, since it couples tightly with Supabase Auth and multi-user support. Flows via `config["configurable"]`, not AgentState.
 
@@ -327,8 +327,8 @@ Stores confirmed food entries for long-term tracking.
 4. ✅ Auth integration (Supabase JWT + LangGraph custom auth handler in `src/security/auth.py`, `langgraph.production.json`)
 5. ✅ Row Level Security (defense in depth) — RLS enabled on `food_items` + `daily_logs` with user-scoped policies
 6. ✅ Telegram bot gateway (`bot/gateway.py`) — aiogram v3 webhook, passphrase access control, auto-registration, HITL over Telegram
-7. Deploy LangGraph standalone server (Docker Compose) + Telegram webhook setup
-8. Smoke test end-to-end
+7. ⏳ Deploy to Railway (4 services: langgraph-server, fitpal-bot, Postgres, Redis) + Telegram webhook — deployed 2026-03-23, debugging in progress
+8. ⏳ Smoke test end-to-end — partially complete, bot responds but needs debugging
 
 **Cost estimate:**
 - LangGraph server: Free (open source, self-hosted)
@@ -340,6 +340,24 @@ Stores confirmed food entries for long-term tracking.
 **MCP tooling:**
 - `supabase` MCP server configured (`https://mcp.supabase.com/mcp`) for Supabase docs, SQL, migrations during development.
 - `docs-langchain` MCP server for LangGraph deployment docs.
+
+#### Security: Auth Limitation (Self-Hosted Lite Mode)
+
+The LangGraph custom auth handler (`src/security/auth.py`) validates Supabase JWTs and scopes threads/runs per user. However, **custom authentication is an enterprise-only feature** in self-hosted LangGraph. Our free deployment (lite mode) cannot use it.
+
+**Current security model (Railway deployment):**
+- LangGraph server has **no public URL** — only reachable via Railway internal network
+- Bot authenticates users via **passphrase** before granting access
+- Bot passes `user_id` directly in request config (no JWT validation at server)
+- **RLS on Supabase** still enforces per-user data isolation at the DB level (defense-in-depth)
+- `src/security/auth.py` remains in codebase but is not loaded in production config
+
+**Risk**: If an attacker gains access to Railway's internal network, they could send requests to the LangGraph server with any `user_id`. This is mitigated by Railway's encrypted Wireguard tunnels between services.
+
+**Future hardening options** (if server is ever exposed publicly):
+1. Obtain enterprise license and re-enable `@auth.authenticate`
+2. Implement a custom middleware with a shared API key between bot and server (does not require enterprise license)
+3. Deploy via LangGraph Cloud (LangSmith-hosted) where custom auth is included
 
 ### Phase 4: Polish & Intelligence
 - Enable LangSmith tracing.

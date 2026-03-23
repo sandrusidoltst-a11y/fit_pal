@@ -18,7 +18,9 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | LLM Models | Claude 3.5 Sonnet / GPT-4o — configured via `src/config.py` |
 | Storage | Supabase PostgreSQL + SQLAlchemy (`asyncpg` async engine; `psycopg2` sync engine for ETL scripts only) |
 | Primary Keys | UUID (`sqlalchemy.Uuid`, `uuid.uuid4` default) |
-| Auth | Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) |
+| Auth (dev) | Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) — enterprise-only, used in dev/Studio |
+| Auth (prod) | Shared secret middleware (`src/security/internal_auth_middleware.py`) — validates `X-Internal-Token` header; bot passes `user_id` in config body |
+| Deployment | Railway (4 services: langgraph-server, fitpal-bot, Postgres checkpoints, Redis queue) + Docker Hub (`dolevsan/fitpal-server`, `dolevsan/fitpal-bot`) |
 | User Scoping | `user_id` column on `food_items` + `daily_logs`; extracted via `get_user_id(config)` from `RunnableConfig` (checks `langgraph_auth_user` first, then `user_id`, then dev default) |
 | RLS | Supabase Row Level Security on `food_items` + `daily_logs` (defense-in-depth; service role bypasses) |
 | Telegram Gateway | aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL over Telegram |
@@ -63,14 +65,17 @@ fit_pal/
 │   │   ├── estimation_schema.py   # MacroEstimation (LLM off-menu output)
 │   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)
 │   ├── security/
-│   │   └── auth.py                # LangGraph custom auth handler (@auth.authenticate + @auth.on)
+│   │   ├── auth.py                # LangGraph custom auth handler (@auth.authenticate + @auth.on) — enterprise-only, kept for future use
+│   │   ├── internal_auth_middleware.py # Shared secret middleware (X-Internal-Token) — used in production
+│   │   └── webapp.py              # FastAPI app registering middleware — referenced by langgraph.production.json
 │   ├── database.py                # Async DB engine (asyncpg) + sync engine for ETL
 │   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog — UUID PKs, user_id scoped)
 │   ├── main.py                    # Entry point
 │   └── config.py                  # Environment & LLM setup via get_llm_for_node() + get_user_id()
 ├── bot/
-│   ├── gateway.py                 # Telegram bot gateway (aiogram v3 webhook, HITL relay, SessionData TypedDict, structured logging)
-│   └── supabase_admin.py          # Supabase admin helpers (async client, BOT_PASSWORD_SEED, user creation, JWT generation)
+│   ├── gateway.py                 # Telegram bot gateway (aiogram v3 webhook, HITL relay, SessionData TypedDict, shared secret auth)
+│   ├── supabase_admin.py          # Supabase admin helpers (async client, BOT_PASSWORD_SEED, user creation, JWT generation)
+│   └── Dockerfile                 # Bot gateway container definition
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
 │   ├── integration/               # Real Supabase DB tests (service layer, models, tool scoping)
@@ -81,13 +86,15 @@ fit_pal/
 │   └── evaluate_lookup.ipynb      # Analysis notebook
 ├── docs/
 │   ├── phase3-deployment-plan.md  # Phase 3 deployment steps (Supabase + self-hosted LangGraph)
+│   ├── orphaned-langgraph-server.md # Guide for finding/killing zombie langgraph dev processes
 │   ├── auth_flow.excalidraw       # Auth flow diagram (Excalidraw source)
 │   ├── testing_graph.excalidraw   # Testing architecture diagram (Excalidraw source)
 │   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
 ├── traces/                        # LangSmith trace exports (JSON)
-├── langgraph.json                 # LangSmith Studio configuration (dev, no auth)
-├── langgraph.production.json      # Production configuration (with auth handler)
+├── .dockerignore                  # Excludes .venv, .git, tests, docs from Docker context
+├── langgraph.json                 # LangSmith Studio configuration (dev, no auth, python_version 3.13)
+├── langgraph.production.json      # Production configuration (shared secret middleware via http.app, python_version 3.13)
 ├── PRD.md
 └── README.md
 ```
@@ -168,3 +175,5 @@ uv run pytest --lf -v
 | [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
 | [.claude/skills/sync-context/SKILL.md](.claude/skills/sync-context/SKILL.md) | Skill | Synchronize CLAUDE.md and project skills with actual state | After significant refactors, new skills added, or structural changes |
+| [.claude/skills/use-railway/SKILL.md](.claude/skills/use-railway/SKILL.md) | Skill | Railway infrastructure operations (deploy, configure, troubleshoot) | When working with Railway deployment, services, or environment variables |
+| [docs/orphaned-langgraph-server.md](docs/orphaned-langgraph-server.md) | Documentation | Guide for finding/killing zombie langgraph dev processes on Windows | When `langgraph dev` fails with "port 2024 already in use" |

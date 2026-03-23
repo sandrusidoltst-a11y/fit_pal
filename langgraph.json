@@ -3,5 +3,6 @@
   "graphs": {
     "fitpal": "./src/agents/nutritionist.py:define_graph"
   },
+  "python_version": "3.13",
   "env": ".env"
 }

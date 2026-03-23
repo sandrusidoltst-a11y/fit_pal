@@ -3,8 +3,8 @@
   "graphs": {
     "fitpal": "./src/agents/nutritionist.py:define_graph"
   },
-  "env": ".env",
-  "auth": {
-    "path": "src/security/auth.py:auth"
+  "python_version": "3.13",
+  "http": {
+    "app": "./src/security/webapp.py:app"
   }
 }

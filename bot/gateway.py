@@ -17,7 +17,7 @@ from aiogram.types import Message
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from bot.supabase_admin import get_or_create_user, refresh_session
+from bot.supabase_admin import get_or_create_user
 
 logger = logging.getLogger(__name__)
 
@@ -27,19 +27,18 @@ WEBHOOK_PATH = os.environ.get("WEBHOOK_PATH", "/webhook")
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 BOT_PASSPHRASE = os.environ.get("BOT_PASSPHRASE", "")
 LANGGRAPH_API_URL = os.environ.get("LANGGRAPH_API_URL", "http://localhost:2024")
+INTERNAL_API_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
 
 ASSISTANT_ID = "fitpal"
 SESSION_TIMEOUT = timedelta(minutes=30)
 
 
 class SessionData(TypedDict):
-    """Telegram user session -- tracks auth tokens and LangGraph thread state."""
+    """Telegram user session -- tracks user identity and LangGraph thread state."""
 
     user_id: str
     thread_id: str
     last_activity: datetime
-    access_token: str
-    refresh_token: str
     interrupted: bool
 
 
@@ -49,12 +48,17 @@ user_sessions: dict[int, SessionData] = {}
 router = Router()
 
 
-async def _create_thread(access_token: str) -> str:
+def _internal_headers() -> dict[str, str]:
+    """Return headers with the shared secret for service-to-service auth."""
+    return {"X-Internal-Token": INTERNAL_API_SECRET}
+
+
+async def _create_thread() -> str:
     """Create a new LangGraph thread and return its ID."""
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.post(
             f"{LANGGRAPH_API_URL}/threads",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_internal_headers(),
             json={},
         )
         response.raise_for_status()
@@ -63,13 +67,16 @@ async def _create_thread(access_token: str) -> str:
 
 async def _call_langgraph(
     thread_id: str,
-    access_token: str,
+    user_id: str,
     *,
     input: dict | None = None,
     command: dict | None = None,
 ) -> dict:
     """Call LangGraph runs/wait endpoint and return the result."""
-    body: dict = {"assistant_id": ASSISTANT_ID, "config": {}}
+    body: dict = {
+        "assistant_id": ASSISTANT_ID,
+        "config": {"configurable": {"user_id": user_id}},
+    }
     if input is not None:
         body["input"] = input
     if command is not None:
@@ -78,19 +85,19 @@ async def _call_langgraph(
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(
             f"{LANGGRAPH_API_URL}/threads/{thread_id}/runs/wait",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_internal_headers(),
             json=body,
         )
         response.raise_for_status()
         return response.json()
 
 
-async def _check_interrupted(thread_id: str, access_token: str) -> bool:
+async def _check_interrupted(thread_id: str) -> bool:
     """Check if the graph is paused at an interrupt."""
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.get(
             f"{LANGGRAPH_API_URL}/threads/{thread_id}/state",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_internal_headers(),
         )
         response.raise_for_status()
         state = response.json()
@@ -107,44 +114,35 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
     last_activity = session.get("last_activity")
     if last_activity is None or (now - last_activity) > SESSION_TIMEOUT:
         try:
-            session["thread_id"] = await _create_thread(session["access_token"])
+            session["thread_id"] = await _create_thread()
             logger.info("Created new thread %s for chat_id=%s", session["thread_id"], chat_id)
-        except httpx.HTTPStatusError:
-            # Token might be expired, try refresh
-            try:
-                tokens = await refresh_session(session["refresh_token"])
-                session["access_token"] = tokens["access_token"]
-                session["refresh_token"] = tokens["refresh_token"]
-                session["thread_id"] = await _create_thread(session["access_token"])
-                logger.info("Session refreshed and new thread created for chat_id=%s", chat_id)
-            except Exception:
-                logger.exception("Failed to create thread for chat_id=%s", chat_id)
-                await message.answer(
-                    "Session expired. Please send the invite code again to reconnect."
-                )
-                user_sessions.pop(chat_id, None)
-                return
+        except Exception:
+            logger.exception("Failed to create thread for chat_id=%s", chat_id)
+            await message.answer(
+                "Something went wrong. Please try again later."
+            )
+            return
         session["interrupted"] = False
 
     session["last_activity"] = now
-    access_token = session["access_token"]
+    user_id = session["user_id"]
     thread_id = session["thread_id"]
 
     try:
         # Decide whether to resume or send new input
         if session.get("interrupted"):
             result = await _call_langgraph(
-                thread_id, access_token, command={"resume": message.text}
+                thread_id, user_id, command={"resume": message.text}
             )
         else:
             result = await _call_langgraph(
                 thread_id,
-                access_token,
+                user_id,
                 input={"messages": [{"role": "human", "content": message.text}]},
             )
 
         # Check if the graph is now interrupted (HITL)
-        is_interrupted = await _check_interrupted(thread_id, access_token)
+        is_interrupted = await _check_interrupted(thread_id)
         session["interrupted"] = is_interrupted
 
         # Extract and send response
@@ -159,26 +157,11 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
 
         await message.answer("I processed your request but have no response to show.")
 
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 401:
-            # Token expired mid-conversation, try refresh
-            try:
-                tokens = await refresh_session(session["refresh_token"])
-                session["access_token"] = tokens["access_token"]
-                session["refresh_token"] = tokens["refresh_token"]
-                logger.info("Token refreshed mid-conversation for chat_id=%s", chat_id)
-                await message.answer("Session refreshed. Please resend your message.")
-            except Exception:
-                logger.exception("Token refresh failed for chat_id=%s", chat_id)
-                await message.answer(
-                    "Session expired. Please send the invite code again to reconnect."
-                )
-                user_sessions.pop(chat_id, None)
-        else:
-            logger.exception("Error relaying message for chat_id=%s", chat_id)
-            await message.answer(
-                "Something went wrong processing your request. Please try again."
-            )
+    except httpx.HTTPStatusError:
+        logger.exception("Error relaying message for chat_id=%s", chat_id)
+        await message.answer(
+            "Something went wrong processing your request. Please try again."
+        )
     except Exception:
         logger.exception("Error relaying message for chat_id=%s", chat_id)
         await message.answer(
@@ -201,13 +184,11 @@ async def handle_message(message: Message) -> None:
         if hmac.compare_digest(message.text.strip(), BOT_PASSPHRASE):
             try:
                 result = await get_or_create_user(chat_id)
-                thread_id = await _create_thread(result["access_token"])
+                thread_id = await _create_thread()
                 user_sessions[chat_id] = {
                     "user_id": result["user_id"],
                     "thread_id": thread_id,
                     "last_activity": datetime.now(timezone.utc),
-                    "access_token": result["access_token"],
-                    "refresh_token": result["refresh_token"],
                     "interrupted": False,
                 }
                 logger.info("User registered for chat_id=%s, is_new=%s", chat_id, result.get("is_new"))

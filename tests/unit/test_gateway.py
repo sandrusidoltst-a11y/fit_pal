@@ -35,6 +35,19 @@ def mock_message():
     return msg
 
 
+def _session(*, interrupted=False, stale=False):
+    """Helper to create a SessionData dict for tests."""
+    last_activity = datetime.now(timezone.utc)
+    if stale:
+        last_activity -= timedelta(minutes=45)
+    return {
+        "user_id": "uuid-abc",
+        "thread_id": "thread-123",
+        "last_activity": last_activity,
+        "interrupted": interrupted,
+    }
+
+
 class TestPassphraseFlow:
     """Tests for initial passphrase-based access control."""
 
@@ -94,6 +107,9 @@ class TestPassphraseFlow:
         assert 12345 in gw.user_sessions
         assert gw.user_sessions[12345]["user_id"] == "uuid-abc"
         assert gw.user_sessions[12345]["thread_id"] == "thread-123"
+        # No token fields in session
+        assert "access_token" not in gw.user_sessions[12345]
+        assert "refresh_token" not in gw.user_sessions[12345]
 
     async def test_non_text_message_rejected(self, mock_message):
         """
@@ -121,16 +137,9 @@ class TestMessageRelay:
         """
         arrange: Known user in sessions, message 'I ate 200g of chicken'.
         act:     Process message.
-        assert:  LangGraph called with correct input, bot replies with response.
+        assert:  LangGraph called with user_id and correct input.
         """
-        gw.user_sessions[12345] = {
-            "user_id": "uuid-abc",
-            "thread_id": "thread-123",
-            "last_activity": datetime.now(timezone.utc),
-            "access_token": "jwt-token",
-            "refresh_token": "refresh-token",
-            "interrupted": False,
-        }
+        gw.user_sessions[12345] = _session()
         mock_message.text = "I ate 200g of chicken"
         mock_call.return_value = {
             "messages": [
@@ -144,7 +153,7 @@ class TestMessageRelay:
 
         mock_call.assert_called_once_with(
             "thread-123",
-            "jwt-token",
+            "uuid-abc",
             input={"messages": [{"role": "human", "content": "I ate 200g of chicken"}]},
         )
         mock_message.answer.assert_called_once_with(
@@ -159,16 +168,9 @@ class TestMessageRelay:
         """
         arrange: Known user with thread in interrupted state.
         act:     Process 'yes' message.
-        assert:  LangGraph called with resume command, not new input.
+        assert:  LangGraph called with user_id and resume command, not new input.
         """
-        gw.user_sessions[12345] = {
-            "user_id": "uuid-abc",
-            "thread_id": "thread-123",
-            "last_activity": datetime.now(timezone.utc),
-            "access_token": "jwt-token",
-            "refresh_token": "refresh-token",
-            "interrupted": True,
-        }
+        gw.user_sessions[12345] = _session(interrupted=True)
         mock_message.text = "yes"
         mock_call.return_value = {
             "messages": [
@@ -181,7 +183,7 @@ class TestMessageRelay:
 
         mock_call.assert_called_once_with(
             "thread-123",
-            "jwt-token",
+            "uuid-abc",
             command={"resume": "yes"},
         )
 
@@ -200,14 +202,7 @@ class TestThreadManagement:
         act:     Process message.
         assert:  New thread created before relaying message.
         """
-        gw.user_sessions[12345] = {
-            "user_id": "uuid-abc",
-            "thread_id": "old-thread",
-            "last_activity": datetime.now(timezone.utc) - timedelta(minutes=45),
-            "access_token": "jwt-token",
-            "refresh_token": "refresh-token",
-            "interrupted": True,  # Should reset after new thread
-        }
+        gw.user_sessions[12345] = _session(stale=True, interrupted=True)
         mock_create_thread.return_value = "new-thread-456"
         mock_message.text = "I ate rice"
         mock_call.return_value = {
@@ -217,7 +212,7 @@ class TestThreadManagement:
 
         await gw.handle_message(mock_message)
 
-        mock_create_thread.assert_called_once_with("jwt-token")
+        mock_create_thread.assert_called_once()
         assert gw.user_sessions[12345]["thread_id"] == "new-thread-456"
         assert gw.user_sessions[12345]["interrupted"] is False
 
@@ -231,14 +226,7 @@ class TestThreadManagement:
         act:     Process message.
         assert:  Same thread reused (no _create_thread call).
         """
-        gw.user_sessions[12345] = {
-            "user_id": "uuid-abc",
-            "thread_id": "existing-thread",
-            "last_activity": datetime.now(timezone.utc) - timedelta(minutes=5),
-            "access_token": "jwt-token",
-            "refresh_token": "refresh-token",
-            "interrupted": False,
-        }
+        gw.user_sessions[12345] = _session()
         mock_message.text = "I ate rice"
         mock_call.return_value = {
             "messages": [{"role": "assistant", "content": "Logged!"}]
@@ -247,7 +235,7 @@ class TestThreadManagement:
 
         await gw.handle_message(mock_message)
 
-        assert gw.user_sessions[12345]["thread_id"] == "existing-thread"
+        assert gw.user_sessions[12345]["thread_id"] == "thread-123"
 
 
 class TestHITLFlow:
@@ -263,14 +251,7 @@ class TestHITLFlow:
         act:     Process food logging message.
         assert:  Session marked as interrupted.
         """
-        gw.user_sessions[12345] = {
-            "user_id": "uuid-abc",
-            "thread_id": "thread-123",
-            "last_activity": datetime.now(timezone.utc),
-            "access_token": "jwt-token",
-            "refresh_token": "refresh-token",
-            "interrupted": False,
-        }
+        gw.user_sessions[12345] = _session()
         mock_message.text = "I ate 200g of chicken"
         mock_call.return_value = {
             "messages": [
@@ -293,14 +274,7 @@ class TestHITLFlow:
         act:     Process 'yes' message (resume).
         assert:  Session interrupted flag cleared after successful resume.
         """
-        gw.user_sessions[12345] = {
-            "user_id": "uuid-abc",
-            "thread_id": "thread-123",
-            "last_activity": datetime.now(timezone.utc),
-            "access_token": "jwt-token",
-            "refresh_token": "refresh-token",
-            "interrupted": True,
-        }
+        gw.user_sessions[12345] = _session(interrupted=True)
         mock_message.text = "yes"
         mock_call.return_value = {
             "messages": [{"role": "assistant", "content": "Logged successfully!"}]
