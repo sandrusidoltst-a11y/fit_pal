@@ -6,16 +6,15 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 from dotenv import load_dotenv
-
-logger = structlog.get_logger(__name__)
+from langchain.chat_models import init_chat_model
 
 if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
 
-from langchain.chat_models import init_chat_model
-
 # Load environment variables from .env file
 load_dotenv()
+
+logger = structlog.get_logger(__name__)
 
 # Project Root (calculated relative to this file: src/config.py -> src -> root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

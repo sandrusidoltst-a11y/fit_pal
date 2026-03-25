@@ -130,7 +130,7 @@ class TestMessageRelay:
     """Tests for authenticated message relay to LangGraph."""
 
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
-    @patch("bot.gateway._check_interrupted", new_callable=AsyncMock)
+    @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_authenticated_user_message_relayed(
         self, mock_check, mock_call, mock_message
     ):
@@ -147,7 +147,7 @@ class TestMessageRelay:
                 {"role": "assistant", "content": "Got it! Logged 200g of chicken."},
             ]
         }
-        mock_check.return_value = False
+        mock_check.return_value = (False, None)
 
         await gw.handle_message(mock_message)
 
@@ -161,7 +161,7 @@ class TestMessageRelay:
         )
 
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
-    @patch("bot.gateway._check_interrupted", new_callable=AsyncMock)
+    @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_interrupted_state_resumes_with_command(
         self, mock_check, mock_call, mock_message
     ):
@@ -177,7 +177,7 @@ class TestMessageRelay:
                 {"role": "assistant", "content": "Food logged successfully!"},
             ]
         }
-        mock_check.return_value = False
+        mock_check.return_value = (False, None)
 
         await gw.handle_message(mock_message)
 
@@ -193,7 +193,7 @@ class TestThreadManagement:
 
     @patch("bot.gateway._create_thread", new_callable=AsyncMock)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
-    @patch("bot.gateway._check_interrupted", new_callable=AsyncMock)
+    @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_stale_session_creates_new_thread(
         self, mock_check, mock_call, mock_create_thread, mock_message
     ):
@@ -208,7 +208,7 @@ class TestThreadManagement:
         mock_call.return_value = {
             "messages": [{"role": "assistant", "content": "Logged!"}]
         }
-        mock_check.return_value = False
+        mock_check.return_value = (False, None)
 
         await gw.handle_message(mock_message)
 
@@ -217,7 +217,7 @@ class TestThreadManagement:
         assert gw.user_sessions[12345]["interrupted"] is False
 
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
-    @patch("bot.gateway._check_interrupted", new_callable=AsyncMock)
+    @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_fresh_session_reuses_thread(
         self, mock_check, mock_call, mock_message
     ):
@@ -231,7 +231,7 @@ class TestThreadManagement:
         mock_call.return_value = {
             "messages": [{"role": "assistant", "content": "Logged!"}]
         }
-        mock_check.return_value = False
+        mock_check.return_value = (False, None)
 
         await gw.handle_message(mock_message)
 
@@ -242,30 +242,32 @@ class TestHITLFlow:
     """Tests for Human-in-the-Loop interrupt detection."""
 
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
-    @patch("bot.gateway._check_interrupted", new_callable=AsyncMock)
+    @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_interrupt_detected_sets_flag(
         self, mock_check, mock_call, mock_message
     ):
         """
         arrange: Known user, LangGraph pauses at interrupt after run.
         act:     Process food logging message.
-        assert:  Session marked as interrupted.
+        assert:  Session marked as interrupted, interrupt text sent to user.
         """
         gw.user_sessions[12345] = _session()
         mock_message.text = "I ate 200g of chicken"
         mock_call.return_value = {
             "messages": [
-                {"role": "assistant", "content": "Please confirm: 200g chicken..."},
+                {"role": "human", "content": "I ate 200g of chicken"},
             ]
         }
-        mock_check.return_value = True  # Graph is interrupted
+        mock_check.return_value = (True, "Please confirm: 200g chicken...")  # Graph is interrupted
 
         await gw.handle_message(mock_message)
 
         assert gw.user_sessions[12345]["interrupted"] is True
+        # Should send interrupt text, not the echoed human message
+        mock_message.answer.assert_called_once_with("Please confirm: 200g chicken...")
 
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
-    @patch("bot.gateway._check_interrupted", new_callable=AsyncMock)
+    @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_resume_clears_interrupt_flag(
         self, mock_check, mock_call, mock_message
     ):
@@ -279,7 +281,7 @@ class TestHITLFlow:
         mock_call.return_value = {
             "messages": [{"role": "assistant", "content": "Logged successfully!"}]
         }
-        mock_check.return_value = False  # Run completed, no more interrupt
+        mock_check.return_value = (False, None)  # Run completed, no more interrupt
 
         await gw.handle_message(mock_message)
 

@@ -6,12 +6,12 @@ message relay, and HITL interrupt/resume flow.
 """
 
 import hmac
-import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import TypedDict
 
 import httpx
+import structlog
 from aiogram import Bot, Dispatcher, Router
 from aiogram.types import Message
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
@@ -19,7 +19,7 @@ from aiohttp import web
 
 from bot.supabase_admin import get_or_create_user
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "")
@@ -92,8 +92,12 @@ async def _call_langgraph(
         return response.json()
 
 
-async def _check_interrupted(thread_id: str) -> bool:
-    """Check if the graph is paused at an interrupt."""
+async def _get_interrupt_state(thread_id: str) -> tuple[bool, str | None]:
+    """Check if the graph is paused at an interrupt and extract the interrupt value.
+
+    Returns (is_interrupted, formatted_text). If interrupted, formatted_text
+    contains the human-readable prompt from the interrupt value.
+    """
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.get(
             f"{LANGGRAPH_API_URL}/threads/{thread_id}/state",
@@ -102,7 +106,59 @@ async def _check_interrupted(thread_id: str) -> bool:
         response.raise_for_status()
         state = response.json()
         tasks = state.get("tasks", [])
-        return len(tasks) > 0
+        if not tasks:
+            return False, None
+
+        # Extract interrupt value from the first pending task
+        interrupts = tasks[0].get("interrupts", [])
+        if not interrupts:
+            return True, None
+
+        value = interrupts[0].get("value")
+        if isinstance(value, dict):
+            return True, _format_interrupt_value(value)
+        elif isinstance(value, str):
+            return True, value
+
+        return True, None
+
+
+def _format_interrupt_value(value: dict) -> str:
+    """Format an interrupt value dict into a user-friendly Telegram message."""
+    lines = []
+    question = value.get("question", "")
+    if question:
+        lines.append(question)
+        lines.append("")
+
+    items = value.get("items", [])
+    for item in items:
+        desc = item.get("description", "")
+        cals = item.get("calories", 0)
+        protein = item.get("protein", 0)
+        carbs = item.get("carbs", 0)
+        fat = item.get("fat", 0)
+        source = item.get("source", "")
+        source_tag = " (estimated)" if source == "estimated" else ""
+        lines.append(
+            f"• {desc}{source_tag}\n"
+            f"  {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
+        )
+
+    totals = value.get("totals")
+    if totals:
+        lines.append("")
+        lines.append(
+            f"Total: {totals.get('calories', 0)} kcal | "
+            f"P: {totals.get('protein', 0)}g | "
+            f"C: {totals.get('carbs', 0)}g | "
+            f"F: {totals.get('fat', 0)}g"
+        )
+
+    lines.append("")
+    lines.append("Reply 'yes' to confirm, 'no' to reject, or describe edits.")
+
+    return "\n".join(lines)
 
 
 async def _handle_authenticated_message(message: Message, session: dict) -> None:
@@ -128,6 +184,8 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
     user_id = session["user_id"]
     thread_id = session["thread_id"]
 
+    logger.info("User message", chat_id=chat_id, text=message.text)
+
     try:
         # Decide whether to resume or send new input
         if session.get("interrupted"):
@@ -142,28 +200,35 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
             )
 
         # Check if the graph is now interrupted (HITL)
-        is_interrupted = await _check_interrupted(thread_id)
+        is_interrupted, interrupt_text = await _get_interrupt_state(thread_id)
         session["interrupted"] = is_interrupted
 
-        # Extract and send response
-        messages = result.get("messages", [])
-        if messages:
-            response_text = messages[-1].get("content", "")
-            if response_text:
-                # Telegram has a 4096 char limit per message -- split if needed
-                for i in range(0, len(response_text), 4096):
-                    await message.answer(response_text[i : i + 4096])
-                return
+        # Choose what to send: interrupt prompt or last AI message
+        response_text = ""
+        if is_interrupted and interrupt_text:
+            response_text = interrupt_text
+        else:
+            messages = result.get("messages", [])
+            if messages:
+                response_text = messages[-1].get("content", "")
 
+        if response_text:
+            logger.info("Bot response", chat_id=chat_id, text=response_text[:500])
+            # Telegram has a 4096 char limit per message -- split if needed
+            for i in range(0, len(response_text), 4096):
+                await message.answer(response_text[i : i + 4096])
+            return
+
+        logger.warning("No response to send", chat_id=chat_id, thread_id=thread_id)
         await message.answer("I processed your request but have no response to show.")
 
-    except httpx.HTTPStatusError:
-        logger.exception("Error relaying message for chat_id=%s", chat_id)
+    except httpx.HTTPStatusError as exc:
+        logger.exception("HTTP error relaying message", chat_id=chat_id, status_code=exc.response.status_code)
         await message.answer(
             "Something went wrong processing your request. Please try again."
         )
     except Exception:
-        logger.exception("Error relaying message for chat_id=%s", chat_id)
+        logger.exception("Error relaying message", chat_id=chat_id)
         await message.answer(
             "Something went wrong processing your request. Please try again."
         )

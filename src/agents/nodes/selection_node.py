@@ -2,12 +2,12 @@ import os
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
-from src.config import BASE_DIR, get_llm_for_node
-
-logger = structlog.get_logger(__name__)
 
 from src.agents.state import AgentState
+from src.config import BASE_DIR, get_llm_for_node
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
+
+logger = structlog.get_logger(__name__)
 
 
 def agent_selection_node(state: AgentState) -> dict:
