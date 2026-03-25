@@ -327,8 +327,9 @@ Stores confirmed food entries for long-term tracking.
 4. ✅ Auth integration (Supabase JWT + LangGraph custom auth handler in `src/security/auth.py`, `langgraph.production.json`)
 5. ✅ Row Level Security (defense in depth) — RLS enabled on `food_items` + `daily_logs` with user-scoped policies
 6. ✅ Telegram bot gateway (`bot/gateway.py`) — aiogram v3 webhook, passphrase access control, auto-registration, HITL over Telegram
-7. ⏳ Deploy to Railway (4 services: langgraph-server, fitpal-bot, Postgres, Redis) + Telegram webhook — deployed 2026-03-23, debugging in progress
-8. ⏳ Smoke test end-to-end — partially complete, bot responds but needs debugging
+7. ✅ Deploy to Railway (4 services: langgraph-server, fitpal-bot, Postgres, Redis) + Telegram webhook — deployed 2026-03-23
+8. ⏳ Smoke test end-to-end — bot interrupt bug fixed (2026-03-25), further testing in progress
+9. ✅ CI/CD pipeline (GitHub Actions) — see "CI/CD Pipeline" section below
 
 **Cost estimate:**
 - LangGraph server: Free (open source, self-hosted)
@@ -358,6 +359,86 @@ The LangGraph custom auth handler (`src/security/auth.py`) validates Supabase JW
 1. Obtain enterprise license and re-enable `@auth.authenticate`
 2. Implement a custom middleware with a shared API key between bot and server (does not require enterprise license)
 3. Deploy via LangGraph Cloud (LangSmith-hosted) where custom auth is included
+
+#### CI/CD Pipeline
+
+Automated testing and deployment via GitHub Actions (`.github/workflows/`).
+
+##### CI — Continuous Integration (`.github/workflows/ci.yml`)
+
+Triggered on every push and pull request to `main`. Ensures code quality before merging.
+
+**Tier 1 — Lint & Unit Tests** (every push/PR, ~15s, no secrets):
+- `ruff check .` — static code analysis (unused imports, style violations, import ordering)
+- `pytest tests/unit/ -v` — 85+ fast, deterministic tests with all I/O mocked (LLM, DB, tools)
+- Catches: regressions, logic errors, schema consistency, routing correctness
+
+**Tier 2 — Integration Tests** (after Tier 1 passes, ~30s, needs `SUPABASE_DB_URL` secret):
+- `pytest tests/integration/ -v` — tests against real Supabase PostgreSQL
+- Catches: service layer CRUD, ORM model correctness, user data isolation, tool scoping
+- Uses transaction rollback for isolation — test data never persists
+
+**Tier 3 — E2E Graph-API Tests** (manual trigger only via `workflow_dispatch`):
+- `pytest tests/graph_api/ -v -s` — full LangGraph server + real LLM calls
+- Catches: `BlockingError` from sync/async misuse, graph edge routing, HITL interrupt/resume flows, end-to-end food logging + stats
+- Needs: `SUPABASE_DB_URL` + `OPENAI_API_KEY` secrets
+- Not run automatically due to LLM API cost and server startup time (~30s)
+- Intended for: pre-deploy validation, new node/edge changes, periodic confidence checks
+
+**Why tiered?** Unit tests are fast and free — run them on every push. Integration tests need a real DB but are still cheap. E2E tests cost money (LLM tokens) and take minutes, so they're manual. This balances fast feedback with comprehensive coverage.
+
+**What CI catches that local validation doesn't:**
+- Enforced gate — blocks merging if tests fail (local validation is voluntary)
+- Clean environment — catches "works on my machine" issues (missing deps, env assumptions)
+- Merge conflicts — two passing PRs that break when combined
+- Future collaborators — don't need to trust they ran validation
+
+##### CD — Continuous Deployment (`.github/workflows/cd.yml`)
+
+Triggered on every push to `main`. Automatically builds, publishes, and deploys.
+
+**Pipeline steps:**
+1. Checkout code
+2. Install `uv` + Python 3.13 + project dependencies
+3. Log in to Docker Hub (`docker/login-action`)
+4. Build bot image: `docker build -f bot/Dockerfile -t dolevsan/fitpal-bot:latest`
+5. Build server image: `langgraph build -t dolevsan/fitpal-server:latest -c langgraph.production.json`
+6. Push both images to Docker Hub
+7. Install Railway CLI
+8. Redeploy both services on Railway (`railway redeploy -s fitpal-bot -y` + `railway redeploy -s langgraph-server -y`)
+
+**Required GitHub Secrets** (repo Settings → Secrets and variables → Actions):
+
+| Secret | Purpose | Where to get it |
+|---|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub login | Your Docker Hub username (`dolevsan`) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token | Docker Hub → Account Settings → Security → New Access Token |
+| `RAILWAY_TOKEN` | Railway API token for CLI | Railway → Account Settings → Tokens → Create Token |
+| `SUPABASE_DB_URL` | Integration test DB | Supabase project → Settings → Database → Connection string |
+| `OPENAI_API_KEY` | E2E tests (manual only) | OpenAI platform → API Keys |
+
+**Flow diagram:**
+```
+Developer pushes to main
+        │
+        ├──► CI workflow
+        │     ├── Lint & Unit Tests ──► pass/fail
+        │     └── Integration Tests ──► pass/fail (needs SUPABASE_DB_URL)
+        │
+        └──► CD workflow (runs in parallel with CI)
+              ├── Build fitpal-bot Docker image
+              ├── Build fitpal-server Docker image (langgraph build)
+              ├── Push both to Docker Hub
+              └── Redeploy both on Railway
+```
+
+**Note:** CI and CD run in parallel on push to `main`. CD does not wait for CI to pass — this is intentional for speed. If CI fails after CD deploys, you'd revert or fix forward. A future improvement could add `needs: lint-and-unit` dependency across workflows.
+
+##### Future Improvements
+- **Nightly scheduled E2E run** — catch regressions within 24 hours without running on every push
+- **CD depends on CI** — only deploy if all tests pass (requires cross-workflow dependency or merging into one workflow)
+- **Image tagging** — tag with git SHA (`dolevsan/fitpal-bot:abc1234`) in addition to `latest`, enabling rollback to specific commits
+- **Health check after deploy** — verify services are responding after Railway redeploy
 
 ### Phase 4: Polish & Intelligence
 - Enable LangSmith tracing.

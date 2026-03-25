@@ -26,7 +26,8 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | Telegram Gateway | aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL over Telegram |
 | Package Manager | `uv` — strictly enforced (see Package Management below) |
 | Language | Python 3.13+ |
-| Logging | `structlog` — structured logging across all `src/` modules (nodes, tools, services, auth, config) |
+| Logging | `structlog` — structured logging across all `src/` and `bot/` modules |
+| CI/CD | GitHub Actions — CI (lint + unit + integration) on push/PR; CD (Docker build + push + Railway redeploy) on merge to `main` |
 | Dev Server | `langgraph dev` → LangSmith Studio |
 
 ---
@@ -92,6 +93,10 @@ fit_pal/
 │   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
 ├── traces/                        # LangSmith trace exports (JSON)
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                 # CI: lint + unit + integration tests on push/PR
+│       └── cd.yml                 # CD: Docker build + push + Railway redeploy on merge to main
 ├── .dockerignore                  # Excludes .venv, .git, tests, docs from Docker context
 ├── langgraph.json                 # LangSmith Studio configuration (dev, no auth, python_version 3.13)
 ├── langgraph.production.json      # Production configuration (shared secret middleware via http.app, python_version 3.13)
@@ -152,6 +157,48 @@ uv run pytest tests/unit/test_<specific>.py -v
 
 # Last-failed only — fix-and-retry loop
 uv run pytest --lf -v
+```
+
+---
+
+## CI/CD Pipeline
+
+### CI (`.github/workflows/ci.yml`)
+
+Runs on every push and PR to `main`.
+
+| Job | Depends On | What | Secrets Needed |
+|---|---|---|---|
+| Lint & Unit Tests | — | `ruff check .` + `pytest tests/unit/` | None |
+| Integration Tests | Lint & Unit | `pytest tests/integration/` | `SUPABASE_DB_URL` |
+| E2E Graph-API Tests | — (manual only) | `pytest tests/graph_api/` | `SUPABASE_DB_URL`, `OPENAI_API_KEY` |
+
+E2E tests run only via manual `workflow_dispatch` trigger (GitHub Actions UI → "Run workflow" → check "Run E2E").
+
+### CD (`.github/workflows/cd.yml`)
+
+Runs on every push to `main`. Builds both Docker images, pushes to Docker Hub, and redeploys on Railway.
+
+Steps: checkout → install uv → install deps → Docker login → build bot image → build server image (`langgraph build`) → push both → install Railway CLI → redeploy both services.
+
+### Required GitHub Secrets (Settings → Secrets → Actions)
+
+| Secret | Purpose |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub login (`dolevsan`) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
+| `RAILWAY_TOKEN` | Railway API token for redeploy |
+| `SUPABASE_DB_URL` | Integration test DB connection |
+| `OPENAI_API_KEY` | E2E tests (manual trigger only) |
+
+### Build Commands (for reference)
+
+```bash
+# Bot image
+docker build -f bot/Dockerfile -t dolevsan/fitpal-bot:latest --platform linux/amd64 .
+
+# Server image (requires langgraph-cli)
+PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -c langgraph.production.json --platform linux/amd64
 ```
 
 ---
