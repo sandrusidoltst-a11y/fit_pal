@@ -2,14 +2,14 @@ import uuid as uuid_mod
 
 import structlog
 from langchain_core.runnables import RunnableConfig
-
-logger = structlog.get_logger(__name__)
 from langchain_core.tools import tool
 from sqlalchemy import select
 
 from src.config import get_user_id
 from src.database import get_async_db_session
 from src.models import FoodItem
+
+logger = structlog.get_logger(__name__)
 
 
 def compute_food_macros(food: FoodItem, amount_g: float) -> dict:

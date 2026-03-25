@@ -9,13 +9,10 @@ session — these are used by graph nodes and are available for LLM tool-calling
 """
 
 import uuid as uuid_mod
-
-import structlog
-
-logger = structlog.get_logger(__name__)
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
+import structlog
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from sqlalchemy import func, select
@@ -24,6 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import get_user_id
 from src.database import get_async_db_session
 from src.models import DailyLog
+
+logger = structlog.get_logger(__name__)
 
 
 async def create_log_entry(
