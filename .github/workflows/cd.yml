@@ -3,6 +3,15 @@ name: CD
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'bot/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'langgraph.production.json'
+      - '.dockerignore'
+      - 'prompts/**'
+      - '.github/workflows/cd.yml'
 
 env:
   RAILWAY_PROJECT_ID: b634c145-ac79-48e5-b197-4ac2793c9d3b
