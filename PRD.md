@@ -165,7 +165,9 @@ fit_pal/
 │   │   ├── estimation_schema.py   # MacroEstimation (off-menu)
 │   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit
 │   ├── security/
-│   │   └── auth.py          # LangGraph custom auth handler (@auth.authenticate + @auth.on)
+│   │   ├── auth.py          # LangGraph custom auth handler (@auth.authenticate + @auth.on) — enterprise-only
+│   │   ├── internal_auth_middleware.py # Shared secret middleware (X-Internal-Token) — production
+│   │   └── webapp.py        # FastAPI app registering middleware — referenced by langgraph.production.json
 │   ├── database.py          # Async DB engine (asyncpg) + sync engine for ETL
 │   ├── models.py            # SQLAlchemy models (FoodItem, DailyLog)
 │   ├── main.py              # Entry point
@@ -357,7 +359,7 @@ The LangGraph custom auth handler (`src/security/auth.py`) validates Supabase JW
 
 **Future hardening options** (if server is ever exposed publicly):
 1. Obtain enterprise license and re-enable `@auth.authenticate`
-2. Implement a custom middleware with a shared API key between bot and server (does not require enterprise license)
+2. ✅ **Done** — Shared secret middleware (`src/security/internal_auth_middleware.py` + `src/security/webapp.py`) validates `X-Internal-Token` header between bot and server. Referenced by `langgraph.production.json` via `http.app`.
 3. Deploy via LangGraph Cloud (LangSmith-hosted) where custom auth is included
 
 #### CI/CD Pipeline
@@ -395,7 +397,7 @@ Triggered on every push and pull request to `main`. Ensures code quality before 
 
 ##### CD — Continuous Deployment (`.github/workflows/cd.yml`)
 
-Triggered on every push to `main`. Automatically builds, publishes, and deploys.
+Triggered on push to `main` when production-relevant paths change (`src/**`, `bot/**`, `pyproject.toml`, `uv.lock`, `langgraph.production.json`, `.dockerignore`, `prompts/**`, `.github/workflows/cd.yml`). Automatically builds, publishes, and deploys.
 
 **Pipeline steps:**
 1. Checkout code

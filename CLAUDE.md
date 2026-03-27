@@ -90,6 +90,7 @@ fit_pal/
 │   ├── orphaned-langgraph-server.md # Guide for finding/killing zombie langgraph dev processes
 │   ├── auth_flow.excalidraw       # Auth flow diagram (Excalidraw source)
 │   ├── testing_graph.excalidraw   # Testing architecture diagram (Excalidraw source)
+│   ├── fitpal-data-flow.excalidraw # Data flow diagram (Excalidraw source)
 │   └── rca/                       # Root cause analysis documents
 ├── prompts/                       # System prompts and tool specs
 ├── traces/                        # LangSmith trace exports (JSON)
@@ -177,7 +178,7 @@ E2E tests run only via manual `workflow_dispatch` trigger (GitHub Actions UI →
 
 ### CD (`.github/workflows/cd.yml`)
 
-Runs on every push to `main`. Builds both Docker images, pushes to Docker Hub, and redeploys on Railway.
+Runs on push to `main` when production-relevant files change. Path filter: `src/**`, `bot/**`, `pyproject.toml`, `uv.lock`, `langgraph.production.json`, `.dockerignore`, `prompts/**`, `.github/workflows/cd.yml`. Builds both Docker images, pushes to Docker Hub, and redeploys on Railway.
 
 Steps: checkout → install uv → install deps → Docker login → build bot image → build server image (`langgraph build`) → push both → install Railway CLI → redeploy both services.
 
@@ -223,4 +224,5 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
 | [.claude/skills/sync-context/SKILL.md](.claude/skills/sync-context/SKILL.md) | Skill | Synchronize CLAUDE.md and project skills with actual state | After significant refactors, new skills added, or structural changes |
 | [.claude/skills/use-railway/SKILL.md](.claude/skills/use-railway/SKILL.md) | Skill | Railway infrastructure operations (deploy, configure, troubleshoot) | When working with Railway deployment, services, or environment variables |
+| [.claude/skills/skill-creator/SKILL.md](.claude/skills/skill-creator/SKILL.md) | Skill | Guide for creating effective skills with workflows and patterns | When creating or updating a Claude Code skill |
 | [docs/orphaned-langgraph-server.md](docs/orphaned-langgraph-server.md) | Documentation | Guide for finding/killing zombie langgraph dev processes on Windows | When `langgraph dev` fails with "port 2024 already in use" |
