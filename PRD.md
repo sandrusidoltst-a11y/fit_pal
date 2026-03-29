@@ -448,3 +448,4 @@ Developer pushes to main
 - Proactive coaching logic (suggestions for ending the day).
 - Implement postponed Phase 2 items (Structured Macro Targets, Assessment Reasoning, Correction Workflow, Context Limit Management).
 - **Fuzzy Input Disambiguation**: When the input parser encounters ambiguous or misspelled food names (e.g., "bannh" could be "banana" or "banh mi"), present the user with multiple candidate interpretations to choose from instead of silently picking one. Reduces mislogged foods caused by typos or shorthand.
+- **Display Queried Date Range to User**: When a stats query uses a date range (e.g., "last 3 days"), the response node should explicitly state the actual dates being queried (e.g., "Here are your stats from March 27 to March 29") so the user knows exactly which days are included.

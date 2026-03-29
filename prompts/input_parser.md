@@ -13,8 +13,9 @@ Determine the user's primary goal and select the appropriate `action`:
     4. No Time mentioned -> Leave null.
 - **QUERY_DAILY_STATS**: The user is asking about their nutrition stats or logs.
   - Examples: "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days".
-  - **EXTRACT DATES**: 
+  - **EXTRACT DATES**:
     - If range mentioned (e.g. "last 3 days", "this week"), set `start_date` and `end_date`.
+    - Date ranges are **inclusive of today**. "Last 3 days" = 3 days back from and including today. Example: if today is March 29, "last 3 days" means `start_date: 2026-03-27`, `end_date: 2026-03-29`.
     - Default: If no date specified, leave dates null.
 - **QUERY_FOOD_INFO**: The user is asking about a specific food's nutrition *without* eating it.
   - Examples: "How much protein is in an egg?", "Is rice high carb?".
