@@ -33,7 +33,11 @@ dev = [
     "types-sqlalchemy>=1.4.53.38",
     "langgraph-sdk>=0.3.8",
     "aiosqlite>=0.19.0",
+    "ipykernel>=7.2.0",
 ]
+
+[tool.ruff]
+exclude = ["notebooks/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

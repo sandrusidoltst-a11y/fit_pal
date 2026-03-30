@@ -57,7 +57,7 @@ else:
 logger.info("Database backend resolved", backend="asyncpg (Supabase)" if _supabase_url else "sqlite (local)")
 
 GLOBAL_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
-GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4o")
+GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4.1-nano")
 
 logger.info("LLM config loaded", provider=GLOBAL_PROVIDER, model=GLOBAL_MODEL)
 

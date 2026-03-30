@@ -443,8 +443,10 @@ Developer pushes to main
 - **Health check after deploy** — verify services are responding after Railway redeploy
 
 ### Phase 4: Polish & Intelligence
-- Enable LangSmith tracing.
+- ✅ **LangSmith Tracing**: Enabled — all graph runs traced via `LANGCHAIN_TRACING_V2=true`.
+- ✅ **LangSmith Evaluations**: Single-step eval framework for graph nodes. Eval notebooks in `notebooks/evals/`, datasets in LangSmith UI, 5 evaluator types (deterministic, tolerance, date-aware, LLM-as-judge). Skills: `eval-setup` (create evals), `eval-debugger` (diagnose failures).
 - Upgrade to Semantic Search for food lookup.
 - Proactive coaching logic (suggestions for ending the day).
 - Implement postponed Phase 2 items (Structured Macro Targets, Assessment Reasoning, Correction Workflow, Context Limit Management).
 - **Fuzzy Input Disambiguation**: When the input parser encounters ambiguous or misspelled food names (e.g., "bannh" could be "banana" or "banh mi"), present the user with multiple candidate interpretations to choose from instead of silently picking one. Reduces mislogged foods caused by typos or shorthand.
+- **Display Queried Date Range to User**: When a stats query uses a date range (e.g., "last 3 days"), the response node should explicitly state the actual dates being queried (e.g., "Here are your stats from March 27 to March 29") so the user knows exactly which days are included.
