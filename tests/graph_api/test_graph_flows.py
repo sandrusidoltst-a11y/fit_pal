@@ -155,6 +155,44 @@ class TestChitchatPath:
         assert messages[-1]["content"].strip() != ""
 
 
+class TestPersonalStatsPath:
+    """Full path: input_parser -> personal_stats -> response."""
+
+    async def test_log_weight_completes(self, lg_client, thread):
+        """
+        arrange: User reports their body weight.
+        act:     Graph routes through personal_stats_node to response.
+        assert:  No error, at least 2 messages, non-empty last message.
+        """
+        result = await _run(
+            lg_client, thread,
+            input={"messages": [{"role": "human", "content": "I weigh 74kg"}]},
+            config=DEV_USER_CONFIG,
+            test_name="test_log_weight_completes",
+        )
+
+        messages = result.get("messages", [])
+        assert len(messages) >= 2
+        assert messages[-1]["content"].strip() != ""
+
+    async def test_log_body_fat_completes(self, lg_client, thread):
+        """
+        arrange: User reports their body fat percentage.
+        act:     Graph routes through personal_stats_node to response.
+        assert:  No error, at least 2 messages, non-empty last message.
+        """
+        result = await _run(
+            lg_client, thread,
+            input={"messages": [{"role": "human", "content": "My body fat is 15%"}]},
+            config=DEV_USER_CONFIG,
+            test_name="test_log_body_fat_completes",
+        )
+
+        messages = result.get("messages", [])
+        assert len(messages) >= 2
+        assert messages[-1]["content"].strip() != ""
+
+
 class TestQueryStatsPath:
     """Full path: input_parser -> stats_lookup -> response."""
 

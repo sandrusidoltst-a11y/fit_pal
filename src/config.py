@@ -20,6 +20,12 @@ logger = structlog.get_logger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
 DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
+DEFAULT_DEV_PROFILE = {
+    "name": "Dev User",
+    "height_cm": 175.0,
+    "age": 25,
+    "gender": "male",
+}
 
 
 def get_user_id(config: RunnableConfig | None) -> str:
@@ -48,6 +54,24 @@ def get_user_id(config: RunnableConfig | None) -> str:
     logger.warning("No config provided, falling back to DEFAULT_DEV_USER_ID", user_id=DEFAULT_DEV_USER_ID)
     return DEFAULT_DEV_USER_ID
 
+
+def get_user_profile(config: RunnableConfig | None) -> dict:
+    """Extract user_profile from config, falling back to dev default.
+
+    Priority chain:
+    1. Production: bot injects real profile from DB into config.
+    2. Dev/Studio: falls back to DEFAULT_DEV_PROFILE.
+
+    Always returns a profile dict so nodes never need None-checks.
+    """
+    if config:
+        profile = config["configurable"].get("user_profile")
+        if profile:
+            return profile
+    logger.warning("No user_profile in config, falling back to DEFAULT_DEV_PROFILE")
+    return DEFAULT_DEV_PROFILE
+
+
 _supabase_url = os.getenv("SUPABASE_DB_URL")
 if _supabase_url:
     DATABASE_URL = _supabase_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -71,6 +95,7 @@ NODE_CONFIGS = {
     "estimation_node": {"temperature": 0.0},
     "confirmation_node": {"temperature": 0.0},
     "response_node": {"temperature": 0.7},
+    "personal_stats_node": {"temperature": 0.0},
     "default": {"temperature": 0.0}
 }
 

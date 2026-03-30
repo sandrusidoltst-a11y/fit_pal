@@ -45,6 +45,9 @@ def _session(*, interrupted=False, stale=False):
         "thread_id": "thread-123",
         "last_activity": last_activity,
         "interrupted": interrupted,
+        "onboarding_step": None,
+        "onboarding_data": {},
+        "user_profile": None,
     }
 
 
@@ -95,14 +98,14 @@ class TestPassphraseFlow:
             "user_id": "uuid-abc",
             "access_token": "jwt-token",
             "refresh_token": "refresh-token",
-            "is_new": True,
+            "is_new": False,
         }
         mock_create_thread.return_value = "thread-123"
 
         await gw.handle_message(mock_message)
 
         mock_message.answer.assert_called_once_with(
-            "Welcome to FitPal! You can start logging food now."
+            "Welcome back to FitPal! You can start logging food now."
         )
         assert 12345 in gw.user_sessions
         assert gw.user_sessions[12345]["user_id"] == "uuid-abc"
@@ -129,10 +132,11 @@ class TestPassphraseFlow:
 class TestMessageRelay:
     """Tests for authenticated message relay to LangGraph."""
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
     @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_authenticated_user_message_relayed(
-        self, mock_check, mock_call, mock_message
+        self, mock_check, mock_call, mock_load_profile, mock_message
     ):
         """
         arrange: Known user in sessions, message 'I ate 200g of chicken'.
@@ -155,15 +159,17 @@ class TestMessageRelay:
             "thread-123",
             "uuid-abc",
             input={"messages": [{"role": "human", "content": "I ate 200g of chicken"}]},
+            user_profile=None,
         )
         mock_message.answer.assert_called_once_with(
             "Got it! Logged 200g of chicken."
         )
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
     @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_interrupted_state_resumes_with_command(
-        self, mock_check, mock_call, mock_message
+        self, mock_check, mock_call, mock_load_profile, mock_message
     ):
         """
         arrange: Known user with thread in interrupted state.
@@ -185,17 +191,19 @@ class TestMessageRelay:
             "thread-123",
             "uuid-abc",
             command={"resume": "yes"},
+            user_profile=None,
         )
 
 
 class TestThreadManagement:
     """Tests for session timeout and thread recreation."""
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
     @patch("bot.gateway._create_thread", new_callable=AsyncMock)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
     @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_stale_session_creates_new_thread(
-        self, mock_check, mock_call, mock_create_thread, mock_message
+        self, mock_check, mock_call, mock_create_thread, mock_load_profile, mock_message
     ):
         """
         arrange: Known user with last_activity 45 min ago.
@@ -216,10 +224,11 @@ class TestThreadManagement:
         assert gw.user_sessions[12345]["thread_id"] == "new-thread-456"
         assert gw.user_sessions[12345]["interrupted"] is False
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
     @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_fresh_session_reuses_thread(
-        self, mock_check, mock_call, mock_message
+        self, mock_check, mock_call, mock_load_profile, mock_message
     ):
         """
         arrange: Known user with last_activity 5 min ago.
@@ -241,10 +250,11 @@ class TestThreadManagement:
 class TestHITLFlow:
     """Tests for Human-in-the-Loop interrupt detection."""
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
     @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_interrupt_detected_sets_flag(
-        self, mock_check, mock_call, mock_message
+        self, mock_check, mock_call, mock_load_profile, mock_message
     ):
         """
         arrange: Known user, LangGraph pauses at interrupt after run.
@@ -266,10 +276,11 @@ class TestHITLFlow:
         # Should send interrupt text, not the echoed human message
         mock_message.answer.assert_called_once_with("Please confirm: 200g chicken...")
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
     @patch("bot.gateway._call_langgraph", new_callable=AsyncMock)
     @patch("bot.gateway._get_interrupt_state", new_callable=AsyncMock)
     async def test_resume_clears_interrupt_flag(
-        self, mock_check, mock_call, mock_message
+        self, mock_check, mock_call, mock_load_profile, mock_message
     ):
         """
         arrange: Known user with interrupted thread, user confirms.

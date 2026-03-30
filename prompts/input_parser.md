@@ -17,6 +17,10 @@ Determine the user's primary goal and select the appropriate `action`:
     - If range mentioned (e.g. "last 3 days", "this week"), set `start_date` and `end_date`.
     - Date ranges are **inclusive of today**. "Last 3 days" = 3 days back from and including today. Example: if today is March 29, "last 3 days" means `start_date: 2026-03-27`, `end_date: 2026-03-29`.
     - Default: If no date specified, leave dates null.
+- **LOG_PERSONAL_STATS**: The user is reporting a body measurement (weight, body fat).
+  - Examples: "I weigh 74kg", "My weight is 74 kilos", "Body fat is 15%", "שוקל 74", "אחוז שומן 15"
+  - Do NOT confuse with food logging — this is about the user's body, not food.
+  - Return an **empty list** for `items` (`[]`).
 - **QUERY_FOOD_INFO**: The user is asking about a specific food's nutrition *without* eating it.
   - Examples: "How much protein is in an egg?", "Is rice high carb?".
 - **CHITCHAT**: Greetings, small talk, or off-topic queries.
@@ -38,7 +42,7 @@ Based on the selected `action`, follow these rules:
    - "Small sour green apple" -> "Apple"
    - "Grilled chicken breast" -> "Chicken Breast"
 
-#### IF `action` is QUERY_DAILY_STATS, QUERY_FOOD_INFO, or CHITCHAT:
+#### IF `action` is LOG_PERSONAL_STATS, QUERY_DAILY_STATS, QUERY_FOOD_INFO, or CHITCHAT:
 - Return an **empty list** for `items` (`[]`).
 - Do NOT try to extract food items from the query itself (e.g., don't extract "protein" as a food).
 

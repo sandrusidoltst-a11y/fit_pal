@@ -1,0 +1,79 @@
+"""Personal stats node — extracts and logs body measurements.
+
+Uses LLM structured output to extract stat type and value from
+natural language, then persists via the log_personal_stat tool.
+"""
+
+import os
+
+import structlog
+from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
+
+from src.agents.state import AgentState
+from src.config import BASE_DIR, get_llm_for_node
+from src.schemas.personal_stats_schema import PersonalStatExtraction
+from src.services.personal_stats_service import log_personal_stat
+
+logger = structlog.get_logger(__name__)
+
+
+async def personal_stats_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Extract a body measurement from the user message and log it.
+
+    1. Loads the extraction prompt.
+    2. Uses structured output to get stat_type + value.
+    3. Calls log_personal_stat tool.
+    4. Returns processing_results for the response node.
+    """
+    messages = state.get("messages", [])
+    last_message = messages[-1]
+
+    # Load prompt
+    prompt_path = os.path.join(BASE_DIR, "prompts", "personal_stats_extractor.md")
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            system_prompt = f.read()
+    except FileNotFoundError:
+        logger.warning("Personal stats prompt not found, using fallback", path=prompt_path)
+        system_prompt = "Extract the body measurement type and value from the user message."
+
+    # Extract stat via LLM
+    llm = get_llm_for_node("personal_stats_node")
+    structured_llm = llm.with_structured_output(PersonalStatExtraction)
+    result = await structured_llm.ainvoke([
+        SystemMessage(content=system_prompt),
+        last_message,
+    ])
+
+    logger.info(
+        "Personal stat extracted",
+        stat_type=result.stat_type,
+        value=result.value,
+        unit=result.unit,
+    )
+
+    # Log stat via tool
+    await log_personal_stat.ainvoke(
+        {"stat_type": result.stat_type, "value": result.value},
+        config=config,
+    )
+
+    # Build processing result for response node
+    stat_label = "weight" if result.stat_type == "weight" else "body fat"
+    unit = "kg" if result.stat_type == "weight" else "%"
+    processing_results = list(state.get("processing_results", []))
+    processing_results.append({
+        "food_name": f"{stat_label}: {result.value}{unit}",
+        "amount": result.value,
+        "unit": unit,
+        "original_text": last_message.content if hasattr(last_message, "content") else str(last_message),
+        "status": "LOGGED",
+        "message": f"Logged {stat_label}: {result.value}{unit}",
+        "source": None,
+    })
+
+    return {
+        "last_action": "LOGGED",
+        "processing_results": processing_results,
+    }

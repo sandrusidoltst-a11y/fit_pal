@@ -150,3 +150,11 @@ def mock_query_food_logs_for_stats():
     with patch("src.agents.nodes.stats_node.query_food_logs") as mock:
         mock.ainvoke = AsyncMock()
         yield mock
+
+
+@pytest.fixture
+def mock_log_personal_stat():
+    """Mock log_personal_stat tool on personal_stats_node."""
+    with patch("src.agents.nodes.personal_stats_node.log_personal_stat") as mock:
+        mock.ainvoke = AsyncMock()
+        yield mock

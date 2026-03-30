@@ -60,6 +60,7 @@ GraphAction = Literal[
     "AWAITING_CONFIRMATION",
     "CONFIRMED",
     "REJECTED",
+    "LOG_PERSONAL_STATS",
 ]
 
 
