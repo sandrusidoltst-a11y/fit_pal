@@ -15,7 +15,7 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | Orchestration | LangGraph (StateGraph, async) |
 | LLM Framework | LangChain 1.x |
 | Schema Validation | Pydantic v2 |
-| LLM Models | Claude 3.5 Sonnet / GPT-4o — configured via `src/config.py` |
+| LLM Models | GPT-4.1-nano (default) / GPT-4o — configured via `src/config.py` `NODE_CONFIGS` |
 | Storage | Supabase PostgreSQL + SQLAlchemy (`asyncpg` async engine; `psycopg2` sync engine for ETL scripts only) |
 | Primary Keys | UUID (`sqlalchemy.Uuid`, `uuid.uuid4` default) |
 | Auth (dev) | Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) — enterprise-only, used in dev/Studio |
@@ -84,7 +84,10 @@ fit_pal/
 │   │   └── logs/                  # Server logs + error tracebacks (gitignored)
 │   └── conftest.py                # Pytest shared fixtures
 ├── notebooks/
-│   └── evaluate_lookup.ipynb      # Analysis notebook
+│   ├── evaluate_lookup.ipynb      # Analysis notebook
+│   └── evals/
+│       ├── eval_input_parser.ipynb # Input parser single-step eval (LangSmith)
+│       └── reports/               # Eval debugger reports (gitignored)
 ├── docs/
 │   ├── phase3-deployment-plan.md  # Phase 3 deployment steps (Supabase + self-hosted LangGraph)
 │   ├── orphaned-langgraph-server.md # Guide for finding/killing zombie langgraph dev processes
@@ -224,5 +227,6 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
 | [.claude/skills/sync-context/SKILL.md](.claude/skills/sync-context/SKILL.md) | Skill | Synchronize CLAUDE.md and project skills with actual state | After significant refactors, new skills added, or structural changes |
 | [.claude/skills/use-railway/SKILL.md](.claude/skills/use-railway/SKILL.md) | Skill | Railway infrastructure operations (deploy, configure, troubleshoot) | When working with Railway deployment, services, or environment variables |
-| [.claude/skills/skill-creator/SKILL.md](.claude/skills/skill-creator/SKILL.md) | Skill | Guide for creating effective skills with workflows and patterns | When creating or updating a Claude Code skill |
+| [.claude/skills/eval-debugger/SKILL.md](.claude/skills/eval-debugger/SKILL.md) | Skill | Debug eval failures from LangSmith experiments, generate diagnostic reports | After running evals, when failures need investigation |
+| [.claude/skills/eval-setup/SKILL.md](.claude/skills/eval-setup/SKILL.md) | Skill | Create single-step evaluation notebooks for graph nodes | When creating a new eval for a node |
 | [docs/orphaned-langgraph-server.md](docs/orphaned-langgraph-server.md) | Documentation | Guide for finding/killing zombie langgraph dev processes on Windows | When `langgraph dev` fails with "port 2024 already in use" |
