@@ -60,9 +60,11 @@ flowchart TD
         Confirm -- Rejected --> ResponseNode
 
         ToolCall -- Need History --> ReadLog[5. Read Daily Logs]
+        ToolCall -- Body Stats --> PersonalStats[6. Log Personal Stats]
 
         Commit --> ResponseNode
         ReadLog --> ResponseNode
+        PersonalStats --> ResponseNode
 
         ToolCall -- No --> ResponseNode
     end
@@ -88,6 +90,7 @@ flowchart TD
 | **Confirmation** | HITL batch confirmation via `interrupt()` loop. | `pending_confirmations` | `Command` → commit or response |
 | **Commit** | Batch DB write after user confirms. | Confirmed batch | Updated `AgentState` |
 | **Stats Lookup** | Retrieve historical log data (single day or range). | Current Date / Range | `daily_log_report` |
+| **Personal Stats** | Log body measurements (weight, body fat %). | User message | `processing_results` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
@@ -243,6 +246,37 @@ Stores confirmed food entries for long-term tracking.
 | `updated_at` | DateTime(TZ) | When entry was last modified |
 | `original_text` | String | User's original input (nullable) |
 
+### User Profiles Database
+Stores user identity data collected during bot onboarding.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key (uuid4) |
+| `user_id` | UUID | FK → `auth.users(id)` ON DELETE CASCADE (unique, NOT NULL) |
+| `name` | String | User's display name |
+| `height_cm` | Float | Height in centimeters |
+| `age` | Integer | User's age |
+| `gender` | String | male/female/other |
+| `created_at` | DateTime(TZ) | When profile was created |
+| `updated_at` | DateTime(TZ) | When profile was last modified |
+
+### Personal Stats Log
+Stores time-series body measurements (weight, body fat %).
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key (uuid4) |
+| `user_id` | UUID | FK → `auth.users(id)` ON DELETE CASCADE (NOT NULL) |
+| `weight_kg` | Float | Body weight in kg (nullable) |
+| `body_fat_pct` | Float | Body fat percentage (nullable) |
+| `recorded_at` | DateTime(TZ) | When measurement was taken |
+| `created_at` | DateTime(TZ) | When entry was created |
+
+### Foreign Key Constraints
+All user-scoped tables reference `auth.users(id)`:
+- `user_profiles`, `personal_stats_log`, `daily_logs` → `ON DELETE CASCADE`
+- `food_items` → `ON DELETE SET NULL` (preserves shared food data)
+
 ## 9. Implementation Phases
 
 ### Phase 1: MVP Logic Foundations
@@ -330,8 +364,21 @@ Stores confirmed food entries for long-term tracking.
 5. ✅ Row Level Security (defense in depth) — RLS enabled on `food_items` + `daily_logs` with user-scoped policies
 6. ✅ Telegram bot gateway (`bot/gateway.py`) — aiogram v3 webhook, passphrase access control, auto-registration, HITL over Telegram
 7. ✅ Deploy to Railway (4 services: langgraph-server, fitpal-bot, Postgres, Redis) + Telegram webhook — deployed 2026-03-23
-8. ⏳ Smoke test end-to-end — bot interrupt bug fixed (2026-03-25), further testing in progress
+8. ✅ Smoke test end-to-end — bot interrupt bug fixed (2026-03-25), local dev bot flow added (2026-04-01)
 9. ✅ CI/CD pipeline (GitHub Actions) — see "CI/CD Pipeline" section below
+10. ✅ FK constraints on all user-scoped tables → `auth.users(id)` (CASCADE for user data, SET NULL for food_items)
+11. ✅ Missing RLS policies added to `personal_stats_log` (UPDATE + DELETE)
+12. ✅ Permanent tagged auth users for dev (`dev@dev.fitpal.bot`) and E2E testing (`e2e@test.fitpal.bot`)
+13. ✅ Local dev bot flow — `POLLING_MODE=true` for aiogram polling, `BOT_EMAIL_DOMAIN` for separate dev auth users
+
+#### User Profiles & Personal Stats (Completed 2026-03-31)
+
+- ✅ **User Profiles**: `UserProfile` model (name, height_cm, age, gender) + `user_profile_service.py` CRUD
+- ✅ **Bot Onboarding**: Step-by-step profile collection on first registration (name → height → age → gender). Profile cached on session and injected into LangGraph config as `user_profile`.
+- ✅ **Personal Stats Logging**: `PersonalStatsLog` model (weight_kg, body_fat_pct, recorded_at) + `personal_stats_service.py` with `log_personal_stat` and `get_latest_personal_stats` tools
+- ✅ **Personal Stats Node**: `personal_stats_node` handles `LOG_PERSONAL_STATS` action — LLM extracts weight/body fat via `PersonalStatsExtraction` structured output
+- ✅ **Graph Routing**: `input_parser` routes `LOG_PERSONAL_STATS` → `personal_stats` → `response`
+- ✅ **Supabase Migration**: `add_user_profiles_and_personal_stats` creates tables + RLS policies
 
 **Cost estimate:**
 - LangGraph server: Free (open source, self-hosted)

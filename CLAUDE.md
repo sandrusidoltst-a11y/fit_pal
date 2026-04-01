@@ -21,9 +21,9 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | Auth (dev) | Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) — enterprise-only, used in dev/Studio |
 | Auth (prod) | Shared secret middleware (`src/security/internal_auth_middleware.py`) — validates `X-Internal-Token` header; bot passes `user_id` in config body |
 | Deployment | Railway (4 services: langgraph-server, fitpal-bot, Postgres checkpoints, Redis queue) + Docker Hub (`dolevsan/fitpal-server`, `dolevsan/fitpal-bot`) |
-| User Scoping | `user_id` column on `food_items` + `daily_logs`; extracted via `get_user_id(config)` from `RunnableConfig` (checks `langgraph_auth_user` first, then `user_id`, then dev default) |
-| RLS | Supabase Row Level Security on `food_items` + `daily_logs` (defense-in-depth; service role bypasses) |
-| Telegram Gateway | aiogram v3 webhook bot (`bot/gateway.py`) — passphrase access control, auto-registration, HITL over Telegram |
+| User Scoping | `user_id` column on all user-scoped tables (`food_items`, `daily_logs`, `user_profiles`, `personal_stats_log`); FK constraints to `auth.users(id)`; extracted via `get_user_id(config)` from `RunnableConfig` |
+| RLS | Supabase Row Level Security on `food_items`, `daily_logs`, `personal_stats_log` (defense-in-depth; service role bypasses) |
+| Telegram Gateway | aiogram v3 bot (`bot/gateway.py`) — webhook (production) or polling (local dev via `POLLING_MODE=true`); passphrase access control, auto-registration, onboarding, HITL over Telegram |
 | Package Manager | `uv` — strictly enforced (see Package Management below) |
 | Language | Python 3.13+ |
 | Logging | `structlog` — structured logging across all `src/` and `bot/` modules |
@@ -52,9 +52,12 @@ fit_pal/
 │   │       ├── confirmation_node.py # HITL batch confirmation via interrupt()
 │   │       ├── commit_node.py     # Batch DB write after confirmation
 │   │       ├── stats_node.py      # Stats lookup node
+│   │       ├── personal_stats_node.py # Personal stats logging (weight, body fat)
 │   │       └── response_node.py   # LLM response generator
 │   ├── services/
-│   │   └── daily_log_service.py   # CRUD for daily logs + @tool wrappers (log_food_entry, query_food_logs)
+│   │   ├── daily_log_service.py   # CRUD for daily logs + @tool wrappers (log_food_entry, query_food_logs)
+│   │   ├── user_profile_service.py # User profile CRUD (onboarding data)
+│   │   └── personal_stats_service.py # Personal stats CRUD + @tool wrappers (log_personal_stat, get_latest_personal_stats)
 │   ├── scripts/
 │   │   ├── ingest_simple_db.py    # ETL script (CSV -> Supabase Postgres)
 │   │   └── print_trace.py         # LangSmith thread trace viewer (by thread_id)
@@ -64,18 +67,19 @@ fit_pal/
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
 │   │   ├── estimation_schema.py   # MacroEstimation (LLM off-menu output)
-│   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)
+│   │   ├── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)
+│   │   └── personal_stats_schema.py # PersonalStatsExtraction (weight/body fat parsing)
 │   ├── security/
 │   │   ├── auth.py                # LangGraph custom auth handler (@auth.authenticate + @auth.on) — enterprise-only, kept for future use
 │   │   ├── internal_auth_middleware.py # Shared secret middleware (X-Internal-Token) — used in production
 │   │   └── webapp.py              # FastAPI app registering middleware — referenced by langgraph.production.json
 │   ├── database.py                # Async DB engine (asyncpg) + sync engine for ETL
-│   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog — UUID PKs, user_id scoped)
+│   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog, UserProfile, PersonalStatsLog — UUID PKs, user_id scoped, FK to auth.users)
 │   ├── main.py                    # Entry point
-│   └── config.py                  # Environment & LLM setup via get_llm_for_node() + get_user_id()
+│   └── config.py                  # Environment & LLM setup via get_llm_for_node() + get_user_id() + get_user_profile()
 ├── bot/
-│   ├── gateway.py                 # Telegram bot gateway (aiogram v3 webhook, HITL relay, SessionData TypedDict, shared secret auth)
-│   ├── supabase_admin.py          # Supabase admin helpers (async client, BOT_PASSWORD_SEED, user creation, JWT generation)
+│   ├── gateway.py                 # Telegram bot gateway (aiogram v3, webhook/polling, onboarding, HITL relay, SessionData TypedDict)
+│   ├── supabase_admin.py          # Supabase admin helpers (async client, BOT_PASSWORD_SEED, BOT_EMAIL_DOMAIN, user creation)
 │   └── Dockerfile                 # Bot gateway container definition
 ├── tests/
 │   ├── unit/                      # Fast, deterministic tests (mocked DB/LLM)
@@ -125,6 +129,11 @@ fit_pal/
 - **HITL Batch Confirmation**: Before any DB write, all food items are accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses LangGraph's `interrupt()` in a validation loop to present the batch and await user confirmation/rejection/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`.
 - **Off-Menu Estimation + Persistence**: When food is not found in the DB (NO_MATCH), `calculate_macros_node` uses LLM with `MacroEstimation` structured output to estimate macros. Items are tagged with `source: "estimated"` for transparency. At commit time, `commit_node` creates a `FoodItem` row with `source="estimated"` and back-calculated per-100g values, then uses the returned `food_id` for the `DailyLog` entry. On subsequent searches, `search_food` queries DB foods first, then falls back to estimated foods — so previously estimated items are reused without re-estimation. `FoodItem.source` column (`"database"` | `"estimated"`, NOT NULL, default `"database"`) enables this two-tier search.
 - **Schema Management**: Supabase migrations manage the production schema. Never use `Base.metadata.create_all()` or `drop_all()` in production code. ETL script (`ingest_simple_db.py`) clears data via `DELETE FROM`, not schema recreation. Tests use `Base.metadata.create_all()` against a separate Supabase test database.
+- **FK Constraints to auth.users**: All user-scoped tables have FK constraints to `auth.users(id)`. `user_profiles`, `personal_stats_log`, `daily_logs` use `ON DELETE CASCADE`. `food_items` uses `ON DELETE SET NULL` (preserves shared food data). FK lives only in Postgres via migration — NOT in SQLAlchemy models (avoids `Base.metadata.create_all()` issues with `auth.users` not in our metadata).
+- **Permanent Tagged Auth Users**: Two permanent auth users exist for dev/test workflows: `dev@dev.fitpal.bot` (LangGraph Studio, local dev) and `e2e@test.fitpal.bot` (E2E smoke tests). Identifiable via `user_metadata.source` (`"dev"` / `"e2e_test"`). `DEFAULT_DEV_USER_ID` in `src/config.py` points to the dev auth user.
+- **Onboarding Flow**: Bot collects user profile (name, height, age, gender) on first registration via step-by-step conversation. Profile stored in `user_profiles` table, cached on session, injected into LangGraph config as `user_profile`.
+- **Personal Stats Logging**: `personal_stats_node` handles `LOG_PERSONAL_STATS` action — extracts weight/body fat from user input via LLM structured output (`PersonalStatsExtraction`), writes to `personal_stats_log` table.
+- **Local Dev Bot**: Set `POLLING_MODE=true` + `BOT_EMAIL_DOMAIN=dev.fitpal.bot` in `.env` to run the bot locally against `langgraph dev`. Uses aiogram polling (no public URL needed). Separate email domain creates distinct auth users from production.
 
 ---
 

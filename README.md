@@ -1,44 +1,46 @@
-# 🏋️ FitPal AI Agent
+# FitPal AI Agent
 
-FitPal is an intelligent AI fitness and nutrition coach designed to bridge the gap between traditional meal planning and the friction of daily logging. Built on the **LangGraph** framework, the agent acts as a stateful companion that understands natural language, tracks macronutrients (Protein, Carbs, Fats) and Calories in real-time, and provides personalized feedback.
+FitPal is an intelligent AI fitness and nutrition coach built on **LangGraph**. Users log food in natural language ("I had 200g of chicken and a banana"); the agent parses intent, looks up macros from a Supabase PostgreSQL database, and maintains a stateful daily log. Also supports personal stats tracking (weight, body fat) and user profile management.
 
-**Mission**: To make rigid nutrition plans flexible and easy to follow through effortless natural language interaction—logging food should feel like texting a friend.
-
----
-
-## 🌟 Core Features
-
-- **Natural Language Parsing**: Just type "I had 200g of chicken and a banana" and FitPal automatically extracts the foods and quantities using structured Pydantic models.
-- **Accurate Nutrition Data**: Uses a local SQLite database for accurate macronutrient calculations (`data/nutrition.db`), avoiding LLM "hallucinations" of calorie counts.
-- **Stateful Daily Tracking**: Maintains your daily totals in short-term memory (LangGraph state) and persists confirmed logs to a database.
-- **Context-Aware Reasoning**: Ask "How much protein do I have left?" or "What did I eat today?" and FitPal will query your historical logs to answer accurately.
-- **Multi-Item Support**: Capable of processing complex meals with multiple items sequentially.
+**Mission**: Make nutrition tracking effortless — logging food should feel like texting a friend.
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## Core Features
 
-FitPal is built using a modern AI backend stack:
-
-- **Orchestration**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Stateful graphs)
-- **LLM Framework**: LangChain 1.x
-- **Schema Validation**: Pydantic v2
-- **Language Models**: OpenAI (GPT-4o) / Anthropic (Claude 3.5 Sonnet)
-- **Database / Storage**: SQLite & SQLAlchemy (with LangGraph SQLite Checkpointer)
-- **Package Management**: **`uv`** (strictly enforced for determinism & speed)
-- **Language**: Python 3.13+
-
-The core graph logic uses the **Multiple Schemas** pattern (`InputState`, `OutputState`, and internal `AgentState`), ensuring a clean chat interface when exposed via API or LangSmith Studio.
+- **Natural Language Parsing**: Type "I had 200g of chicken and a banana" — FitPal extracts foods and quantities using Pydantic structured output.
+- **Accurate Nutrition Data**: Looks up macros from a Supabase PostgreSQL database (~335 common items). Off-menu foods are estimated via LLM and persisted for reuse.
+- **Stateful Daily Tracking**: Persists confirmed logs to Supabase. Query your history with "What did I eat today?"
+- **Multi-Item Support**: Processes complex meals with multiple items sequentially via loop-back graph routing.
+- **HITL Confirmation**: Previews macros before committing — confirm, reject, or edit via natural language.
+- **Personal Stats**: Log body measurements ("I weigh 74kg", "body fat 15%") tracked over time.
+- **Telegram Bot**: Chat with FitPal via Telegram — passphrase access control, onboarding, and full HITL support.
 
 ---
 
-## 🚀 Quickstart & Setup
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Orchestration | LangGraph (StateGraph, async) |
+| LLM | GPT-4.1-nano (default) / GPT-4o |
+| Storage | Supabase PostgreSQL + SQLAlchemy (asyncpg) |
+| Bot | aiogram v3 (Telegram, webhook + polling) |
+| Deployment | Railway (4 services) + Docker Hub |
+| CI/CD | GitHub Actions |
+| Package Manager | `uv` (strictly enforced) |
+| Language | Python 3.13+ |
+
+---
+
+## Quickstart
 
 ### Prerequisites
-Make sure you have [**`uv`**](https://github.com/astral-sh/uv) installed, as it is strictly used for package management.
+- [**uv**](https://github.com/astral-sh/uv) installed
+- OpenAI API key
+- Supabase project (for DB)
 
-### 1. Clone & Install Dependencies
-Clone the repository and run `uv sync` to create the virtual environment and install all dependencies:
+### 1. Clone & Install
 ```bash
 git clone <your-repo-url>
 cd fit_pal
@@ -46,64 +48,65 @@ uv sync
 ```
 
 ### 2. Environment Variables
-Create a `.env` file in the root directory and add your API keys:
+Create a `.env` file:
 ```env
 OPENAI_API_KEY=your_openai_api_key
-# Or if using Anthropic:
-# ANTHROPIC_API_KEY=your_anthropic_api_key
+SUPABASE_DB_URL=your_supabase_connection_string
 
-# Global LLM Configuration (Provides defaults for NODE_CONFIGS in src/config.py)
-LLM_PROVIDER=openai
-LLM_MODEL_NAME=gpt-4o
-
-# Optional: Enable LangSmith Tracing
+# Optional: LangSmith tracing
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_langsmith_api_key
-LANGCHAIN_PROJECT=fit_pal
+LANGCHAIN_PROJECT=fit-pal-agent
 ```
 
-### 3. Initialize the Database
-The project comes with a script to populate the local `nutrition.db` SQLite database from the provided CSV file:
+### 3. Run with LangGraph Studio
 ```bash
-uv run src/scripts/ingest_simple_db.py
+uv run langgraph dev
+```
+Open `http://127.0.0.1:2024` in your browser. Type food entries in the chat box and watch the graph execute step-by-step.
+
+---
+
+## Local Bot Development
+
+Test the Telegram bot locally without deploying:
+
+1. **Create a dev bot** via [@BotFather](https://t.me/BotFather) on Telegram
+2. **Add to `.env`**:
+   ```env
+   BOT_TOKEN=<dev-bot-token>
+   POLLING_MODE=true
+   BOT_PASSPHRASE=<any-passphrase>
+   BOT_PASSWORD_SEED=<from-production>
+   SUPABASE_URL=<your-supabase-url>
+   SUPABASE_SERVICE_KEY=<your-service-role-key>
+   BOT_EMAIL_DOMAIN=dev.fitpal.bot
+   ```
+3. **Terminal 1**: `uv run langgraph dev`
+4. **Terminal 2**: `uv run python -m bot.gateway`
+5. Open your dev bot on Telegram and send the passphrase
+
+`BOT_EMAIL_DOMAIN=dev.fitpal.bot` creates separate auth users from production, so you can test onboarding with your own Telegram account.
+
+---
+
+## Testing
+
+```bash
+# Unit tests (fast, mocked)
+uv run pytest tests/unit/ -v
+
+# Integration tests (real Supabase DB)
+uv run pytest tests/integration/ -v
+
+# E2E graph-api tests (full server + real LLM)
+uv run pytest tests/graph_api/ -v -s
 ```
 
 ---
 
-## 🖥️ How to Run the Agent Using LangSmith Studio
+## Further Reading
 
-LangSmith Studio provides the best developer experience for viewing the state execution, debugging, and interacting with the FitPal chat agent locally.
-
-1. **Verify `langgraph-cli` is installed**:
-   It should be installed automatically as a development dependency via `uv`.
-
-2. **Start the local Studio development server**:
-   From the root directory of the project, run:
-   ```bash
-   uv run langgraph dev
-   ```
-
-3. **Open the Studio Interface**:
-   The terminal will output a URL (usually `http://127.0.0.1:2024`). Open this link in your browser.
-
-4. **Interact with FitPal**:
-   Because FitPal uses LangGraph's "Multiple Schemas" pattern (defining an `InputState` containing only `messages`), the Studio UI will automatically render a **Chat Box** instead of a complex JSON form on the right-hand panel.
-   - Simply type your query in the chat box. Example: `I just had 50g of oats and two medium eggs.`
-   - Press **Send**.
-   - You can watch the graph execute step-by-step through the `input_parser` ➔ `food_search` ➔ `agent_selection` ➔ `calculate_log` ➔ `response`.
-
----
-
-## 🗃️ Database Schema
-
-FitPal utilizes two primary tables in SQLite:
-- **Food Database**: ~335 common items with verified macros (per 100g). Includes Calories, Protein, Carbs, and Fats.
-- **Daily Logs**: Stores confirmed food entries tagged by date/timestamp. Used to aggregate your running daily totals.
-
----
-
-## 📖 Further Reading
-
-For detailed system requirements, node responsibilities, state schema structures, and development rules, please refer to:
-- [`PRD.md`](PRD.md)
-- [`.agent/rules/main_rule.md`](.agent/rules/main_rule.md)
+- [`PRD.md`](PRD.md) — Full requirements, features, and specs
+- [`CLAUDE.md`](CLAUDE.md) — Project context, architecture patterns, and development rules
+- [`docs/phase3-deployment-plan.md`](docs/phase3-deployment-plan.md) — Deployment guide
