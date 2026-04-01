@@ -154,6 +154,24 @@ async def log_personal_stat(
 
 
 @tool
+async def get_latest_personal_stats(
+    config: RunnableConfig = None,
+) -> dict:
+    """Get the most recent body measurements for the user.
+
+    Returns the latest recorded weight and/or body fat percentage,
+    or a message indicating no stats have been logged yet.
+    """
+    user_id = get_user_id(config)
+    async with get_async_db_session() as session:
+        latest = await get_latest_stats(session, user_id)
+        if latest is None:
+            return {"status": "no_stats", "message": "No body measurements logged yet."}
+        logger.debug("Fetched latest stats", user_id=user_id, stats=latest)
+        return latest
+
+
+@tool
 async def get_personal_stat_history(
     stat_type: str = "weight",
     limit: int = 30,

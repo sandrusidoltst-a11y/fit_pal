@@ -18,6 +18,8 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 
 from bot.supabase_admin import get_or_create_user
+from src.database import get_async_db_session
+from src.services.user_profile_service import create_user_profile, get_user_profile
 
 logger = structlog.get_logger(__name__)
 
@@ -177,9 +179,6 @@ def _format_interrupt_value(value: dict) -> str:
 
 async def _save_user_profile(user_id: str, data: dict) -> None:
     """Save onboarding data to user_profiles table."""
-    from src.database import get_async_db_session
-    from src.services.user_profile_service import create_user_profile
-
     async with get_async_db_session() as session:
         await create_user_profile(
             session=session,
@@ -193,9 +192,6 @@ async def _save_user_profile(user_id: str, data: dict) -> None:
 
 async def _load_user_profile(user_id: str) -> dict | None:
     """Load user profile from DB for config injection."""
-    from src.database import get_async_db_session
-    from src.services.user_profile_service import get_user_profile
-
     async with get_async_db_session() as session:
         return await get_user_profile(session, user_id)
 

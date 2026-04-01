@@ -6,8 +6,6 @@ Hits the real Supabase Postgres database with transaction rollback isolation.
 import uuid as uuid_mod
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from tests.conftest import TEST_USER_A, TEST_USER_B
 from src.services.personal_stats_service import (
     create_stat_entry,
