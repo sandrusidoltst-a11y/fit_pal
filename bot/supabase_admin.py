@@ -19,6 +19,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 BOT_PASSPHRASE = os.environ.get("BOT_PASSPHRASE", "")
 BOT_PASSWORD_SEED = os.environ.get("BOT_PASSWORD_SEED", "") or BOT_PASSPHRASE
+BOT_EMAIL_DOMAIN = os.environ.get("BOT_EMAIL_DOMAIN", "telegram.fitpal.bot")
 
 _supabase_admin: AsyncClient | None = None
 
@@ -38,7 +39,7 @@ def _synthetic_email(telegram_chat_id: int) -> str:
     chat_id to a unique identifier without needing a real inbox.
     email_confirm=True on creation skips verification.
     """
-    return f"{telegram_chat_id}@telegram.fitpal.bot"
+    return f"{telegram_chat_id}@{BOT_EMAIL_DOMAIN}"
 
 
 def _server_password(telegram_chat_id: int) -> str:

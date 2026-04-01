@@ -1,10 +1,13 @@
 """Telegram bot gateway for FitPal.
 
-Connects Telegram users to the LangGraph FitPal agent via webhook.
+Connects Telegram users to the LangGraph FitPal agent via webhook (production)
+or polling (local development). Set POLLING_MODE=true for local dev.
+
 Handles passphrase-based access control, auto-registration via Supabase,
 onboarding profile collection, message relay, and HITL interrupt/resume flow.
 """
 
+import asyncio
 import hmac
 import os
 from datetime import datetime, timedelta, timezone
@@ -12,14 +15,19 @@ from typing import Optional, TypedDict
 
 import httpx
 import structlog
-from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
+from dotenv import load_dotenv
 
-from bot.supabase_admin import get_or_create_user
-from src.database import get_async_db_session
-from src.services.user_profile_service import create_user_profile, get_user_profile
+# Load .env before any imports that read env vars at module level (e.g. supabase_admin)
+load_dotenv()
+
+from aiogram import Bot, Dispatcher, Router  # noqa: E402
+from aiogram.types import Message  # noqa: E402
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application  # noqa: E402
+from aiohttp import web  # noqa: E402
+
+from bot.supabase_admin import get_or_create_user  # noqa: E402
+from src.database import get_async_db_session  # noqa: E402
+from src.services.user_profile_service import create_user_profile, get_user_profile  # noqa: E402
 
 logger = structlog.get_logger(__name__)
 
@@ -30,6 +38,7 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 BOT_PASSPHRASE = os.environ.get("BOT_PASSPHRASE", "")
 LANGGRAPH_API_URL = os.environ.get("LANGGRAPH_API_URL", "http://localhost:2024")
 INTERNAL_API_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
+POLLING_MODE = os.environ.get("POLLING_MODE", "").lower() in ("true", "1", "yes")
 
 ASSISTANT_ID = "fitpal"
 SESSION_TIMEOUT = timedelta(minutes=30)
@@ -390,8 +399,25 @@ async def on_startup(bot: Bot) -> None:
     )
 
 
-def main():
-    """Entry point for the Telegram bot gateway."""
+async def _run_polling():
+    """Run bot in polling mode for local development."""
+    logger.info("Starting bot in POLLING mode (local dev)")
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Webhook deleted, starting polling")
+
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+
+def _run_webhook():
+    """Run bot in webhook mode for production."""
+    logger.info("Starting bot in WEBHOOK mode (production)")
     dp = Dispatcher()
     dp.include_router(router)
     dp.startup.register(on_startup)
@@ -407,6 +433,14 @@ def main():
 
     port = int(os.environ.get("BOT_PORT", "8080"))
     web.run_app(app, host="0.0.0.0", port=port)
+
+
+def main():
+    """Entry point for the Telegram bot gateway."""
+    if POLLING_MODE:
+        asyncio.run(_run_polling())
+    else:
+        _run_webhook()
 
 
 if __name__ == "__main__":
