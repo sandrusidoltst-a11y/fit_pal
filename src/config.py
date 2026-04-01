@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 # Project Root (calculated relative to this file: src/config.py -> src -> root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
-DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
+DEFAULT_DEV_USER_ID = "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"
 DEFAULT_DEV_PROFILE = {
     "name": "Dev User",
     "height_cm": 175.0,

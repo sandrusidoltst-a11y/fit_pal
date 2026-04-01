@@ -20,8 +20,8 @@ from src.models import FoodItem
 
 load_dotenv()
 
-TEST_USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-TEST_USER_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+TEST_USER_A = "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"  # dev@dev.fitpal.bot (auth.users)
+TEST_USER_B = "72c10336-9d61-4357-9851-20cbb4d32b1a"  # e2e@test.fitpal.bot (auth.users)
 TEST_CONFIG_A: RunnableConfig = {"configurable": {"user_id": TEST_USER_A}}
 TEST_CONFIG_B: RunnableConfig = {"configurable": {"user_id": TEST_USER_B}}
 

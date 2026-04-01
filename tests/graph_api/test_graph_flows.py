@@ -24,7 +24,7 @@ from graph_api import conftest as _conftest
 
 ASSISTANT_ID = "fitpal"  # Must match the graph name in langgraph.json
 LOGS_DIR = Path(__file__).parent / "logs"
-DEV_USER_CONFIG = {"configurable": {"user_id": "00000000-0000-0000-0000-000000000001"}}
+DEV_USER_CONFIG = {"configurable": {"user_id": "72c10336-9d61-4357-9851-20cbb4d32b1a"}}
 
 
 # ---------------------------------------------------------------------------
