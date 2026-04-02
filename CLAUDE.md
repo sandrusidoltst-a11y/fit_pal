@@ -19,9 +19,9 @@ FitPal is a LangGraph-based AI nutrition coach. Users log food in natural langua
 | Storage | Supabase PostgreSQL + SQLAlchemy (`asyncpg` async engine; `psycopg2` sync engine for ETL scripts only) |
 | Primary Keys | UUID (`sqlalchemy.Uuid`, `uuid.uuid4` default) |
 | Auth (dev) | Supabase Auth (JWT) + LangGraph custom auth handler (`src/security/auth.py`) — enterprise-only, used in dev/Studio |
-| Auth (prod) | Shared secret middleware (`src/security/internal_auth_middleware.py`) — validates `X-Internal-Token` header; bot passes `user_id` in config body |
+| Auth (prod) | Shared secret middleware (`src/security/internal_auth_middleware.py`) — validates `X-Internal-Token` header; bot passes `user_id` in context body |
 | Deployment | Railway (4 services: langgraph-server, fitpal-bot, Postgres checkpoints, Redis queue) + Docker Hub (`dolevsan/fitpal-server`, `dolevsan/fitpal-bot`) |
-| User Scoping | `user_id` column on all user-scoped tables (`food_items`, `daily_logs`, `user_profiles`, `personal_stats_log`); FK constraints to `auth.users(id)`; extracted via `get_user_id(config)` from `RunnableConfig` |
+| User Scoping | `user_id` column on all user-scoped tables; FK constraints to `auth.users(id)`; flows via `ContextSchema` → `Runtime` → nodes pass `user_id` string to tools |
 | RLS | Supabase Row Level Security on `food_items`, `daily_logs`, `personal_stats_log` (defense-in-depth; service role bypasses) |
 | Telegram Gateway | aiogram v3 bot (`bot/gateway.py`) — webhook (production) or polling (local dev via `POLLING_MODE=true`); passphrase access control, auto-registration, onboarding, HITL over Telegram |
 | Package Manager | `uv` — strictly enforced (see Package Management below) |
@@ -75,8 +75,9 @@ fit_pal/
 │   │   └── webapp.py              # FastAPI app registering middleware — referenced by langgraph.production.json
 │   ├── database.py                # Async DB engine (asyncpg) + sync engine for ETL
 │   ├── models.py                  # SQLAlchemy models (FoodItem, DailyLog, UserProfile, PersonalStatsLog — UUID PKs, user_id scoped, FK to auth.users)
+│   ├── context.py                 # ContextSchema dataclass (user_id, user_profile) for Runtime injection + defaults
 │   ├── main.py                    # Entry point
-│   └── config.py                  # Environment & LLM setup via get_llm_for_node() + get_user_id() + get_user_profile()
+│   └── config.py                  # Environment & LLM setup via get_llm_for_node()
 ├── bot/
 │   ├── gateway.py                 # Telegram bot gateway (aiogram v3, webhook/polling, onboarding, HITL relay, SessionData TypedDict)
 │   ├── supabase_admin.py          # Supabase admin helpers (async client, BOT_PASSWORD_SEED, BOT_EMAIL_DOMAIN, user creation)
@@ -116,24 +117,21 @@ fit_pal/
 
 ## Architecture Patterns
 
-- **Tool-First Architecture**: All DB access goes through async `@tool` functions. Nodes are thin orchestrators that call tools via `await tool.ainvoke(...)` — they never import `get_async_db_session` or query the DB directly. Tools own their own sessions. This ensures scalability (change the tool, not every node) and avoids `BlockingError` from mixing sync/async.
-- **Service + Tool Layer**: `src/services/` contains both raw service functions (accept `session` param for DI/testability) and `@tool` wrappers that create their own session and delegate. `src/tools/` contains food-specific async tools.
-- **Multiple Schemas**: `InputState` (messages only, public API) → `AgentState` (internal) → `OutputState`. Enables clean LangSmith Studio chat interface without exposing internal state fields.
-- **Configuration Dictionary**: `get_llm_for_node()` in `config.py` centralises all LLM instantiation with per-node overrides (temperature, model). Never hardcode models inside nodes.
-- **Write-Through**: DB is source of truth. Write immediately on confirmation, then query for state updates.
-- **Fully Async**: All nodes, tools, and DB access use `async`/`await`. The async engine (`asyncpg`) is the primary DB path. A sync engine (`psycopg2`) exists only for ETL scripts.
-- **User ID Scoping**: All queries filter by `user_id`. Nodes receive `config: RunnableConfig` and extract the user via `get_user_id(config)` from `src.config`. `user_id` flows through `config["configurable"]["user_id"]`, never through `AgentState`. `DEFAULT_DEV_USER_ID` provides a fallback for local development.
-- **Multi-Item Loop**: Conditional routing processes food items sequentially with loop-back edges until the queue is empty.
-- **Pydantic for LLM Output**: Always use `.with_structured_output()` then `.model_dump()`. Never parse raw LLM strings.
-- **Reporting State**: `AgentState.daily_log_report` stores raw `QueriedLog` list — enables flexible LLM reasoning (averages, distributions) instead of pre-aggregated values.
-- **HITL Batch Confirmation**: Before any DB write, all food items are accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses LangGraph's `interrupt()` in a validation loop to present the batch and await user confirmation/rejection/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`.
-- **Off-Menu Estimation + Persistence**: When food is not found in the DB (NO_MATCH), `calculate_macros_node` uses LLM with `MacroEstimation` structured output to estimate macros. Items are tagged with `source: "estimated"` for transparency. At commit time, `commit_node` creates a `FoodItem` row with `source="estimated"` and back-calculated per-100g values, then uses the returned `food_id` for the `DailyLog` entry. On subsequent searches, `search_food` queries DB foods first, then falls back to estimated foods — so previously estimated items are reused without re-estimation. `FoodItem.source` column (`"database"` | `"estimated"`, NOT NULL, default `"database"`) enables this two-tier search.
-- **Schema Management**: Supabase migrations manage the production schema. Never use `Base.metadata.create_all()` or `drop_all()` in production code. ETL script (`ingest_simple_db.py`) clears data via `DELETE FROM`, not schema recreation. Tests use `Base.metadata.create_all()` against a separate Supabase test database.
-- **FK Constraints to auth.users**: All user-scoped tables have FK constraints to `auth.users(id)`. `user_profiles`, `personal_stats_log`, `daily_logs` use `ON DELETE CASCADE`. `food_items` uses `ON DELETE SET NULL` (preserves shared food data). FK lives only in Postgres via migration — NOT in SQLAlchemy models (avoids `Base.metadata.create_all()` issues with `auth.users` not in our metadata).
-- **Permanent Tagged Auth Users**: Two permanent auth users exist for dev/test workflows: `dev@dev.fitpal.bot` (LangGraph Studio, local dev) and `e2e@test.fitpal.bot` (E2E smoke tests). Identifiable via `user_metadata.source` (`"dev"` / `"e2e_test"`). `DEFAULT_DEV_USER_ID` in `src/config.py` points to the dev auth user.
-- **Onboarding Flow**: Bot collects user profile (name, height, age, gender) on first registration via step-by-step conversation. Profile stored in `user_profiles` table, cached on session, injected into LangGraph config as `user_profile`.
-- **Personal Stats Logging**: `personal_stats_node` handles `LOG_PERSONAL_STATS` action — extracts weight/body fat from user input via LLM structured output (`PersonalStatsExtraction`), writes to `personal_stats_log` table.
-- **Local Dev Bot**: Set `POLLING_MODE=true` + `BOT_EMAIL_DOMAIN=dev.fitpal.bot` in `.env` to run the bot locally against `langgraph dev`. Uses aiogram polling (no public URL needed). Separate email domain creates distinct auth users from production.
+Detailed pattern files live in `.claude/patterns/`. Each pattern below has a summary (always loaded) and a link to the full description (read before modifying related code).
+
+| Pattern | Details | When to Read |
+|---|---|---|
+| **Tool-First + Service Layer**: All DB access through async `@tool` functions. Nodes are thin orchestrators via `await tool.ainvoke(...)` — never import DB sessions. `src/services/` has raw service functions (accept `session` for DI/testability) + `@tool` wrappers that own their session. | [tool-first.md](.claude/patterns/tool-first.md) | Before adding tools, nodes, or DB access |
+| **State Schemas**: `InputState` (messages only, public API) → `AgentState` (internal) → `OutputState`. Enables clean LangSmith Studio chat interface without exposing internal state fields. | [state-schemas.md](.claude/patterns/state-schemas.md) | Before modifying state, adding fields, or changing graph I/O |
+| **Runtime Context + User Profile**: `ContextSchema` (dataclass in `src/context.py`) defines `user_id` and `user_profile`, registered on `StateGraph` via `context_schema`. Bot sends `context` field in HTTP body. Nodes access via `runtime: Runtime[ContextSchema]` and pass `user_id` as a plain string to tools. `response_node` injects user profile into `SystemMessage`. `DEFAULT_DEV_USER_ID` fallback for Studio. | [runtime-context.md](.claude/patterns/runtime-context.md) | Before touching user_id, user_profile, or context flow |
+| **LLM Configuration + Pydantic Output**: `get_llm_for_node()` in `config.py` centralises LLM instantiation with per-node overrides. Never hardcode models. Always use `.with_structured_output()` then `.model_dump()` — never parse raw LLM strings. | [llm-config.md](.claude/patterns/llm-config.md) | Before adding or configuring LLM calls in nodes |
+| **Fully Async**: All nodes, tools, and DB access use `async`/`await`. The async engine (`asyncpg`) is the primary DB path. Sync engine (`psycopg2`) exists only for ETL scripts. | [async-patterns.md](.claude/patterns/async-patterns.md) | Before adding any DB, tool, or node code |
+| **HITL Batch Confirmation**: All food items accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses `interrupt()` in a validation loop for confirm/reject/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`. | [hitl-confirmation.md](.claude/patterns/hitl-confirmation.md) | Before modifying confirmation/commit flow |
+| **Off-Menu Estimation + Persistence**: NO_MATCH → LLM estimates via `MacroEstimation` structured output, tagged `source: "estimated"`. At commit, `commit_node` creates `FoodItem` row with back-calculated per-100g values. `search_food` two-tier: DB foods first → estimated fallback. | [off-menu-estimation.md](.claude/patterns/off-menu-estimation.md) | Before modifying food search, estimation, or commit logic |
+| **Schema Management + FK Constraints**: Supabase migrations manage production schema. Never `create_all()`/`drop_all()` in production. FK constraints to `auth.users(id)` — CASCADE for user data, SET NULL for food_items. FK in Postgres only, not SQLAlchemy models. | [schema-management.md](.claude/patterns/schema-management.md) | Before DB migrations, model changes, or test DB setup |
+| **Auth + Tagged Users**: Two permanent auth users: `dev@dev.fitpal.bot` (Studio/dev) and `e2e@test.fitpal.bot` (E2E tests), identifiable via `user_metadata.source`. Shared secret middleware (`X-Internal-Token`) for prod auth. | [auth-and-users.md](.claude/patterns/auth-and-users.md) | Before modifying auth, user creation, or test user setup |
+| **Bot Gateway + Local Dev**: aiogram v3 webhook (prod) or polling (local dev via `POLLING_MODE=true`). `BOT_EMAIL_DOMAIN` creates separate dev auth users. Onboarding collects profile on first registration. | [bot-gateway.md](.claude/patterns/bot-gateway.md) | Before modifying the Telegram bot or local dev flow |
+| **Data Flow**: Write-through (DB is source of truth). `daily_log_report` stores raw `QueriedLog` list for flexible LLM reasoning. Multi-item loop processes food items sequentially with loop-back edges. Personal stats via `personal_stats_node` + `LOG_PERSONAL_STATS` action. | [data-flow.md](.claude/patterns/data-flow.md) | Before modifying how data flows through the graph or to/from DB |
 
 ---
 
@@ -231,7 +229,6 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 |---|---|---|---|
 | [PRD.md](PRD.md) | Documentation | Full requirements, features, and specs | Feature planning / understanding scope |
 | [.claude/skills/test-engineering/SKILL.md](.claude/skills/test-engineering/SKILL.md) | Skill | Test tiers, mock boundaries, file structure, AAA docstrings, graph-api patterns | **Before** writing any test; when a test fails unexpectedly; when adding a new node, route, or schema |
-| [.claude/skills/langchain-architecture/SKILL.md](.claude/skills/langchain-architecture/SKILL.md) | Skill | LangGraph state management, type safety patterns, node/edge best practices | **Before** implementing any LangGraph node, edge, or state change |
 | [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
 | [.claude/skills/sync-context/SKILL.md](.claude/skills/sync-context/SKILL.md) | Skill | Synchronize CLAUDE.md and project skills with actual state | After significant refactors, new skills added, or structural changes |
