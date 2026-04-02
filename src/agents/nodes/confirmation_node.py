@@ -3,11 +3,12 @@ from typing import Literal
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig
+from langgraph.runtime import Runtime
 from langgraph.types import Command, interrupt
 
 from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
+from src.context import ContextSchema
 from src.schemas.confirmation_schema import ConfirmationResponse
 from src.tools.food_lookup import calculate_food_macros
 
@@ -46,7 +47,7 @@ def _format_batch_preview(items: list[MacroResult]) -> dict:
 
 
 async def confirmation_node(
-    state: AgentState, config: RunnableConfig,
+    state: AgentState, runtime: Runtime[ContextSchema],
 ) -> Command[Literal["commit", "response"]]:
     """Present batch preview and await user confirmation via conversational interrupt loop.
 
@@ -109,7 +110,7 @@ async def confirmation_node(
 
         elif decision.action == "edit":
             # Apply edits to batch
-            batch = await _apply_edits(batch, decision.edits or [], config)
+            batch = await _apply_edits(batch, decision.edits or [])
             # Re-build preview with updated batch
             preview = _format_batch_preview(batch)
             # Loop continues → interrupt again with updated preview
@@ -148,7 +149,7 @@ async def _parse_confirmation(
 
 
 async def _apply_edits(
-    batch: list[MacroResult], edits: list, config: RunnableConfig,
+    batch: list[MacroResult], edits: list,
 ) -> list[MacroResult]:
     """Apply user edits to the batch. Recalculate macros for amount changes."""
     # Process removals in reverse order to preserve indices
@@ -173,7 +174,7 @@ async def _apply_edits(
                 if item["food_id"] is not None:
                     # DB item — recalculate via tool
                     macros = await calculate_food_macros.ainvoke(
-                        {"food_id": item["food_id"], "amount_g": new_amount}, config=config
+                        {"food_id": item["food_id"], "amount_g": new_amount}
                     )
                     if "error" not in macros:
                         item["amount_g"] = new_amount

@@ -9,7 +9,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.conftest import TEST_CONFIG_A
+from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.calculate_macros_node import calculate_macros_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
@@ -45,7 +45,7 @@ class TestCalculateMacrosFeedback:
             "fat": 0.3,
         })
 
-        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
+        result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
 
         assert "pending_confirmations" in result
         assert len(result["pending_confirmations"]) == 1
@@ -95,7 +95,7 @@ class TestCalculateMacrosFeedback:
             "fat": 0,
         })
 
-        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
+        result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
 
         assert len(result["pending_confirmations"]) == 2
         assert result["pending_confirmations"][0] == existing

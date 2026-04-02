@@ -1,16 +1,17 @@
 from datetime import datetime, timezone
 
 import structlog
-from langchain_core.runnables import RunnableConfig
+from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
+from src.context import ContextSchema
 from src.services.daily_log_service import log_food_entry, query_food_logs
 from src.tools.food_lookup import create_food_item
 
 logger = structlog.get_logger(__name__)
 
 
-async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
+async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """Write all confirmed food items to the database in batch.
 
     Only called after user confirms via confirmation_node.
@@ -37,6 +38,7 @@ async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
         timestamp = now
 
     processing_results = list(state.get("processing_results", []))
+    user_id = runtime.context.user_id
 
     # Write each item to DB
     for item in batch:
@@ -52,8 +54,8 @@ async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
                     "protein_per_100g": round((item["protein"] / amount_g) * 100, 2),
                     "carbs_per_100g": round((item["carbs"] / amount_g) * 100, 2),
                     "fat_per_100g": round((item["fat"] / amount_g) * 100, 2),
+                    "user_id": user_id,
                 },
-                config=config,
             )
             food_id = created["id"]
 
@@ -67,8 +69,8 @@ async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
                 "fat": item["fat"],
                 "timestamp": timestamp.isoformat(),
                 "original_text": item.get("original_text", ""),
+                "user_id": user_id,
             },
-            config=config,
         )
 
         processing_results.append(
@@ -87,8 +89,7 @@ async def commit_node(state: AgentState, config: RunnableConfig) -> dict:
     updated_report = []
     if consumed_at:
         updated_report = await query_food_logs.ainvoke(
-            {"target_date": str(consumed_at.date())},
-            config=config,
+            {"target_date": str(consumed_at.date()), "user_id": user_id},
         )
 
     return {

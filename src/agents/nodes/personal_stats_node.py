@@ -8,17 +8,18 @@ import os
 
 import structlog
 from langchain_core.messages import SystemMessage
-from langchain_core.runnables import RunnableConfig
+from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
 from src.config import BASE_DIR, get_llm_for_node
+from src.context import ContextSchema
 from src.schemas.personal_stats_schema import PersonalStatExtraction
 from src.services.personal_stats_service import log_personal_stat
 
 logger = structlog.get_logger(__name__)
 
 
-async def personal_stats_node(state: AgentState, config: RunnableConfig) -> dict:
+async def personal_stats_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """Extract a body measurement from the user message and log it.
 
     1. Loads the extraction prompt.
@@ -54,9 +55,9 @@ async def personal_stats_node(state: AgentState, config: RunnableConfig) -> dict
     )
 
     # Log stat via tool
+    user_id = runtime.context.user_id
     await log_personal_stat.ainvoke(
-        {"stat_type": result.stat_type, "value": result.value},
-        config=config,
+        {"stat_type": result.stat_type, "value": result.value, "user_id": user_id},
     )
 
     # Build processing result for response node

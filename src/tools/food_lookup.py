@@ -1,11 +1,9 @@
 import uuid as uuid_mod
 
 import structlog
-from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from sqlalchemy import select
 
-from src.config import get_user_id
 from src.database import get_async_db_session
 from src.models import FoodItem
 
@@ -26,14 +24,13 @@ def compute_food_macros(food: FoodItem, amount_g: float) -> dict:
 
 
 @tool
-async def search_food(query: str, config: RunnableConfig) -> list[dict]:
+async def search_food(query: str, user_id: str) -> list[dict]:
     """
     Search for food items by name.
     Returns a list of candidates with ID, Name, and source.
     Searches database foods first, then falls back to estimated foods.
     Use this to find the correct food_id before calculating macros.
     """
-    user_id = get_user_id(config)
     async with get_async_db_session() as session:
         # First: search shared database foods (no user filter)
         stmt = (
@@ -83,10 +80,9 @@ async def create_food_item(
     carbs_per_100g: float,
     fat_per_100g: float,
     source: str = "estimated",
-    config: RunnableConfig = None,
+    user_id: str = "",
 ) -> dict:
     """Create a new FoodItem in the database. Returns the created item's id and name."""
-    user_id = get_user_id(config)
     async with get_async_db_session() as session:
         food_item = FoodItem(
             name=name,

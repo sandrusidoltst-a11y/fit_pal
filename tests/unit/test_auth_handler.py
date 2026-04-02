@@ -1,8 +1,8 @@
-"""Unit tests for the LangGraph custom auth handler and get_user_id priority logic.
+"""Unit tests for the LangGraph custom auth handler and ContextSchema defaults.
 
 Scope:
     Tests the authentication handler (JWT validation via Supabase HTTP endpoint)
-    and the updated get_user_id() function that checks langgraph_auth_user first.
+    and the ContextSchema default values used for LangGraph Studio fallback.
 
 LLM Usage:
     NONE — all external calls are mocked.
@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from langgraph_sdk import Auth
 
-from src.config import DEFAULT_DEV_USER_ID, get_user_id
+from src.context import ContextSchema, DEFAULT_DEV_USER_ID, DEFAULT_DEV_PROFILE
 from src.security.auth import get_current_user
 
 
@@ -109,64 +109,64 @@ class TestAuthenticateHandler:
         assert exc_info.value.status_code == 401
 
 
-class TestGetUserIdPriority:
-    """Tests for get_user_id() priority: auth_user > manual user_id > default."""
+class TestContextSchemaDefaults:
+    """Tests for ContextSchema default values (Studio fallback behavior)."""
 
-    def test_prefers_auth_user_over_manual(self):
+    def test_default_user_id(self):
         """
-        arrange: Config with both langgraph_auth_user and user_id keys.
-        act:     Call get_user_id.
-        assert:  Returns the auth_user identity, not user_id.
-        """
-        config = {
-            "configurable": {
-                "langgraph_auth_user": {"identity": "auth-user-uuid"},
-                "user_id": "manual-user-uuid",
-            }
-        }
-        assert get_user_id(config) == "auth-user-uuid"
-
-    def test_falls_back_to_manual_user_id(self):
-        """
-        arrange: Config with only user_id as valid UUID (no langgraph_auth_user).
-        act:     Call get_user_id.
-        assert:  Returns the user_id value.
-        """
-        valid_uuid = "11111111-1111-1111-1111-111111111111"
-        config = {"configurable": {"user_id": valid_uuid}}
-        assert get_user_id(config) == valid_uuid
-
-    def test_falls_back_to_default(self):
-        """
-        arrange: Config with empty configurable dict.
-        act:     Call get_user_id.
+        arrange: Create ContextSchema with no arguments.
+        act:     Access user_id.
         assert:  Returns DEFAULT_DEV_USER_ID.
         """
-        config = {"configurable": {}}
-        assert get_user_id(config) == DEFAULT_DEV_USER_ID
+        ctx = ContextSchema()
+        assert ctx.user_id == DEFAULT_DEV_USER_ID
 
-    def test_none_config_returns_default(self):
+    def test_default_user_profile(self):
         """
-        arrange: No config at all (None).
-        act:     Call get_user_id.
-        assert:  Returns DEFAULT_DEV_USER_ID.
+        arrange: Create ContextSchema with no arguments.
+        act:     Access user_profile.
+        assert:  Returns DEFAULT_DEV_PROFILE values.
         """
-        assert get_user_id(None) == DEFAULT_DEV_USER_ID
+        ctx = ContextSchema()
+        assert ctx.user_profile["name"] == DEFAULT_DEV_PROFILE["name"]
+        assert ctx.user_profile["age"] == DEFAULT_DEV_PROFILE["age"]
 
-    def test_non_uuid_user_id_falls_back_to_default(self):
+    def test_custom_user_id(self):
         """
-        arrange: Config with a non-UUID user_id (e.g. Studio-injected string).
-        act:     Call get_user_id.
-        assert:  Ignores the non-UUID value and returns DEFAULT_DEV_USER_ID.
+        arrange: Create ContextSchema with explicit user_id.
+        act:     Access user_id.
+        assert:  Returns the provided value.
         """
-        config = {"configurable": {"user_id": "studio-generated-string"}}
-        assert get_user_id(config) == DEFAULT_DEV_USER_ID
+        ctx = ContextSchema(user_id="11111111-1111-1111-1111-111111111111")
+        assert ctx.user_id == "11111111-1111-1111-1111-111111111111"
 
-    def test_empty_string_user_id_falls_back_to_default(self):
+    def test_custom_user_profile(self):
         """
-        arrange: Config with empty string user_id.
-        act:     Call get_user_id.
-        assert:  Returns DEFAULT_DEV_USER_ID.
+        arrange: Create ContextSchema with explicit user_profile.
+        act:     Access user_profile.
+        assert:  Returns the provided profile.
         """
-        config = {"configurable": {"user_id": ""}}
-        assert get_user_id(config) == DEFAULT_DEV_USER_ID
+        profile = {"name": "Dolev", "height_cm": 180, "age": 30, "gender": "male"}
+        ctx = ContextSchema(user_id="test-uuid", user_profile=profile)
+        assert ctx.user_profile["name"] == "Dolev"
+        assert ctx.user_profile["height_cm"] == 180
+
+    def test_invalid_uuid_falls_back_to_default(self):
+        """
+        arrange: Create ContextSchema with invalid UUID string.
+        act:     Access user_id.
+        assert:  Falls back to DEFAULT_DEV_USER_ID.
+        """
+        ctx = ContextSchema(user_id="not-a-valid-uuid")
+        assert ctx.user_id == DEFAULT_DEV_USER_ID
+
+    def test_default_profile_is_independent_copy(self):
+        """
+        arrange: Create two ContextSchema instances with defaults.
+        act:     Modify one's profile.
+        assert:  The other is unaffected (no shared mutable default).
+        """
+        ctx1 = ContextSchema()
+        ctx2 = ContextSchema()
+        ctx1.user_profile["name"] = "Modified"
+        assert ctx2.user_profile["name"] == DEFAULT_DEV_PROFILE["name"]

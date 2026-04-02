@@ -98,10 +98,10 @@ async def _call_langgraph(
     """Call LangGraph runs/wait endpoint and return the result."""
     body: dict = {
         "assistant_id": ASSISTANT_ID,
-        "config": {"configurable": {"user_id": user_id}},
+        "context": {"user_id": user_id},
     }
     if user_profile:
-        body["config"]["configurable"]["user_profile"] = user_profile
+        body["context"]["user_profile"] = user_profile
     if input is not None:
         body["input"] = input
     if command is not None:

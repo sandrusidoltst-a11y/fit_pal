@@ -1,13 +1,14 @@
 import structlog
-from langchain_core.runnables import RunnableConfig
+from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
+from src.context import ContextSchema
 from src.tools.food_lookup import search_food
 
 logger = structlog.get_logger(__name__)
 
 
-async def food_search_node(state: AgentState, config: RunnableConfig) -> dict:
+async def food_search_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """
     Search for food items based on pending_food_items.
 
@@ -25,6 +26,7 @@ async def food_search_node(state: AgentState, config: RunnableConfig) -> dict:
     food_name = first_item.get("food_name", "")
 
     # Call search_food tool (async)
-    results = await search_food.ainvoke({"query": food_name}, config=config)
+    user_id = runtime.context.user_id
+    results = await search_food.ainvoke({"query": food_name, "user_id": user_id})
 
     return {"search_results": results}

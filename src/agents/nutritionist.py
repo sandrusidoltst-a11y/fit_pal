@@ -10,12 +10,13 @@ from src.agents.nodes.selection_node import agent_selection_node
 from src.agents.nodes.personal_stats_node import personal_stats_node
 from src.agents.nodes.stats_node import stats_lookup_node
 from src.agents.state import AgentState, InputState, OutputState
+from src.context import ContextSchema
 
 
 async def define_graph(**kwargs):
     checkpointer = kwargs.get("checkpointer")
     # Initialize the graph with the AgentState
-    workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState)
+    workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState, context_schema=ContextSchema)
 
     def route_parser(state: AgentState):
         action = state.get("last_action")

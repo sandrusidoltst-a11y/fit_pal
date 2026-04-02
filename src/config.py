@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import os
-import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import structlog
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
-
-if TYPE_CHECKING:
-    from langchain_core.runnables import RunnableConfig
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,57 +15,6 @@ logger = structlog.get_logger(__name__)
 # Project Root (calculated relative to this file: src/config.py -> src -> root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
-DEFAULT_DEV_USER_ID = "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"
-DEFAULT_DEV_PROFILE = {
-    "name": "Dev User",
-    "height_cm": 175.0,
-    "age": 25,
-    "gender": "male",
-}
-
-
-def get_user_id(config: RunnableConfig | None) -> str:
-    """Extract user_id from LangGraph config, falling back to dev default.
-
-    Priority chain:
-    1. Production: auth handler populates langgraph_auth_user (Supabase UUID).
-    2. Dev/Studio: manual config["configurable"]["user_id"], validated as UUID.
-       Studio injects its own non-UUID user_id for Store namespacing — ignored.
-    3. Fallback: DEFAULT_DEV_USER_ID.
-    """
-    if config:
-        # Production path: auth handler sets this
-        auth_user = config["configurable"].get("langgraph_auth_user")
-        if auth_user:
-            return auth_user["identity"]
-        # Dev/Studio path: validate as UUID before accepting
-        user_id = config["configurable"].get("user_id", DEFAULT_DEV_USER_ID)
-        try:
-            uuid.UUID(user_id)
-            return user_id
-        except ValueError:
-            logger.warning("Non-UUID user_id in config (likely Studio-injected), falling back to default",
-                           received=user_id, fallback=DEFAULT_DEV_USER_ID)
-            return DEFAULT_DEV_USER_ID
-    logger.warning("No config provided, falling back to DEFAULT_DEV_USER_ID", user_id=DEFAULT_DEV_USER_ID)
-    return DEFAULT_DEV_USER_ID
-
-
-def get_user_profile(config: RunnableConfig | None) -> dict:
-    """Extract user_profile from config, falling back to dev default.
-
-    Priority chain:
-    1. Production: bot injects real profile from DB into config.
-    2. Dev/Studio: falls back to DEFAULT_DEV_PROFILE.
-
-    Always returns a profile dict so nodes never need None-checks.
-    """
-    if config:
-        profile = config["configurable"].get("user_profile")
-        if profile:
-            return profile
-    logger.warning("No user_profile in config, falling back to DEFAULT_DEV_PROFILE")
-    return DEFAULT_DEV_PROFILE
 
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")

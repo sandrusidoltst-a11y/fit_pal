@@ -10,12 +10,9 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 import structlog
-from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.config import get_user_id
 from src.database import get_async_db_session
 from src.models import PersonalStatsLog
 
@@ -131,7 +128,7 @@ def _serialize_stat(entry: PersonalStatsLog) -> dict:
 async def log_personal_stat(
     stat_type: str,
     value: float,
-    config: RunnableConfig = None,
+    user_id: str = "",
 ) -> dict:
     """Log a personal body measurement (weight or body fat).
 
@@ -139,7 +136,6 @@ async def log_personal_stat(
         stat_type: "weight" for body weight in kg, "body_fat" for body fat percentage.
         value: The numeric value of the measurement.
     """
-    user_id = get_user_id(config)
     weight_kg = value if stat_type == "weight" else None
     body_fat_pct = value if stat_type == "body_fat" else None
 
@@ -155,14 +151,13 @@ async def log_personal_stat(
 
 @tool
 async def get_latest_personal_stats(
-    config: RunnableConfig = None,
+    user_id: str = "",
 ) -> dict:
     """Get the most recent body measurements for the user.
 
     Returns the latest recorded weight and/or body fat percentage,
     or a message indicating no stats have been logged yet.
     """
-    user_id = get_user_id(config)
     async with get_async_db_session() as session:
         latest = await get_latest_stats(session, user_id)
         if latest is None:
@@ -175,7 +170,7 @@ async def get_latest_personal_stats(
 async def get_personal_stat_history(
     stat_type: str = "weight",
     limit: int = 30,
-    config: RunnableConfig = None,
+    user_id: str = "",
 ) -> list[dict]:
     """Get history of personal body measurements.
 
@@ -183,7 +178,6 @@ async def get_personal_stat_history(
         stat_type: "weight" or "body_fat".
         limit: Maximum number of entries to return.
     """
-    user_id = get_user_id(config)
     async with get_async_db_session() as session:
         history = await get_stat_history(session, user_id, stat_type, limit)
         logger.debug("Queried stat history", user_id=user_id, stat_type=stat_type, results=len(history))

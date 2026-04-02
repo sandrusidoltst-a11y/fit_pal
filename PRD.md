@@ -490,6 +490,7 @@ Developer pushes to main
 - **Health check after deploy** — verify services are responding after Railway redeploy
 
 ### Phase 4: Polish & Intelligence
+- ⏳ **Inject User Profile into Response Node** *(next up)*: The bot already injects `user_profile` into `RunnableConfig` on every call, but no graph node reads it. `response_node` should call `get_user_profile(config)` and include the user's name and profile data in the LLM system prompt context. This enables personalized responses ("Hey Dolev, here's your summary") and lets the agent answer questions like "what's my name?" or use height/age/gender for coaching. Profile stays in config (not state) — consistent with the existing `user_id` pattern, avoids checkpoint bloat, and always reflects the latest profile.
 - ✅ **LangSmith Tracing**: Enabled — all graph runs traced via `LANGCHAIN_TRACING_V2=true`.
 - ✅ **LangSmith Evaluations**: Single-step eval framework for graph nodes. Eval notebooks in `notebooks/evals/`, datasets in LangSmith UI, 5 evaluator types (deterministic, tolerance, date-aware, LLM-as-judge). Skills: `eval-setup` (create evals), `eval-debugger` (diagnose failures).
 - Upgrade to Semantic Search for food lookup.

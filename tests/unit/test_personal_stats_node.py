@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from langchain_core.messages import HumanMessage
 
 from src.agents.nodes.personal_stats_node import personal_stats_node
-from tests.conftest import TEST_CONFIG_A
+from tests.conftest import TEST_RUNTIME_A
 
 
 class TestPersonalStatsNodeWeight:
@@ -45,11 +45,10 @@ class TestPersonalStatsNodeWeight:
 
         basic_state["messages"] = [HumanMessage(content="I weigh 74kg")]
 
-        result = await personal_stats_node(basic_state, TEST_CONFIG_A)
+        result = await personal_stats_node(basic_state, TEST_RUNTIME_A)
 
         mock_log_personal_stat.ainvoke.assert_called_once_with(
-            {"stat_type": "weight", "value": 74.0},
-            config=TEST_CONFIG_A,
+            {"stat_type": "weight", "value": 74.0, "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
         assert result["last_action"] == "LOGGED"
         assert len(result["processing_results"]) == 1
@@ -84,11 +83,10 @@ class TestPersonalStatsNodeBodyFat:
 
         basic_state["messages"] = [HumanMessage(content="Body fat is 15%")]
 
-        result = await personal_stats_node(basic_state, TEST_CONFIG_A)
+        result = await personal_stats_node(basic_state, TEST_RUNTIME_A)
 
         mock_log_personal_stat.ainvoke.assert_called_once_with(
-            {"stat_type": "body_fat", "value": 15.0},
-            config=TEST_CONFIG_A,
+            {"stat_type": "body_fat", "value": 15.0, "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
         assert result["last_action"] == "LOGGED"
         assert len(result["processing_results"]) == 1
@@ -123,7 +121,7 @@ class TestPersonalStatsNodeAccumulation:
         basic_state["messages"] = [HumanMessage(content="I weigh 73kg")]
         basic_state["processing_results"] = [{"status": "LOGGED", "message": "existing"}]
 
-        result = await personal_stats_node(basic_state, TEST_CONFIG_A)
+        result = await personal_stats_node(basic_state, TEST_RUNTIME_A)
 
         assert len(result["processing_results"]) == 2
         assert result["processing_results"][0]["message"] == "existing"

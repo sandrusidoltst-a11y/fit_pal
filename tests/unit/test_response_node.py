@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents.nodes.response_node import _build_context, response_node
+from tests.conftest import TEST_RUNTIME_A
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +175,7 @@ class TestResponseNode:
         ]
         state = _make_state(last_action="LOGGED", processing_results=results)
 
-        output = response_node(state)
+        output = response_node(state, TEST_RUNTIME_A)
 
         # Verify output structure
         assert "messages" in output
@@ -215,7 +216,7 @@ class TestResponseNode:
             messages=[HumanMessage(content="What did I eat today?")],
         )
 
-        output = response_node(state)
+        output = response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
 
@@ -243,7 +244,7 @@ class TestResponseNode:
         ]
         state = _make_state(last_action="NO_MATCH", processing_results=results)
 
-        output = response_node(state)
+        output = response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
         call_args = mock_llm.invoke.call_args[0][0]
@@ -259,7 +260,7 @@ class TestResponseNode:
 
         state = _make_state(messages=[], last_action="CHITCHAT")
 
-        output = response_node(state)
+        output = response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
 
@@ -282,7 +283,7 @@ class TestResponseNode:
         ]
         state = _make_state(messages=history, last_action="LOGGED")
 
-        response_node(state)
+        response_node(state, TEST_RUNTIME_A)
 
         call_args = mock_llm.invoke.call_args[0][0]
         # SystemMessage + 3 history messages = 4
@@ -301,7 +302,7 @@ class TestResponseNode:
 
         state = _make_state(last_action="CHITCHAT")
 
-        output = response_node(state)
+        output = response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
         call_args = mock_llm.invoke.call_args[0][0]

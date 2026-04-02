@@ -4,9 +4,11 @@ from datetime import date, datetime
 
 import structlog
 from langchain_core.messages import SystemMessage
+from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
 from src.config import BASE_DIR, get_llm_for_node
+from src.context import ContextSchema
 
 logger = structlog.get_logger(__name__)
 
@@ -64,13 +66,14 @@ def _build_context(state: AgentState) -> str:
     return json.dumps(context, indent=2, default=_serialize_date)
 
 
-def response_node(state: AgentState) -> dict:
+def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """Generate a natural, LLM-powered response based on current state.
 
     1. Loads the system prompt from prompts/response_generator.md.
     2. Builds a selective JSON context from the state.
-    3. Prepends a SystemMessage (prompt + context) to the conversation history.
-    4. Invokes the LLM and returns the AIMessage for state update.
+    3. Reads user profile from runtime context.
+    4. Prepends a SystemMessage (prompt + profile + context) to the conversation history.
+    5. Invokes the LLM and returns the AIMessage for state update.
     """
     # Load system prompt (mirrors selection_node.py pattern)
     prompt_path = os.path.join(BASE_DIR, "prompts", "response_generator.md")
@@ -85,12 +88,24 @@ def response_node(state: AgentState) -> dict:
             "Respond based on the provided context."
         )
 
+    # Build user profile section from runtime context
+    from src.context import DEFAULT_DEV_PROFILE
+    context = runtime.context if runtime.context is not None else ContextSchema()
+    profile = context.user_profile if context.user_profile else DEFAULT_DEV_PROFILE
+    profile_section = (
+        f"\nUser Profile:\n"
+        f"- Name: {profile.get('name', 'Unknown')}\n"
+        f"- Age: {profile.get('age', 'Unknown')}\n"
+        f"- Gender: {profile.get('gender', 'Unknown')}\n"
+        f"- Height: {profile.get('height_cm', 'Unknown')}cm\n"
+    )
+
     # Build selective context JSON
     json_context = _build_context(state)
 
-    # Construct system message with prompt + context
+    # Construct system message with prompt + profile + context
     system_message = SystemMessage(
-        content=f"{system_prompt}\n\n---\nContext JSON:\n```json\n{json_context}\n```"
+        content=f"{system_prompt}\n{profile_section}\n---\nContext JSON:\n```json\n{json_context}\n```"
     )
 
     # Prepend system message to full conversation history
