@@ -105,7 +105,7 @@ class TestCalculateMacrosFeedback:
 class TestAgentSelectionFeedback:
     """Test feedback payload logic within Agent Selection behaviors."""
 
-    def test_selection_no_results_returns_no_match(self, basic_state):
+    async def test_selection_no_results_returns_no_match(self, basic_state):
         """
         arrange: stage no search results resolving.
         act:     run agent_selection_node.
@@ -116,12 +116,12 @@ class TestAgentSelectionFeedback:
             "pending_food_items": [{"food_name": "Test Apple", "amount": 1, "unit": "medium", "original_text": "one medium apple"}],
         })
 
-        result = agent_selection_node(basic_state)
+        result = await agent_selection_node(basic_state)
 
         assert result["last_action"] == "NO_MATCH"
         assert "processing_results" not in result
 
-    def test_selection_failure_llm_selected_no_id(self, basic_state):
+    async def test_selection_failure_llm_selected_no_id(self, basic_state):
         """
         arrange: stage mocked LLM to return SELECTED but no food_id.
         act:     run agent_selection_node.
@@ -141,13 +141,13 @@ class TestAgentSelectionFeedback:
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
 
-            mock_structured.invoke.return_value = FoodSelectionResult(
+            mock_structured.ainvoke = AsyncMock(return_value=FoodSelectionResult(
                 food_id=None,
                 status=SelectionStatus.SELECTED,
                 reasoning="Error"
-            )
+            ))
 
-            result = agent_selection_node(basic_state)
+            result = await agent_selection_node(basic_state)
 
             assert result["last_action"] == "NO_MATCH"
             assert "processing_results" not in result

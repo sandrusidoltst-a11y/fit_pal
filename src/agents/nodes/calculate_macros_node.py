@@ -12,6 +12,17 @@ from src.tools.food_lookup import calculate_food_macros
 
 logger = structlog.get_logger(__name__)
 
+# Load estimation prompt once at import time — no file I/O during graph execution
+_ESTIMATION_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "macro_estimation.md")
+try:
+    with open(_ESTIMATION_PROMPT_PATH, "r", encoding="utf-8") as _f:
+        _ESTIMATION_PROMPT = _f.read()
+except FileNotFoundError:
+    logger.warning("Estimation prompt file not found, using fallback")
+    _ESTIMATION_PROMPT = (
+        "Estimate nutritional values for the given food item and amount."
+    )
+
 
 async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """Calculate macros for the current food item (preview only, no DB write).
@@ -91,21 +102,11 @@ async def _estimate_macros(
     food_name: str, amount_g: float, original_text: str
 ) -> MacroResult:
     """Use LLM to estimate macros for an off-menu food item."""
-    prompt_path = os.path.join(BASE_DIR, "prompts", "macro_estimation.md")
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        logger.warning("Estimation prompt file not found, using fallback")
-        system_prompt = (
-            "Estimate nutritional values for the given food item and amount."
-        )
-
     llm = get_llm_for_node("estimation_node")
     structured_llm = llm.with_structured_output(MacroEstimation)
 
     messages = [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=_ESTIMATION_PROMPT),
         HumanMessage(content=f"Estimate macros for: {food_name}, amount: {amount_g}g"),
     ]
 

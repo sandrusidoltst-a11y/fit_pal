@@ -18,6 +18,15 @@ from src.services.personal_stats_service import log_personal_stat
 
 logger = structlog.get_logger(__name__)
 
+# Load prompt once at import time — no file I/O during graph execution
+_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "personal_stats_extractor.md")
+try:
+    with open(_PROMPT_PATH, "r", encoding="utf-8") as _f:
+        _SYSTEM_PROMPT = _f.read()
+except FileNotFoundError:
+    logger.warning("Personal stats prompt not found, using fallback", path=_PROMPT_PATH)
+    _SYSTEM_PROMPT = "Extract the body measurement type and value from the user message."
+
 
 async def personal_stats_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """Extract a body measurement from the user message and log it.
@@ -30,20 +39,11 @@ async def personal_stats_node(state: AgentState, runtime: Runtime[ContextSchema]
     messages = state.get("messages", [])
     last_message = messages[-1]
 
-    # Load prompt
-    prompt_path = os.path.join(BASE_DIR, "prompts", "personal_stats_extractor.md")
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        logger.warning("Personal stats prompt not found, using fallback", path=prompt_path)
-        system_prompt = "Extract the body measurement type and value from the user message."
-
     # Extract stat via LLM
     llm = get_llm_for_node("personal_stats_node")
     structured_llm = llm.with_structured_output(PersonalStatExtraction)
     result = await structured_llm.ainvoke([
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=_SYSTEM_PROMPT),
         last_message,
     ])
 

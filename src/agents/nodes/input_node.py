@@ -10,30 +10,29 @@ from src.schemas.input_schema import FoodIntakeEvent
 
 logger = structlog.get_logger(__name__)
 
-def input_parser_node(state: AgentState):
+# Load prompt once at import time — no file I/O during graph execution
+_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "input_parser.md")
+try:
+    with open(_PROMPT_PATH, "r", encoding="utf-8") as _f:
+        _SYSTEM_PROMPT = _f.read()
+except FileNotFoundError:
+    logger.warning("Prompt file not found, using fallback", path=_PROMPT_PATH)
+    _SYSTEM_PROMPT = "You are a helpful nutrition assistant. Parse food intake."
+
+
+async def input_parser_node(state: AgentState):
     """
     Node to parse user input into structured food intake data.
     """
-    # Load system prompt
-    prompt_path = os.path.join(BASE_DIR, "prompts", "input_parser.md")
-    
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        # Fallback or error logging
-        logger.warning("Prompt file not found, using fallback", path=prompt_path)
-        system_prompt = "You are a helpful nutrition assistant. Parse food intake."
-
     llm = get_llm_for_node("input_node")
     structured_llm = llm.with_structured_output(FoodIntakeEvent)
 
     # Get the last message from the user
     last_message = state["messages"][-1]
-    
-    # Prepend the system time to the system prompt
+
+    # Prepend the system time to the prompt
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    system_prompt_with_time = f"The current system time is: {now_str}\n\n{system_prompt}"
+    system_prompt_with_time = f"The current system time is: {now_str}\n\n{_SYSTEM_PROMPT}"
 
     # Construct prompt
     messages = [
@@ -42,7 +41,7 @@ def input_parser_node(state: AgentState):
     ]
 
     # Invoke LLM
-    result = structured_llm.invoke(messages)
+    result = await structured_llm.ainvoke(messages)
 
     logger.info("Input parsed", action=result.action.value, items=len(result.items))
 

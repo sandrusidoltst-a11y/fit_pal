@@ -9,8 +9,17 @@ from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
 
 logger = structlog.get_logger(__name__)
 
+# Load prompt once at import time — no file I/O during graph execution
+_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "agent_selection.md")
+try:
+    with open(_PROMPT_PATH, "r", encoding="utf-8") as _f:
+        _SYSTEM_PROMPT = _f.read()
+except FileNotFoundError:
+    logger.warning("Prompt file not found, using fallback", path=_PROMPT_PATH)
+    _SYSTEM_PROMPT = "Select the most appropriate food item from the search results."
 
-def agent_selection_node(state: AgentState) -> dict:
+
+async def agent_selection_node(state: AgentState) -> dict:
     """
     Intelligently select the best food item from search results.
 
@@ -37,15 +46,6 @@ def agent_selection_node(state: AgentState) -> dict:
         }
 
     # Multiple results - use LLM selection
-    prompt_path = os.path.join(BASE_DIR, "prompts", "agent_selection.md")
-
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        logger.warning("Prompt file not found, using fallback", path=prompt_path)
-        system_prompt = "Select the most appropriate food item from the search results."
-
     llm = get_llm_for_node("selection_node")
     structured_llm = llm.with_structured_output(FoodSelectionResult)
 
@@ -56,11 +56,11 @@ def agent_selection_node(state: AgentState) -> dict:
     )
 
     messages = [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=_SYSTEM_PROMPT),
         HumanMessage(content=f"{user_context}\n\n{search_context}"),
     ]
 
-    result = structured_llm.invoke(messages)
+    result = await structured_llm.ainvoke(messages)
 
     # Validate LLM response consistency
     if result.status == SelectionStatus.SELECTED and result.food_id is None:

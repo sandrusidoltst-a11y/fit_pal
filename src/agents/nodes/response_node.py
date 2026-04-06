@@ -12,6 +12,18 @@ from src.context import ContextSchema
 
 logger = structlog.get_logger(__name__)
 
+# Load prompt once at import time — no file I/O during graph execution
+_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "response_generator.md")
+try:
+    with open(_PROMPT_PATH, "r", encoding="utf-8") as _f:
+        _SYSTEM_PROMPT = _f.read()
+except FileNotFoundError:
+    logger.warning("Response prompt file not found, using fallback", path=_PROMPT_PATH)
+    _SYSTEM_PROMPT = (
+        "You are FitPal, a helpful fitness and nutrition coach. "
+        "Respond based on the provided context."
+    )
+
 
 def _serialize_date(obj):
     """JSON serializer for date/datetime objects."""
@@ -66,28 +78,15 @@ def _build_context(state: AgentState) -> str:
     return json.dumps(context, indent=2, default=_serialize_date)
 
 
-def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
+async def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
     """Generate a natural, LLM-powered response based on current state.
 
-    1. Loads the system prompt from prompts/response_generator.md.
+    1. Uses the module-level system prompt from prompts/response_generator.md.
     2. Builds a selective JSON context from the state.
     3. Reads user profile from runtime context.
     4. Prepends a SystemMessage (prompt + profile + context) to the conversation history.
     5. Invokes the LLM and returns the AIMessage for state update.
     """
-    # Load system prompt (mirrors selection_node.py pattern)
-    prompt_path = os.path.join(BASE_DIR, "prompts", "response_generator.md")
-
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        logger.warning("Response prompt file not found, using fallback", path=prompt_path)
-        system_prompt = (
-            "You are FitPal, a helpful fitness and nutrition coach. "
-            "Respond based on the provided context."
-        )
-
     # Build user profile section from runtime context
     from src.context import DEFAULT_DEV_PROFILE
     context = runtime.context if runtime.context is not None else ContextSchema()
@@ -105,7 +104,7 @@ def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
 
     # Construct system message with prompt + profile + context
     system_message = SystemMessage(
-        content=f"{system_prompt}\n{profile_section}\n---\nContext JSON:\n```json\n{json_context}\n```"
+        content=f"{_SYSTEM_PROMPT}\n{profile_section}\n---\nContext JSON:\n```json\n{json_context}\n```"
     )
 
     # Prepend system message to full conversation history
@@ -114,6 +113,6 @@ def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dict:
 
     # Invoke LLM
     llm = get_llm_for_node("response_node")
-    result = llm.invoke(full_messages)
+    result = await llm.ainvoke(full_messages)
 
     return {"messages": [result]}

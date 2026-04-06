@@ -14,6 +14,17 @@ from src.tools.food_lookup import calculate_food_macros
 
 logger = structlog.get_logger(__name__)
 
+# Load confirmation prompt template once at import time — no file I/O during graph execution
+_CONFIRMATION_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "confirmation_parser.md")
+try:
+    with open(_CONFIRMATION_PROMPT_PATH, "r", encoding="utf-8") as _f:
+        _CONFIRMATION_PROMPT = _f.read()
+except FileNotFoundError:
+    logger.warning("Confirmation prompt file not found, using fallback")
+    _CONFIRMATION_PROMPT = (
+        "Parse the user's response to a food logging confirmation prompt."
+    )
+
 
 def _format_batch_preview(items: list[MacroResult]) -> dict:
     """Build human-readable batch preview payload for interrupt."""
@@ -120,22 +131,12 @@ async def _parse_confirmation(
     user_text: str, batch: list[MacroResult]
 ) -> ConfirmationResponse:
     """Use LLM to parse user's natural language confirmation response."""
-    prompt_path = os.path.join(BASE_DIR, "prompts", "confirmation_parser.md")
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except FileNotFoundError:
-        logger.warning("Confirmation prompt file not found, using fallback")
-        system_prompt = (
-            "Parse the user's response to a food logging confirmation prompt."
-        )
-
-    # Build batch context for the prompt
+    # Build batch context and inject into prompt template
     batch_context = "\n".join(
         f"[{i}] {item['food_name']} — {item['amount_g']}g ({item['source']})"
         for i, item in enumerate(batch)
     )
-    system_prompt = system_prompt.replace("{batch_context}", batch_context)
+    system_prompt = _CONFIRMATION_PROMPT.replace("{batch_context}", batch_context)
 
     llm = get_llm_for_node("confirmation_node")
     structured_llm = llm.with_structured_output(ConfirmationResponse)
