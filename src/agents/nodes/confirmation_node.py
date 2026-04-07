@@ -10,7 +10,7 @@ from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
 from src.context import ContextSchema
 from src.schemas.confirmation_schema import ConfirmationResponse
-from src.tools.food_lookup import calculate_food_macros
+from src.services.food_service import calculate_food_macros
 
 logger = structlog.get_logger(__name__)
 

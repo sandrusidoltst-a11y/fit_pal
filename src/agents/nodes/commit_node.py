@@ -6,7 +6,7 @@ from langgraph.runtime import Runtime
 from src.agents.state import AgentState
 from src.context import ContextSchema
 from src.services.daily_log_service import log_food_entry, query_food_logs
-from src.tools.food_lookup import create_food_item
+from src.services.food_service import create_food_item
 
 logger = structlog.get_logger(__name__)
 

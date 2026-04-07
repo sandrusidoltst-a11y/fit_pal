@@ -3,7 +3,7 @@ from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
 from src.context import ContextSchema
-from src.tools.food_lookup import search_food
+from src.services.food_service import search_food
 
 logger = structlog.get_logger(__name__)
 

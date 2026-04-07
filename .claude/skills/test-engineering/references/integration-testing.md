@@ -101,7 +101,7 @@ def _patch_session(session):
     async def _fake_session():
         yield session
 
-    return patch("src.tools.food_lookup.get_async_db_session", _fake_session)
+    return patch("src.services.food_service.get_async_db_session", _fake_session)
 
 
 async def test_search_food(async_test_db_session):

@@ -1,12 +1,12 @@
 """
-Unit tests for food_lookup tools — user_id scoping and data isolation.
+Integration tests for food_service tools — user_id scoping and data isolation.
 
 Scope:
-    Tests against in-memory SQLite with real DB operations.
+    Tests against the test Postgres DB with real DB operations.
     Patches get_async_db_session to use the test session.
 
 LLM Usage:
-    NONE — food_lookup tools do not call LLMs.
+    NONE — food_service tools do not call LLMs.
 """
 import uuid as uuid_mod
 from contextlib import asynccontextmanager
@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from tests.conftest import TEST_USER_A, TEST_USER_B
 from src.models import FoodItem
-from src.tools.food_lookup import create_food_item, search_food
+from src.services.food_service import create_food_item, search_food
 
 
 def _patch_session(session):
@@ -23,7 +23,7 @@ def _patch_session(session):
     async def _fake_session():
         yield session
 
-    return patch("src.tools.food_lookup.get_async_db_session", _fake_session)
+    return patch("src.services.food_service.get_async_db_session", _fake_session)
 
 
 class TestSearchFoodSharedAccess:

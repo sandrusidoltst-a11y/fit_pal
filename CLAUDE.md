@@ -56,13 +56,12 @@ fit_pal/
 │   │       └── response_node.py   # LLM response generator
 │   ├── services/
 │   │   ├── daily_log_service.py   # CRUD for daily logs + @tool wrappers (log_food_entry, query_food_logs)
-│   │   ├── user_profile_service.py # User profile CRUD (onboarding data)
-│   │   └── personal_stats_service.py # Personal stats CRUD + @tool wrappers (log_personal_stat, get_latest_personal_stats)
+│   │   ├── food_service.py        # FoodItem CRUD + @tool wrappers (search_food, calculate_food_macros, create_food_item) + compute_food_macros helper
+│   │   ├── personal_stats_service.py # Personal stats CRUD + @tool wrappers (log_personal_stat, get_latest_personal_stats)
+│   │   └── user_profile_service.py # User profile CRUD (onboarding data)
 │   ├── scripts/
 │   │   ├── ingest_simple_db.py    # ETL script (CSV -> Supabase Postgres)
 │   │   └── print_trace.py         # LangSmith thread trace viewer (by thread_id)
-│   ├── tools/
-│   │   └── food_lookup.py         # Async @tool: search_food, calculate_food_macros, create_food_item + compute_food_macros helper
 │   ├── schemas/
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
