@@ -7,14 +7,16 @@ from src.agents.nodes.food_search_node import food_search_node
 from src.agents.nodes.input_node import input_parser_node
 from src.agents.nodes.response_node import response_node
 from src.agents.nodes.selection_node import agent_selection_node
+from src.agents.nodes.personal_stats_node import personal_stats_node
 from src.agents.nodes.stats_node import stats_lookup_node
 from src.agents.state import AgentState, InputState, OutputState
+from src.context import ContextSchema
 
 
 async def define_graph(**kwargs):
     checkpointer = kwargs.get("checkpointer")
     # Initialize the graph with the AgentState
-    workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState)
+    workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState, context_schema=ContextSchema)
 
     def route_parser(state: AgentState):
         action = state.get("last_action")
@@ -22,6 +24,8 @@ async def define_graph(**kwargs):
             return "food_search"
         elif action == "QUERY_DAILY_STATS":
             return "stats_lookup"
+        elif action == "LOG_PERSONAL_STATS":
+            return "personal_stats"
         return "response"
 
     def route_after_selection(state: AgentState):
@@ -43,6 +47,7 @@ async def define_graph(**kwargs):
     workflow.add_node("calculate_macros", calculate_macros_node)
     workflow.add_node("confirmation", confirmation_node)
     workflow.add_node("commit", commit_node)
+    workflow.add_node("personal_stats", personal_stats_node)
     workflow.add_node("stats_lookup", stats_lookup_node)
     workflow.add_node("response", response_node)
 
@@ -54,6 +59,7 @@ async def define_graph(**kwargs):
         {
             "food_search": "food_search",
             "stats_lookup": "stats_lookup",
+            "personal_stats": "personal_stats",
             "response": "response",
         },
     )
@@ -82,6 +88,7 @@ async def define_graph(**kwargs):
     # commit → response (always)
     workflow.add_edge("commit", "response")
 
+    workflow.add_edge("personal_stats", "response")
     workflow.add_edge("stats_lookup", "response")
     workflow.add_edge("response", END)
 

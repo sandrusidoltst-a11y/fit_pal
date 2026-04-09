@@ -8,7 +8,7 @@ Scope:
 LLM Usage:
     MOCKED — no external integrations occur inside unit testing scopes.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
@@ -28,7 +28,7 @@ class TestFullFlowIntegration:
         """
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Logged Apple Success")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
 
         # Patch dependencies inside nutritionist.py context
         with patch("src.agents.nutritionist.input_parser_node") as mock_input, \
@@ -132,6 +132,6 @@ class TestFullFlowIntegration:
             assert content == "Logged Apple Success"
 
             # Verify the LLM was called with context containing processing_results
-            call_args = mock_llm.invoke.call_args[0][0]
+            call_args = mock_llm.ainvoke.call_args[0][0]
             system_content = call_args[0].content
             assert "processing_results" in system_content

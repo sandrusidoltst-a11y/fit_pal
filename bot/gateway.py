@@ -1,23 +1,33 @@
 """Telegram bot gateway for FitPal.
 
-Connects Telegram users to the LangGraph FitPal agent via webhook.
+Connects Telegram users to the LangGraph FitPal agent via webhook (production)
+or polling (local development). Set POLLING_MODE=true for local dev.
+
 Handles passphrase-based access control, auto-registration via Supabase,
-message relay, and HITL interrupt/resume flow.
+onboarding profile collection, message relay, and HITL interrupt/resume flow.
 """
 
+import asyncio
 import hmac
 import os
 from datetime import datetime, timedelta, timezone
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 import httpx
 import structlog
-from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
+from dotenv import load_dotenv
 
-from bot.supabase_admin import get_or_create_user
+# Load .env before any imports that read env vars at module level (e.g. supabase_admin)
+load_dotenv()
+
+from aiogram import Bot, Dispatcher, Router  # noqa: E402
+from aiogram.types import Message  # noqa: E402
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application  # noqa: E402
+from aiohttp import web  # noqa: E402
+
+from bot.supabase_admin import get_or_create_user  # noqa: E402
+from src.database import get_async_db_session  # noqa: E402
+from src.services.user_profile_service import create_user_profile, get_user_profile  # noqa: E402
 
 logger = structlog.get_logger(__name__)
 
@@ -28,9 +38,18 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 BOT_PASSPHRASE = os.environ.get("BOT_PASSPHRASE", "")
 LANGGRAPH_API_URL = os.environ.get("LANGGRAPH_API_URL", "http://localhost:2024")
 INTERNAL_API_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
+POLLING_MODE = os.environ.get("POLLING_MODE", "").lower() in ("true", "1", "yes")
 
 ASSISTANT_ID = "fitpal"
 SESSION_TIMEOUT = timedelta(minutes=30)
+
+ONBOARDING_QUESTIONS = {
+    "name": "What's your name?",
+    "height": "What's your height in cm?",
+    "age": "How old are you?",
+    "gender": "What's your gender? (male/female/other)",
+}
+ONBOARDING_ORDER = ["name", "height", "age", "gender"]
 
 
 class SessionData(TypedDict):
@@ -40,6 +59,9 @@ class SessionData(TypedDict):
     thread_id: str
     last_activity: datetime
     interrupted: bool
+    onboarding_step: Optional[str]
+    onboarding_data: dict
+    user_profile: Optional[dict]
 
 
 # In-memory session store: chat_id -> session dict
@@ -71,12 +93,15 @@ async def _call_langgraph(
     *,
     input: dict | None = None,
     command: dict | None = None,
+    user_profile: dict | None = None,
 ) -> dict:
     """Call LangGraph runs/wait endpoint and return the result."""
     body: dict = {
         "assistant_id": ASSISTANT_ID,
-        "config": {"configurable": {"user_id": user_id}},
+        "context": {"user_id": user_id},
     }
+    if user_profile:
+        body["context"]["user_profile"] = user_profile
     if input is not None:
         body["input"] = input
     if command is not None:
@@ -161,8 +186,84 @@ def _format_interrupt_value(value: dict) -> str:
     return "\n".join(lines)
 
 
+async def _save_user_profile(user_id: str, data: dict) -> None:
+    """Save onboarding data to user_profiles table."""
+    async with get_async_db_session() as session:
+        await create_user_profile(
+            session=session,
+            user_id=user_id,
+            name=data["name"],
+            height_cm=data["height_cm"],
+            age=data["age"],
+            gender=data["gender"],
+        )
+
+
+async def _load_user_profile(user_id: str) -> dict | None:
+    """Load user profile from DB for config injection."""
+    async with get_async_db_session() as session:
+        return await get_user_profile(session, user_id)
+
+
+async def _handle_onboarding(message: Message, session: dict) -> bool:
+    """Process onboarding step. Returns True if still onboarding."""
+    step = session.get("onboarding_step")
+    if step is None:
+        return False
+
+    text = message.text.strip()
+
+    if step == "name":
+        session["onboarding_data"]["name"] = text
+    elif step == "height":
+        try:
+            session["onboarding_data"]["height_cm"] = float(text)
+        except ValueError:
+            await message.answer("Please enter a number for height (cm).")
+            return True
+    elif step == "age":
+        try:
+            session["onboarding_data"]["age"] = int(text)
+        except ValueError:
+            await message.answer("Please enter a number for age.")
+            return True
+    elif step == "gender":
+        if text.lower() not in ("male", "female", "other"):
+            await message.answer("Please enter male, female, or other.")
+            return True
+        session["onboarding_data"]["gender"] = text.lower()
+
+    # Advance to next step
+    current_idx = ONBOARDING_ORDER.index(step)
+    if current_idx + 1 < len(ONBOARDING_ORDER):
+        next_step = ONBOARDING_ORDER[current_idx + 1]
+        session["onboarding_step"] = next_step
+        await message.answer(ONBOARDING_QUESTIONS[next_step])
+        return True
+
+    # Onboarding complete — save profile to DB
+    session["onboarding_step"] = None
+    await _save_user_profile(session["user_id"], session["onboarding_data"])
+    name = session["onboarding_data"]["name"]
+    # Cache profile on session for config injection
+    session["user_profile"] = {
+        "name": name,
+        "height_cm": session["onboarding_data"]["height_cm"],
+        "age": session["onboarding_data"]["age"],
+        "gender": session["onboarding_data"]["gender"],
+    }
+    await message.answer(
+        f"Great, {name}! Your profile is set up. You can start logging food now."
+    )
+    return True
+
+
 async def _handle_authenticated_message(message: Message, session: dict) -> None:
     """Process a message from an authenticated user."""
+    # Handle onboarding first
+    if await _handle_onboarding(message, session):
+        return
+
     chat_id = message.chat.id
     now = datetime.now(timezone.utc)
 
@@ -184,19 +285,26 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
     user_id = session["user_id"]
     thread_id = session["thread_id"]
 
+    # Load profile if not cached
+    if "user_profile" not in session or session["user_profile"] is None:
+        session["user_profile"] = await _load_user_profile(user_id)
+
     logger.info("User message", chat_id=chat_id, text=message.text)
 
     try:
         # Decide whether to resume or send new input
         if session.get("interrupted"):
             result = await _call_langgraph(
-                thread_id, user_id, command={"resume": message.text}
+                thread_id, user_id,
+                command={"resume": message.text},
+                user_profile=session.get("user_profile"),
             )
         else:
             result = await _call_langgraph(
                 thread_id,
                 user_id,
                 input={"messages": [{"role": "human", "content": message.text}]},
+                user_profile=session.get("user_profile"),
             )
 
         # Check if the graph is now interrupted (HITL)
@@ -250,16 +358,26 @@ async def handle_message(message: Message) -> None:
             try:
                 result = await get_or_create_user(chat_id)
                 thread_id = await _create_thread()
+                is_new = result.get("is_new", False)
                 user_sessions[chat_id] = {
                     "user_id": result["user_id"],
                     "thread_id": thread_id,
                     "last_activity": datetime.now(timezone.utc),
                     "interrupted": False,
+                    "onboarding_step": "name" if is_new else None,
+                    "onboarding_data": {},
+                    "user_profile": None,
                 }
-                logger.info("User registered for chat_id=%s, is_new=%s", chat_id, result.get("is_new"))
-                await message.answer(
-                    "Welcome to FitPal! You can start logging food now."
-                )
+                logger.info("User registered for chat_id=%s, is_new=%s", chat_id, is_new)
+                if is_new:
+                    await message.answer(
+                        "Welcome to FitPal! Let's set up your profile."
+                    )
+                    await message.answer(ONBOARDING_QUESTIONS["name"])
+                else:
+                    await message.answer(
+                        "Welcome back to FitPal! You can start logging food now."
+                    )
             except Exception:
                 logger.exception("Registration failed for chat_id=%s", chat_id)
                 await message.answer(
@@ -281,8 +399,25 @@ async def on_startup(bot: Bot) -> None:
     )
 
 
-def main():
-    """Entry point for the Telegram bot gateway."""
+async def _run_polling():
+    """Run bot in polling mode for local development."""
+    logger.info("Starting bot in POLLING mode (local dev)")
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Webhook deleted, starting polling")
+
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+
+def _run_webhook():
+    """Run bot in webhook mode for production."""
+    logger.info("Starting bot in WEBHOOK mode (production)")
     dp = Dispatcher()
     dp.include_router(router)
     dp.startup.register(on_startup)
@@ -298,6 +433,14 @@ def main():
 
     port = int(os.environ.get("BOT_PORT", "8080"))
     web.run_app(app, host="0.0.0.0", port=port)
+
+
+def main():
+    """Entry point for the Telegram bot gateway."""
+    if POLLING_MODE:
+        asyncio.run(_run_polling())
+    else:
+        _run_webhook()
 
 
 if __name__ == "__main__":

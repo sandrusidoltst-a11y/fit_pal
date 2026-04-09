@@ -9,21 +9,33 @@ sys.path.append(os.getcwd())
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
-from langchain_core.runnables import RunnableConfig
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.config import DATABASE_URL
+from src.context import ContextSchema, DEFAULT_DEV_PROFILE
 from src.models import FoodItem
 
 load_dotenv()
 
-TEST_USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-TEST_USER_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-TEST_CONFIG_A: RunnableConfig = {"configurable": {"user_id": TEST_USER_A}}
-TEST_CONFIG_B: RunnableConfig = {"configurable": {"user_id": TEST_USER_B}}
+TEST_USER_A = "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"  # dev@dev.fitpal.bot (auth.users)
+TEST_USER_B = "72c10336-9d61-4357-9851-20cbb4d32b1a"  # e2e@test.fitpal.bot (auth.users)
+
+
+def _make_mock_runtime(user_id: str, user_profile: dict | None = None) -> MagicMock:
+    """Create a mock Runtime[ContextSchema] for unit tests."""
+    runtime = MagicMock()
+    runtime.context = ContextSchema(
+        user_id=user_id,
+        user_profile=user_profile or DEFAULT_DEV_PROFILE.copy(),
+    )
+    return runtime
+
+
+TEST_RUNTIME_A = _make_mock_runtime(TEST_USER_A)
+TEST_RUNTIME_B = _make_mock_runtime(TEST_USER_B)
 
 SEED_FOOD_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -148,5 +160,13 @@ def mock_create_food_item():
 def mock_query_food_logs_for_stats():
     """Mock query_food_logs tool on stats_node."""
     with patch("src.agents.nodes.stats_node.query_food_logs") as mock:
+        mock.ainvoke = AsyncMock()
+        yield mock
+
+
+@pytest.fixture
+def mock_log_personal_stat():
+    """Mock log_personal_stat tool on personal_stats_node."""
+    with patch("src.agents.nodes.personal_stats_node.log_personal_stat") as mock:
         mock.ainvoke = AsyncMock()
         yield mock

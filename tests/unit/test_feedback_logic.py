@@ -9,7 +9,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.conftest import TEST_CONFIG_A
+from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.calculate_macros_node import calculate_macros_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.schemas.selection_schema import FoodSelectionResult, SelectionStatus
@@ -45,7 +45,7 @@ class TestCalculateMacrosFeedback:
             "fat": 0.3,
         })
 
-        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
+        result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
 
         assert "pending_confirmations" in result
         assert len(result["pending_confirmations"]) == 1
@@ -95,7 +95,7 @@ class TestCalculateMacrosFeedback:
             "fat": 0,
         })
 
-        result = await calculate_macros_node(basic_state, TEST_CONFIG_A)
+        result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
 
         assert len(result["pending_confirmations"]) == 2
         assert result["pending_confirmations"][0] == existing
@@ -105,7 +105,7 @@ class TestCalculateMacrosFeedback:
 class TestAgentSelectionFeedback:
     """Test feedback payload logic within Agent Selection behaviors."""
 
-    def test_selection_no_results_returns_no_match(self, basic_state):
+    async def test_selection_no_results_returns_no_match(self, basic_state):
         """
         arrange: stage no search results resolving.
         act:     run agent_selection_node.
@@ -116,12 +116,12 @@ class TestAgentSelectionFeedback:
             "pending_food_items": [{"food_name": "Test Apple", "amount": 1, "unit": "medium", "original_text": "one medium apple"}],
         })
 
-        result = agent_selection_node(basic_state)
+        result = await agent_selection_node(basic_state)
 
         assert result["last_action"] == "NO_MATCH"
         assert "processing_results" not in result
 
-    def test_selection_failure_llm_selected_no_id(self, basic_state):
+    async def test_selection_failure_llm_selected_no_id(self, basic_state):
         """
         arrange: stage mocked LLM to return SELECTED but no food_id.
         act:     run agent_selection_node.
@@ -141,13 +141,13 @@ class TestAgentSelectionFeedback:
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
 
-            mock_structured.invoke.return_value = FoodSelectionResult(
+            mock_structured.ainvoke = AsyncMock(return_value=FoodSelectionResult(
                 food_id=None,
                 status=SelectionStatus.SELECTED,
                 reasoning="Error"
-            )
+            ))
 
-            result = agent_selection_node(basic_state)
+            result = await agent_selection_node(basic_state)
 
             assert result["last_action"] == "NO_MATCH"
             assert "processing_results" not in result

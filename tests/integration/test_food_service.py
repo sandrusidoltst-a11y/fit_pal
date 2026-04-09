@@ -1,20 +1,20 @@
 """
-Unit tests for food_lookup tools — user_id scoping and data isolation.
+Integration tests for food_service tools — user_id scoping and data isolation.
 
 Scope:
-    Tests against in-memory SQLite with real DB operations.
+    Tests against the test Postgres DB with real DB operations.
     Patches get_async_db_session to use the test session.
 
 LLM Usage:
-    NONE — food_lookup tools do not call LLMs.
+    NONE — food_service tools do not call LLMs.
 """
 import uuid as uuid_mod
 from contextlib import asynccontextmanager
 from unittest.mock import patch
 
-from tests.conftest import TEST_CONFIG_A, TEST_CONFIG_B, TEST_USER_A
+from tests.conftest import TEST_USER_A, TEST_USER_B
 from src.models import FoodItem
-from src.tools.food_lookup import create_food_item, search_food
+from src.services.food_service import create_food_item, search_food
 
 
 def _patch_session(session):
@@ -23,7 +23,7 @@ def _patch_session(session):
     async def _fake_session():
         yield session
 
-    return patch("src.tools.food_lookup.get_async_db_session", _fake_session)
+    return patch("src.services.food_service.get_async_db_session", _fake_session)
 
 
 class TestSearchFoodSharedAccess:
@@ -32,12 +32,12 @@ class TestSearchFoodSharedAccess:
     async def test_shared_db_food_visible_to_all_users(self, async_test_db_session):
         """
         arrange: Seed a source="database" food with user_id=None (already seeded in conftest).
-        act:     search_food with user_a config, then user_b config.
+        act:     search_food with user_a, then user_b.
         assert:  Both users find the same shared food.
         """
         with _patch_session(async_test_db_session):
-            results_a = await search_food.ainvoke({"query": "Chicken"}, config=TEST_CONFIG_A)
-            results_b = await search_food.ainvoke({"query": "Chicken"}, config=TEST_CONFIG_B)
+            results_a = await search_food.ainvoke({"query": "Chicken", "user_id": TEST_USER_A})
+            results_b = await search_food.ainvoke({"query": "Chicken", "user_id": TEST_USER_B})
 
         assert len(results_a) >= 1
         assert len(results_b) >= 1
@@ -51,10 +51,9 @@ class TestSearchFoodEstimatedIsolation:
     async def test_estimated_food_scoped_to_owner(self, async_test_db_session):
         """
         arrange: Create source="estimated" food with user_id=user_a.
-        act:     search_food with user_b config.
+        act:     search_food with user_b.
         assert:  User B does NOT find user A's estimated food.
         """
-        # Create an estimated food for user A
         estimated = FoodItem(
             name="User A Special Smoothie",
             calories=150.0, protein=10.0, fat=5.0, carbs=20.0,
@@ -65,14 +64,14 @@ class TestSearchFoodEstimatedIsolation:
         await async_test_db_session.commit()
 
         with _patch_session(async_test_db_session):
-            results_b = await search_food.ainvoke({"query": "Smoothie"}, config=TEST_CONFIG_B)
+            results_b = await search_food.ainvoke({"query": "Smoothie", "user_id": TEST_USER_B})
 
         assert len(results_b) == 0
 
     async def test_estimated_food_visible_to_owner(self, async_test_db_session):
         """
         arrange: Create source="estimated" food with user_id=user_a.
-        act:     search_food with user_a config.
+        act:     search_food with user_a.
         assert:  User A finds their own estimated food.
         """
         estimated = FoodItem(
@@ -85,19 +84,19 @@ class TestSearchFoodEstimatedIsolation:
         await async_test_db_session.commit()
 
         with _patch_session(async_test_db_session):
-            results_a = await search_food.ainvoke({"query": "Shake"}, config=TEST_CONFIG_A)
+            results_a = await search_food.ainvoke({"query": "Shake", "user_id": TEST_USER_A})
 
         assert len(results_a) >= 1
         assert any("Shake" in r["name"] for r in results_a)
 
 
 class TestCreateFoodItemSetsUserId:
-    """create_food_item should set user_id from config."""
+    """create_food_item should set user_id from the parameter."""
 
     async def test_created_item_has_user_id(self, async_test_db_session):
         """
-        arrange: user_a config.
-        act:     create_food_item with user_a config.
+        arrange: Pass user_id directly.
+        act:     create_food_item with user_a.
         assert:  Created FoodItem.user_id matches user_a.
         """
         with _patch_session(async_test_db_session):
@@ -108,8 +107,8 @@ class TestCreateFoodItemSetsUserId:
                     "protein_per_100g": 10.0,
                     "carbs_per_100g": 20.0,
                     "fat_per_100g": 5.0,
+                    "user_id": TEST_USER_A,
                 },
-                config=TEST_CONFIG_A,
             )
 
         assert result["name"] == "Test Created Food"

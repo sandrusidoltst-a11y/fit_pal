@@ -60,9 +60,11 @@ flowchart TD
         Confirm -- Rejected --> ResponseNode
 
         ToolCall -- Need History --> ReadLog[5. Read Daily Logs]
+        ToolCall -- Body Stats --> PersonalStats[6. Log Personal Stats]
 
         Commit --> ResponseNode
         ReadLog --> ResponseNode
+        PersonalStats --> ResponseNode
 
         ToolCall -- No --> ResponseNode
     end
@@ -88,6 +90,7 @@ flowchart TD
 | **Confirmation** | HITL batch confirmation via `interrupt()` loop. | `pending_confirmations` | `Command` → commit or response |
 | **Commit** | Batch DB write after user confirms. | Confirmed batch | Updated `AgentState` |
 | **Stats Lookup** | Retrieve historical log data (single day or range). | Current Date / Range | `daily_log_report` |
+| **Personal Stats** | Log body measurements (weight, body fat %). | User message | `processing_results` |
 | **Response** | Generate a human-readable confirmation. | Updated State | Agent Message |
 
 ### State Schema (TypedDict)
@@ -243,6 +246,37 @@ Stores confirmed food entries for long-term tracking.
 | `updated_at` | DateTime(TZ) | When entry was last modified |
 | `original_text` | String | User's original input (nullable) |
 
+### User Profiles Database
+Stores user identity data collected during bot onboarding.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key (uuid4) |
+| `user_id` | UUID | FK → `auth.users(id)` ON DELETE CASCADE (unique, NOT NULL) |
+| `name` | String | User's display name |
+| `height_cm` | Float | Height in centimeters |
+| `age` | Integer | User's age |
+| `gender` | String | male/female/other |
+| `created_at` | DateTime(TZ) | When profile was created |
+| `updated_at` | DateTime(TZ) | When profile was last modified |
+
+### Personal Stats Log
+Stores time-series body measurements (weight, body fat %).
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key (uuid4) |
+| `user_id` | UUID | FK → `auth.users(id)` ON DELETE CASCADE (NOT NULL) |
+| `weight_kg` | Float | Body weight in kg (nullable) |
+| `body_fat_pct` | Float | Body fat percentage (nullable) |
+| `recorded_at` | DateTime(TZ) | When measurement was taken |
+| `created_at` | DateTime(TZ) | When entry was created |
+
+### Foreign Key Constraints
+All user-scoped tables reference `auth.users(id)`:
+- `user_profiles`, `personal_stats_log`, `daily_logs` → `ON DELETE CASCADE`
+- `food_items` → `ON DELETE SET NULL` (preserves shared food data)
+
 ## 9. Implementation Phases
 
 ### Phase 1: MVP Logic Foundations
@@ -330,8 +364,21 @@ Stores confirmed food entries for long-term tracking.
 5. ✅ Row Level Security (defense in depth) — RLS enabled on `food_items` + `daily_logs` with user-scoped policies
 6. ✅ Telegram bot gateway (`bot/gateway.py`) — aiogram v3 webhook, passphrase access control, auto-registration, HITL over Telegram
 7. ✅ Deploy to Railway (4 services: langgraph-server, fitpal-bot, Postgres, Redis) + Telegram webhook — deployed 2026-03-23
-8. ⏳ Smoke test end-to-end — bot interrupt bug fixed (2026-03-25), further testing in progress
+8. ✅ Smoke test end-to-end — bot interrupt bug fixed (2026-03-25), local dev bot flow added (2026-04-01)
 9. ✅ CI/CD pipeline (GitHub Actions) — see "CI/CD Pipeline" section below
+10. ✅ FK constraints on all user-scoped tables → `auth.users(id)` (CASCADE for user data, SET NULL for food_items)
+11. ✅ Missing RLS policies added to `personal_stats_log` (UPDATE + DELETE)
+12. ✅ Permanent tagged auth users for dev (`dev@dev.fitpal.bot`) and E2E testing (`e2e@test.fitpal.bot`)
+13. ✅ Local dev bot flow — `POLLING_MODE=true` for aiogram polling, `BOT_EMAIL_DOMAIN` for separate dev auth users
+
+#### User Profiles & Personal Stats (Completed 2026-03-31)
+
+- ✅ **User Profiles**: `UserProfile` model (name, height_cm, age, gender) + `user_profile_service.py` CRUD
+- ✅ **Bot Onboarding**: Step-by-step profile collection on first registration (name → height → age → gender). Profile cached on session and injected into LangGraph config as `user_profile`.
+- ✅ **Personal Stats Logging**: `PersonalStatsLog` model (weight_kg, body_fat_pct, recorded_at) + `personal_stats_service.py` with `log_personal_stat` and `get_latest_personal_stats` tools
+- ✅ **Personal Stats Node**: `personal_stats_node` handles `LOG_PERSONAL_STATS` action — LLM extracts weight/body fat via `PersonalStatsExtraction` structured output
+- ✅ **Graph Routing**: `input_parser` routes `LOG_PERSONAL_STATS` → `personal_stats` → `response`
+- ✅ **Supabase Migration**: `add_user_profiles_and_personal_stats` creates tables + RLS policies
 
 **Cost estimate:**
 - LangGraph server: Free (open source, self-hosted)
@@ -443,6 +490,9 @@ Developer pushes to main
 - **Health check after deploy** — verify services are responding after Railway redeploy
 
 ### Phase 4: Polish & Intelligence
+- ✅ **Runtime Context Migration + User Profile Injection** *(completed 2026-04-02)*: Migrated from `config["configurable"]` to LangGraph `Runtime[ContextSchema]`. Bot sends `context` field in HTTP body. Nodes read `runtime.context.user_id` and pass it as plain string to tools. `response_node` injects user profile into SystemMessage for personalized responses.
+- ⏳ **Persistent User Profile Across Threads**: Currently the user profile is sent per-run via `context` (ephemeral — not persisted by LangGraph). The bot caches it in-memory per session, but if the bot restarts or the session expires, the profile is re-fetched from DB. Explore using LangGraph **Store** (`BaseStore` with `PostgresStore`) to persist user profile cross-thread, so the agent has long-term memory of the user without the bot re-sending it every call. Would also enable the agent to learn/remember user preferences over time (e.g., "I'm vegetarian"). See [LangGraph Memory concepts](https://docs.langchain.com/oss/python/concepts/memory) and [Store persistence](https://docs.langchain.com/oss/python/langgraph/persistence#memory-store).
+- ⏳ **Bot Session Persistence (Redis)**: Replace the in-memory `user_sessions` dict in `bot/gateway.py` with Redis-backed sessions. Currently if the bot restarts, all sessions are lost (users must re-authenticate). Redis would persist session data (thread_id, cached profile, interrupt state) across bot restarts.
 - ✅ **LangSmith Tracing**: Enabled — all graph runs traced via `LANGCHAIN_TRACING_V2=true`.
 - ✅ **LangSmith Evaluations**: Single-step eval framework for graph nodes. Eval notebooks in `notebooks/evals/`, datasets in LangSmith UI, 5 evaluator types (deterministic, tolerance, date-aware, LLM-as-judge). Skills: `eval-setup` (create evals), `eval-debugger` (diagnose failures).
 - Upgrade to Semantic Search for food lookup.
@@ -450,3 +500,7 @@ Developer pushes to main
 - Implement postponed Phase 2 items (Structured Macro Targets, Assessment Reasoning, Correction Workflow, Context Limit Management).
 - **Fuzzy Input Disambiguation**: When the input parser encounters ambiguous or misspelled food names (e.g., "bannh" could be "banana" or "banh mi"), present the user with multiple candidate interpretations to choose from instead of silently picking one. Reduces mislogged foods caused by typos or shorthand.
 - **Display Queried Date Range to User**: When a stats query uses a date range (e.g., "last 3 days"), the response node should explicitly state the actual dates being queried (e.g., "Here are your stats from March 27 to March 29") so the user knows exactly which days are included.
+- **Query Personal Stats**: Add routing for "what's my weight?" / "what are my stats?" queries. The `get_latest_personal_stats` tool exists but is not yet wired into the graph — needs a new action (e.g., `QUERY_PERSONAL_STATS`) or extension of `QUERY_DAILY_STATS` to also cover body measurements. Enables users to ask the agent about their latest weight/body fat without logging a new measurement.
+- **Regex-Based Stat Extraction**: Replace the LLM call in `personal_stats_node` with regex/rule-based extraction for simple cases like "74kg" or "15%". Eliminates ~200ms latency from the extra LLM call. Fall back to LLM only for ambiguous inputs.
+- **Sync Auth User Metadata with Profile**: After onboarding completes, update the Supabase `auth.users` record with display name and profile metadata via `admin.update_user_by_id()`. This keeps `auth.users` in sync with `user_profiles` (currently `display_name` and `phone` stay NULL in auth because user details are only collected during onboarding, after the auth user is already created). Enables richer user info in Supabase Auth dashboard and potential future use of auth metadata in JWT claims.
+- **Alternative Telegram Auth Methods**: Replace or augment the current passphrase-based auth with richer Supabase Auth options. Current flow uses a shared passphrase + synthetic email + server-side HMAC password, which works but has no per-user verification. Options to explore: (1) **Phone/SMS OTP** — ask user for phone number, use Supabase phone auth to send OTP, verify in-bot; (2) **Telegram Login Widget** — use Telegram's native OAuth via `LoginUrl` inline keyboard, verify the Telegram-signed hash server-side; (3) **Magic Link** — ask user for real email, send Supabase magic link, user clicks to confirm; (4) **OAuth providers** — link to Google/GitHub via deep-link flow. Each option trades off UX friction vs security. Phone OTP is the most natural for a Telegram bot audience.

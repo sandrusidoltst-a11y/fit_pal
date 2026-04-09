@@ -10,6 +10,7 @@ class ActionType(str, Enum):
     QUERY_FOOD_INFO = "QUERY_FOOD_INFO"
     QUERY_DAILY_STATS = "QUERY_DAILY_STATS"
     CHITCHAT = "CHITCHAT"
+    LOG_PERSONAL_STATS = "LOG_PERSONAL_STATS"
 
 
 class SingleFoodItem(BaseModel):

@@ -13,12 +13,10 @@ from datetime import date, datetime
 from typing import Dict, List, Optional
 
 import structlog
-from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import get_user_id
 from src.database import get_async_db_session
 from src.models import DailyLog
 
@@ -187,10 +185,9 @@ async def log_food_entry(
     fat: float,
     timestamp: str,
     original_text: str = "",
-    config: RunnableConfig = None,
+    user_id: str = "",
 ) -> dict:
     """Log a food entry to the daily log. Timestamp should be ISO format string."""
-    user_id = get_user_id(config)
     parsed_ts = datetime.fromisoformat(timestamp)
     async with get_async_db_session() as session:
         log = await create_log_entry(
@@ -210,9 +207,8 @@ async def log_food_entry(
 
 
 @tool
-async def query_food_logs(target_date: str, end_date: str = "", config: RunnableConfig = None) -> list[dict]:
+async def query_food_logs(target_date: str, end_date: str = "", user_id: str = "") -> list[dict]:
     """Query food log entries by date or date range. Dates should be ISO format (YYYY-MM-DD)."""
-    user_id = get_user_id(config)
     parsed_date = date.fromisoformat(target_date)
     async with get_async_db_session() as session:
         if end_date:

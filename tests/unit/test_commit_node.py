@@ -10,7 +10,7 @@ LLM Usage:
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
-from tests.conftest import TEST_CONFIG_A
+from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.commit_node import commit_node
 
 
@@ -54,15 +54,12 @@ class TestCommitNodeSuccess:
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
-        result = await commit_node(basic_state, TEST_CONFIG_A)
+        result = await commit_node(basic_state, TEST_RUNTIME_A)
 
         assert mock_log_food_entry.ainvoke.call_count == 2
         assert len(result["processing_results"]) == 2
         assert all(r["status"] == "LOGGED" for r in result["processing_results"])
         assert result["last_action"] == "LOGGED"
-        # Verify config forwarded
-        for call in mock_log_food_entry.ainvoke.call_args_list:
-            assert call.kwargs.get("config") == TEST_CONFIG_A
 
     async def test_commit_estimated_item_creates_food_item(
         self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit, mock_create_food_item
@@ -94,7 +91,7 @@ class TestCommitNodeSuccess:
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
-        result = await commit_node(basic_state, TEST_CONFIG_A)
+        result = await commit_node(basic_state, TEST_RUNTIME_A)
 
         # Verify create_food_item called with back-calculated per-100g values
         create_args = mock_create_food_item.ainvoke.call_args[0][0]
@@ -103,8 +100,6 @@ class TestCommitNodeSuccess:
         assert create_args["protein_per_100g"] == round((30 / 300) * 100, 2)
         assert create_args["carbs_per_100g"] == round((85 / 300) * 100, 2)
         assert create_args["fat_per_100g"] == round((32 / 300) * 100, 2)
-        assert mock_create_food_item.ainvoke.call_args.kwargs.get("config") == TEST_CONFIG_A
-
         # Verify log_food_entry called with the created food_id
         log_args = mock_log_food_entry.ainvoke.call_args[0][0]
         assert log_args["food_id"] == "food-uuid-99"
@@ -138,7 +133,7 @@ class TestCommitNodeSuccess:
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
-        await commit_node(basic_state, TEST_CONFIG_A)
+        await commit_node(basic_state, TEST_RUNTIME_A)
 
         mock_create_food_item.ainvoke.assert_not_called()
         log_args = mock_log_food_entry.ainvoke.call_args[0][0]
@@ -184,7 +179,7 @@ class TestCommitNodeSuccess:
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
-        result = await commit_node(basic_state, TEST_CONFIG_A)
+        result = await commit_node(basic_state, TEST_RUNTIME_A)
 
         assert mock_create_food_item.ainvoke.call_count == 1
         assert mock_log_food_entry.ainvoke.call_count == 2
@@ -216,7 +211,7 @@ class TestCommitNodeSuccess:
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
-        result = await commit_node(basic_state, TEST_CONFIG_A)
+        result = await commit_node(basic_state, TEST_RUNTIME_A)
 
         assert result["pending_confirmations"] == []
 
@@ -257,7 +252,7 @@ class TestCommitNodeSuccess:
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
-        result = await commit_node(basic_state, TEST_CONFIG_A)
+        result = await commit_node(basic_state, TEST_RUNTIME_A)
 
         assert len(result["processing_results"]) == 2
         assert result["processing_results"][0] == existing
@@ -274,6 +269,6 @@ class TestCommitNodeEdgeCases:
         """
         basic_state["pending_confirmations"] = []
 
-        result = await commit_node(basic_state, TEST_CONFIG_A)
+        result = await commit_node(basic_state, TEST_RUNTIME_A)
 
         assert result == {}

@@ -22,7 +22,7 @@ class SearchResult(TypedDict):
     """Result from food database search.
 
     Mirrors the return type of search_food tool
-    from src/tools/food_lookup.py.
+    from src/services/food_service.py.
     """
 
     id: str
@@ -60,6 +60,7 @@ GraphAction = Literal[
     "AWAITING_CONFIRMATION",
     "CONFIRMED",
     "REJECTED",
+    "LOG_PERSONAL_STATS",
 ]
 
 

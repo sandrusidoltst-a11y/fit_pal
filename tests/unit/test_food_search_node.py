@@ -10,7 +10,7 @@ LLM Usage:
 """
 from unittest.mock import AsyncMock
 
-from tests.conftest import TEST_CONFIG_A
+from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.food_search_node import food_search_node
 
 
@@ -32,10 +32,10 @@ class TestFoodSearchNodeHappyPath:
             {"food_name": "chicken", "amount": 100.0, "unit": "g", "original_text": "100g chicken"}
         ]
 
-        result = await food_search_node(basic_state, TEST_CONFIG_A)
+        result = await food_search_node(basic_state, TEST_RUNTIME_A)
 
         mock_search_food.ainvoke.assert_called_once_with(
-            {"query": "chicken"}, config=TEST_CONFIG_A
+            {"query": "chicken", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
         assert "search_results" in result
         assert isinstance(result["search_results"], list)
@@ -54,6 +54,6 @@ class TestFoodSearchNodeEdgeCases:
         """
         basic_state["pending_food_items"] = []
 
-        result = await food_search_node(basic_state, TEST_CONFIG_A)
+        result = await food_search_node(basic_state, TEST_RUNTIME_A)
 
         assert result["search_results"] == []

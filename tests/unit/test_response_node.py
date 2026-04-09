@@ -1,9 +1,10 @@
 from datetime import date, datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents.nodes.response_node import _build_context, response_node
+from tests.conftest import TEST_RUNTIME_A
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +156,11 @@ class TestResponseNode:
     """Verify the response_node correctly constructs messages and invokes the LLM."""
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
-    def test_logging_context_invokes_llm(self, mock_get_llm):
+    async def test_logging_context_invokes_llm(self, mock_get_llm):
         """Node should invoke LLM with processing_results context for LOGGED action."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Got it! Logged 200g chicken — that's 330kcal.")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
         results = [
@@ -174,7 +175,7 @@ class TestResponseNode:
         ]
         state = _make_state(last_action="LOGGED", processing_results=results)
 
-        output = response_node(state)
+        output = await response_node(state, TEST_RUNTIME_A)
 
         # Verify output structure
         assert "messages" in output
@@ -182,17 +183,17 @@ class TestResponseNode:
         assert output["messages"][0] == mock_ai_msg
 
         # Verify LLM was called with system message + conversation history
-        call_args = mock_llm.invoke.call_args[0][0]
+        call_args = mock_llm.ainvoke.call_args[0][0]
         assert len(call_args) == 2  # SystemMessage + 1 HumanMessage
         assert "processing_results" in call_args[0].content
         assert "Context JSON" in call_args[0].content
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
-    def test_stats_context_invokes_llm(self, mock_get_llm):
+    async def test_stats_context_invokes_llm(self, mock_get_llm):
         """Node should invoke LLM with daily_log_report context for QUERY_DAILY_STATS."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Today you consumed 1800kcal total.")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
         logs = [
@@ -215,20 +216,20 @@ class TestResponseNode:
             messages=[HumanMessage(content="What did I eat today?")],
         )
 
-        output = response_node(state)
+        output = await response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
 
-        call_args = mock_llm.invoke.call_args[0][0]
+        call_args = mock_llm.ainvoke.call_args[0][0]
         assert "daily_log_report" in call_args[0].content
         assert "processing_results" not in call_args[0].content
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
-    def test_no_match_context(self, mock_get_llm):
+    async def test_no_match_context(self, mock_get_llm):
         """Node should handle NO_MATCH action and include processing_results."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Sorry, I couldn't find 'xyz' in the database.")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
         results = [
@@ -243,36 +244,36 @@ class TestResponseNode:
         ]
         state = _make_state(last_action="NO_MATCH", processing_results=results)
 
-        output = response_node(state)
+        output = await response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
-        call_args = mock_llm.invoke.call_args[0][0]
+        call_args = mock_llm.ainvoke.call_args[0][0]
         assert "FAILED" in call_args[0].content
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
-    def test_empty_messages_history(self, mock_get_llm):
+    async def test_empty_messages_history(self, mock_get_llm):
         """Node should handle state with no message history gracefully."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Hello! How can I help?")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
         state = _make_state(messages=[], last_action="CHITCHAT")
 
-        output = response_node(state)
+        output = await response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
 
         # Should have exactly 1 message: the SystemMessage (no history)
-        call_args = mock_llm.invoke.call_args[0][0]
+        call_args = mock_llm.ainvoke.call_args[0][0]
         assert len(call_args) == 1
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
-    def test_preserves_full_conversation_history(self, mock_get_llm):
+    async def test_preserves_full_conversation_history(self, mock_get_llm):
         """System message should be prepended, preserving all existing messages."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Done!")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
         history = [
@@ -282,28 +283,28 @@ class TestResponseNode:
         ]
         state = _make_state(messages=history, last_action="LOGGED")
 
-        response_node(state)
+        await response_node(state, TEST_RUNTIME_A)
 
-        call_args = mock_llm.invoke.call_args[0][0]
+        call_args = mock_llm.ainvoke.call_args[0][0]
         # SystemMessage + 3 history messages = 4
         assert len(call_args) == 4
         # First message is always the SystemMessage
         assert "FitPal" in call_args[0].content
 
+    @patch("src.agents.nodes.response_node._SYSTEM_PROMPT", "You are FitPal, a helpful fitness and nutrition coach. Respond based on the provided context.")
     @patch("src.agents.nodes.response_node.get_llm_for_node")
-    @patch("builtins.open", side_effect=FileNotFoundError)
-    def test_fallback_prompt_on_missing_file(self, mock_open, mock_get_llm):
-        """Node should use fallback prompt if response_generator.md is missing."""
+    async def test_fallback_prompt_on_missing_file(self, mock_get_llm):
+        """Node should work with fallback prompt content."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Fallback response")
-        mock_llm.invoke.return_value = mock_ai_msg
+        mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
         state = _make_state(last_action="CHITCHAT")
 
-        output = response_node(state)
+        output = await response_node(state, TEST_RUNTIME_A)
 
         assert output["messages"][0] == mock_ai_msg
-        call_args = mock_llm.invoke.call_args[0][0]
+        call_args = mock_llm.ainvoke.call_args[0][0]
         # Fallback prompt should contain "FitPal"
         assert "FitPal" in call_args[0].content

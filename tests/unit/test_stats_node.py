@@ -10,7 +10,7 @@ LLM Usage:
 from datetime import date, datetime
 from unittest.mock import AsyncMock
 
-from tests.conftest import TEST_CONFIG_A
+from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.stats_node import stats_lookup_node
 
 
@@ -42,10 +42,10 @@ class TestStatsNodeSingleDay:
             "original_text": "100g chicken",
         }])
 
-        result = await stats_lookup_node(basic_state, TEST_CONFIG_A)
+        result = await stats_lookup_node(basic_state, TEST_RUNTIME_A)
 
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
-            {"target_date": "2023-10-27"}, config=TEST_CONFIG_A
+            {"target_date": "2023-10-27", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
 
         assert "daily_log_report" in result
@@ -75,9 +75,9 @@ class TestStatsNodeDateRange:
 
         mock_query_food_logs_for_stats.ainvoke = AsyncMock(return_value=[])
 
-        result = await stats_lookup_node(basic_state, TEST_CONFIG_A)
+        result = await stats_lookup_node(basic_state, TEST_RUNTIME_A)
 
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
-            {"target_date": "2023-10-25", "end_date": "2023-10-27"}, config=TEST_CONFIG_A
+            {"target_date": "2023-10-25", "end_date": "2023-10-27", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
         assert result["daily_log_report"] == []
