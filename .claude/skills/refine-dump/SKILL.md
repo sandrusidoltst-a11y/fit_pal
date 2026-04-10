@@ -154,10 +154,22 @@ After creating all refined notes, check if any of them contain explicit action i
 
 **Format in TASKS.md:**
 ```markdown
-- [ ] Task description — [[brain/learnings/source-note|source]]
+- [ ] Task description — [[brain/learnings/source-note|source]] `goal:poc`
 ```
 
-If `TASKS.md` doesn't exist yet, create it with a `# Tasks` header.
+**Where to add the task:** `TASKS.md` is organized into priority sections — `## Critical — POC Blockers`, `## Important — Real User Quality`, `## Maintenance — Keep the House Clean`, and `## Backlog — Nice to Have`. Read `brain/GOALS.md` and the existing `TASKS.md` structure to understand the priorities, then place each new task in the section that best fits.
+
+**Classification guidance:**
+- **Critical (POC Blockers)** — Directly unblocks the mid-May POC demo (coach dashboard, macro targets, plan vs actual). Only add here if it's genuinely blocking the POC.
+- **Important (Real User Quality)** — Makes the bot better for daily users (correction flows, session persistence, UX fixes). Tag with `goal:users`.
+- **Maintenance** — Project hygiene that isn't tied to any goal (CI fixes, doc updates, cleanup). No goal tag.
+- **Backlog (Nice to Have)** — Future ideas, optimizations, not blocking anything. Tag with the most relevant goal.
+
+**Goal tags:** Add `goal:poc`, `goal:users`, or `goal:learning` after the wikilink, matching the existing tasks. Maintenance tasks get no goal tag.
+
+**When unsure where it belongs, ask the user.** Don't guess on ambiguous classifications — a task in the wrong section confuses the [[focus]] skill later.
+
+If `TASKS.md` doesn't exist yet, create it with the standard section structure from existing TASKS.md (or ask the user).
 
 Only add tasks that the user explicitly wrote as things to do. Questions, observations, and learnings are NOT tasks. When in doubt, leave it out.
 
