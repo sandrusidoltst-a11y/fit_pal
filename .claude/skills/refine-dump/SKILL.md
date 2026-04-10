@@ -13,6 +13,11 @@ The user captures thoughts fast in daily notes — mixed bullets about learnings
 
 The key principle: **organize, don't elaborate**. The skill restructures what the user wrote — it never adds context, explanations, or tasks the user didn't write.
 
+## Dependencies
+
+- Read the **obsidian-markdown** skill before creating notes — it defines correct Obsidian syntax for properties, wikilinks, callouts, and embeds.
+- Use the **obsidian-cli** skill for vault operations when Obsidian is running — `obsidian tags` for existing tags, `obsidian create` for writing notes, `obsidian backlinks` for checking connections.
+
 ## Invocation
 
 The skill accepts these forms:
