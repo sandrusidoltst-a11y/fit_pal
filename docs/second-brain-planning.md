@@ -30,7 +30,7 @@ From a single dump note, you can link to:
 - **Claude chat**: regular markdown URL link `[description](https://claude.ai/chat/abc123)`
 - **Code files**: `[[src/security/auth.py]]` (needs vault inside repo + "Detect all file extensions" setting)
 - **Commit logs**: `[[commit_logs/2026-03-15-shared-secret-middleware]]` (already markdown, already in repo)
-- **Plans/patterns**: `[[.claude/patterns/tool-first]]` or any other repo markdown
+- **Plans/patterns**: `[[docs/patterns/tool-first]]` or any other repo markdown
 - **Concept notes**: `[[JWT]]`, `[[Defense in depth]]` — may not exist yet, that's fine
 
 ### The capture/process split

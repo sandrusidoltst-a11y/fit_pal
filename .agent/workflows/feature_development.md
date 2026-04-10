@@ -35,7 +35,7 @@ This workflow guides you through the full lifecycle of implementing a new featur
 4.  **Strategic Thinking**:
     - Consider edge cases, failure modes, testing strategies, and security.
 5.  **Generate Plan**:
-    - Create a plan file in `.agent/plans/` (e.g., `feature-name.md`).
+    - Create a plan file in `docs/plans/` (e.g., `feature-name.md`).
     - The plan MUST include:
         - Feature description & User Story.
         - **Context References**: Specific files and lines to read.

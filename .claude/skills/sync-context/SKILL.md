@@ -56,7 +56,7 @@ Compare **Documented State** (Step 1) with **Actual State** (Step 2). Look for:
 
 1.  **If GAP FOUND**:
     - **Update `CLAUDE.md`**: Fix structure, add missing reference table rows, update MCP section, add new rules or patterns.
-        > **Constraint**: Do NOT add implementation plans (`.agent/plans/*.md`) to the reference table. Plans are transient execution artifacts. Only add skills (`.claude/skills/`) or major documentation (`PRD.md`).
+        > **Constraint**: Do NOT add implementation plans (`docs/plans/*.md`) to the reference table. Plans are transient execution artifacts. Only add skills (`.claude/skills/`) or major documentation (`PRD.md`).
     - **Update `PRD.md`**: Mark completed features/milestones as done, add newly implemented features not yet in PRD, correct any flow descriptions that no longer match the code. PRD is a living document — it must reflect reality.
     - **Update Skill Files**: If a skill in `.claude/skills/` references an outdated path or pattern, fix it.
 

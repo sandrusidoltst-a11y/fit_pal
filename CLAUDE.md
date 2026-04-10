@@ -93,6 +93,8 @@ fit_pal/
 │       ├── eval_input_parser.ipynb # Input parser single-step eval (LangSmith)
 │       └── reports/               # Eval debugger reports (gitignored)
 ├── docs/
+│   ├── patterns/                  # Architecture pattern files (tool-first, state-schemas, etc.)
+│   ├── plans/                     # Implementation plans (feature plans, refactor plans)
 │   ├── phase3-deployment-plan.md  # Phase 3 deployment steps (Supabase + self-hosted LangGraph)
 │   ├── orphaned-langgraph-server.md # Guide for finding/killing zombie langgraph dev processes
 │   ├── auth_flow.excalidraw       # Auth flow diagram (Excalidraw source)
@@ -116,17 +118,17 @@ fit_pal/
 
 ## Architecture Patterns
 
-Detailed pattern files live in `.claude/patterns/`. Each pattern below has a summary (always loaded) and a link to the full description (read before modifying related code).
+Detailed pattern files live in `docs/patterns/`. Each pattern below has a summary (always loaded) and a link to the full description (read before modifying related code).
 
 | Pattern | Details | When to Read |
 |---|---|---|
-| **Tool-First + Service Layer**: All DB access through async `@tool` functions. Nodes are thin orchestrators via `await tool.ainvoke(...)` — never import DB sessions. `src/services/` has raw service functions (accept `session` for DI/testability) + `@tool` wrappers that own their session. | [tool-first.md](.claude/patterns/tool-first.md) | Before adding tools, nodes, or DB access |
-| **State Schemas**: `InputState` (messages only, public API) → `AgentState` (internal) → `OutputState`. Enables clean LangSmith Studio chat interface without exposing internal state fields. | [state-schemas.md](.claude/patterns/state-schemas.md) | Before modifying state, adding fields, or changing graph I/O |
-| **Runtime Context + User Profile**: `ContextSchema` (dataclass in `src/context.py`) defines `user_id` and `user_profile`, registered on `StateGraph` via `context_schema`. Bot sends `context` field in HTTP body. Nodes access via `runtime: Runtime[ContextSchema]` and pass `user_id` as a plain string to tools. `response_node` injects user profile into `SystemMessage`. `DEFAULT_DEV_USER_ID` fallback for Studio. | [runtime-context.md](.claude/patterns/runtime-context.md) | Before touching user_id, user_profile, or context flow |
-| **LLM Configuration + Pydantic Output**: `get_llm_for_node()` in `config.py` centralises LLM instantiation with per-node overrides. Never hardcode models. Use `.with_structured_output(Schema)` for typed nodes and access fields as attributes; call `.model_dump()` only at the state-write boundary. `response_node` is the conversational carve-out (no schema). Never parse raw LLM strings. | [llm-config.md](.claude/patterns/llm-config.md) | Before adding or configuring LLM calls in nodes |
-| **Fully Async**: All nodes, tools, and DB access use `async`/`await`. The async engine (`asyncpg`) is the primary DB path. Sync engine (`psycopg2`) exists only for ETL scripts. | [async-patterns.md](.claude/patterns/async-patterns.md) | Before adding any DB, tool, or node code |
-| **HITL Batch Confirmation**: All food items accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses `interrupt()` in a validation loop for confirm/reject/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`. | [hitl-confirmation.md](.claude/patterns/hitl-confirmation.md) | Before modifying confirmation/commit flow |
-| **DB Schema Conventions**: Every model uses UUID PKs, `user_id` scoping column (indexed, usually NOT NULL), `DateTime(timezone=True)` timestamps, audit columns (`created_at`/`updated_at` with lambda defaults). FK to `auth.users(id)` in Postgres only, not SQLAlchemy. Supabase migrations for production schema — never `create_all()`/`drop_all()`. | [schema-management.md](.claude/patterns/schema-management.md) | Before adding models, DB migrations, or test DB setup |
+| **Tool-First + Service Layer**: All DB access through async `@tool` functions. Nodes are thin orchestrators via `await tool.ainvoke(...)` — never import DB sessions. `src/services/` has raw service functions (accept `session` for DI/testability) + `@tool` wrappers that own their session. | [tool-first.md](docs/patterns/tool-first.md) | Before adding tools, nodes, or DB access |
+| **State Schemas**: `InputState` (messages only, public API) → `AgentState` (internal) → `OutputState`. Enables clean LangSmith Studio chat interface without exposing internal state fields. | [state-schemas.md](docs/patterns/state-schemas.md) | Before modifying state, adding fields, or changing graph I/O |
+| **Runtime Context + User Profile**: `ContextSchema` (dataclass in `src/context.py`) defines `user_id` and `user_profile`, registered on `StateGraph` via `context_schema`. Bot sends `context` field in HTTP body. Nodes access via `runtime: Runtime[ContextSchema]` and pass `user_id` as a plain string to tools. `response_node` injects user profile into `SystemMessage`. `DEFAULT_DEV_USER_ID` fallback for Studio. | [runtime-context.md](docs/patterns/runtime-context.md) | Before touching user_id, user_profile, or context flow |
+| **LLM Configuration + Pydantic Output**: `get_llm_for_node()` in `config.py` centralises LLM instantiation with per-node overrides. Never hardcode models. Use `.with_structured_output(Schema)` for typed nodes and access fields as attributes; call `.model_dump()` only at the state-write boundary. `response_node` is the conversational carve-out (no schema). Never parse raw LLM strings. | [llm-config.md](docs/patterns/llm-config.md) | Before adding or configuring LLM calls in nodes |
+| **Fully Async**: All nodes, tools, and DB access use `async`/`await`. The async engine (`asyncpg`) is the primary DB path. Sync engine (`psycopg2`) exists only for ETL scripts. | [async-patterns.md](docs/patterns/async-patterns.md) | Before adding any DB, tool, or node code |
+| **HITL Batch Confirmation**: All food items accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses `interrupt()` in a validation loop for confirm/reject/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`. | [hitl-confirmation.md](docs/patterns/hitl-confirmation.md) | Before modifying confirmation/commit flow |
+| **DB Schema Conventions**: Every model uses UUID PKs, `user_id` scoping column (indexed, usually NOT NULL), `DateTime(timezone=True)` timestamps, audit columns (`created_at`/`updated_at` with lambda defaults). FK to `auth.users(id)` in Postgres only, not SQLAlchemy. Supabase migrations for production schema — never `create_all()`/`drop_all()`. | [schema-management.md](docs/patterns/schema-management.md) | Before adding models, DB migrations, or test DB setup |
 
 ### Architectural Decisions (future ADRs)
 

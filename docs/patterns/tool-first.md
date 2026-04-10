@@ -34,7 +34,7 @@ This is the **only** DB access pattern in the codebase. Nothing else is allowed.
 
 - **Reusability across runtime contexts.** The same `@tool` function is callable from a graph node, an integration test, an ad-hoc script, and (eventually) an LLM tool-call. The same service function is callable from a tool wrapper, a script that manages its own transaction, or a future REST endpoint. We never reimplement DB logic for "the script version" or "the test version" — there is one implementation.
 
-- **Domain-driven file organization.** When you want to know everything about how food is stored and queried, you open exactly one file: `food_service.py`. You see the services, the tools, the helpers, the imports, and the docstring all in one place. There is no cross-file hunt between `src/tools/` and `src/services/`. The user explicitly preferred this over the alternative split (see the planning conversation that led to the `food_lookup.py` refactor: `.agent/plans/refactor-food-lookup-to-service-pattern.md`).
+- **Domain-driven file organization.** When you want to know everything about how food is stored and queried, you open exactly one file: `food_service.py`. You see the services, the tools, the helpers, the imports, and the docstring all in one place. There is no cross-file hunt between `src/tools/` and `src/services/`. The user explicitly preferred this over the alternative split (see the planning conversation that led to the `food_lookup.py` refactor: `docs/plans/refactor-food-lookup-to-service-pattern.md`).
 
 ## The Three Layers
 
