@@ -83,10 +83,11 @@ class TestPassphraseFlow:
         )
 
     @patch("bot.gateway.BOT_PASSPHRASE", "secret123")
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value={"name": "Test", "height_cm": 170, "age": 25, "gender": "male"})
     @patch("bot.gateway.get_or_create_user", new_callable=AsyncMock)
     @patch("bot.gateway._create_thread", new_callable=AsyncMock)
     async def test_correct_passphrase_registers_user(
-        self, mock_create_thread, mock_get_or_create, mock_message
+        self, mock_create_thread, mock_get_or_create, mock_load_profile, mock_message
     ):
         """
         arrange: Message from unknown chat_id with correct passphrase.

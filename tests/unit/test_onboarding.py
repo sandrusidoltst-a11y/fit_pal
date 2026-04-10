@@ -73,13 +73,18 @@ class TestOnboardingStart:
         assert session["onboarding_step"] == "name"
         assert mock_message.answer.call_count == 2  # welcome + name question
 
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value={"name": "Test", "height_cm": 170, "age": 25, "gender": "male"})
     @patch("bot.gateway._create_thread", new_callable=AsyncMock, return_value="thread-existing")
     @patch("bot.gateway.get_or_create_user", new_callable=AsyncMock)
-    async def test_existing_user_skips_onboarding(self, mock_get_or_create, mock_create_thread, mock_message):
+    async def test_existing_user_with_profile_skips_onboarding(
+        self, mock_get_or_create, mock_create_thread, mock_load_profile, mock_message
+    ):
         """
-        arrange: user sends correct passphrase, get_or_create_user returns is_new=False.
+        arrange: user sends correct passphrase, get_or_create_user returns is_new=False,
+                 _load_user_profile returns a valid profile.
         act:     handle_message processes the passphrase.
-        assert:  session created with onboarding_step=None, welcome back message sent.
+        assert:  session created with onboarding_step=None, welcome back message sent,
+                 user_profile is preloaded.
         """
         mock_get_or_create.return_value = {
             "user_id": "uuid-existing",
@@ -93,7 +98,35 @@ class TestOnboardingStart:
 
         session = gw.user_sessions[mock_message.chat.id]
         assert session["onboarding_step"] is None
+        assert session["user_profile"] is not None
+        assert session["user_profile"]["name"] == "Test"
         assert mock_message.answer.call_count == 1
+
+    @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value=None)
+    @patch("bot.gateway._create_thread", new_callable=AsyncMock, return_value="thread-no-profile")
+    @patch("bot.gateway.get_or_create_user", new_callable=AsyncMock)
+    async def test_existing_user_without_profile_starts_onboarding(
+        self, mock_get_or_create, mock_create_thread, mock_load_profile, mock_message
+    ):
+        """
+        arrange: user sends correct passphrase, get_or_create_user returns is_new=False,
+                 _load_user_profile returns None (no profile row).
+        act:     handle_message processes the passphrase.
+        assert:  session created with onboarding_step="name", welcome + name question sent.
+        """
+        mock_get_or_create.return_value = {
+            "user_id": "uuid-no-profile",
+            "access_token": "tok",
+            "refresh_token": "ref",
+            "is_new": False,
+        }
+        mock_message.text = gw.BOT_PASSPHRASE or "test-passphrase"
+        with patch.object(gw, "BOT_PASSPHRASE", mock_message.text):
+            await gw.handle_message(mock_message)
+
+        session = gw.user_sessions[mock_message.chat.id]
+        assert session["onboarding_step"] == "name"
+        assert mock_message.answer.call_count == 2  # welcome + name question
 
 
 class TestOnboardingCollectsData:

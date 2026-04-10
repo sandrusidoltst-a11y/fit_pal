@@ -359,17 +359,29 @@ async def handle_message(message: Message) -> None:
                 result = await get_or_create_user(chat_id)
                 thread_id = await _create_thread()
                 is_new = result.get("is_new", False)
+
+                # Check if existing user has a profile — trigger onboarding if missing
+                existing_profile = None
+                if not is_new:
+                    existing_profile = await _load_user_profile(result["user_id"])
+                needs_onboarding = is_new or existing_profile is None
+
                 user_sessions[chat_id] = {
                     "user_id": result["user_id"],
                     "thread_id": thread_id,
                     "last_activity": datetime.now(timezone.utc),
                     "interrupted": False,
-                    "onboarding_step": "name" if is_new else None,
+                    "onboarding_step": "name" if needs_onboarding else None,
                     "onboarding_data": {},
-                    "user_profile": None,
+                    "user_profile": existing_profile,
                 }
-                logger.info("User registered for chat_id=%s, is_new=%s", chat_id, is_new)
-                if is_new:
+                logger.info(
+                    "User registered",
+                    chat_id=chat_id,
+                    is_new=is_new,
+                    needs_onboarding=needs_onboarding,
+                )
+                if needs_onboarding:
                     await message.answer(
                         "Welcome to FitPal! Let's set up your profile."
                     )
