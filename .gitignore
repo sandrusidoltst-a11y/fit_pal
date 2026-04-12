@@ -79,3 +79,6 @@ notebooks/evals/reports/
 
 # Brain (will be tracked in a separate private repo)
 brain/
+
+# Nutrition course notes (private, not for public repo)
+docs/nutrition-method.md
