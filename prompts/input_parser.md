@@ -11,8 +11,8 @@ Determine the user's primary goal and select the appropriate `action`:
     2. Relative Time (e.g. "2 hours ago") -> Parse relatively from the injected System Time.
     3. Specific Date (e.g. "yesterday") -> Use that date at 12:00:00.
     4. No Time mentioned -> Leave null.
-- **QUERY_DAILY_STATS**: The user is asking about their nutrition stats or logs.
-  - Examples: "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days".
+- **QUERY_DAILY_STATS**: The user is asking about their nutrition stats, logs, or how their intake compares to their plan.
+  - Examples: "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days", "How many carbs do I have left today?", "Am I on track?", "Did I hit my protein target?", "How much more can I eat?".
   - **EXTRACT DATES**:
     - If range mentioned (e.g. "last 3 days", "this week"), set `start_date` and `end_date`.
     - Date ranges are **inclusive of today**. "Last 3 days" = 3 days back from and including today. Example: if today is March 29, "last 3 days" means `start_date: 2026-03-27`, `end_date: 2026-03-29`.

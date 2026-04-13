@@ -246,11 +246,18 @@ async def _handle_onboarding(message: Message, session: dict) -> bool:
     await _save_user_profile(session["user_id"], session["onboarding_data"])
     name = session["onboarding_data"]["name"]
     # Cache profile on session for config injection
+    # Preserve existing nutrition_plan if user already had a profile
+    existing_plan = (
+        session["user_profile"].get("nutrition_plan")
+        if session.get("user_profile")
+        else None
+    )
     session["user_profile"] = {
         "name": name,
         "height_cm": session["onboarding_data"]["height_cm"],
         "age": session["onboarding_data"]["age"],
         "gender": session["onboarding_data"]["gender"],
+        "nutrition_plan": existing_plan,
     }
     await message.answer(
         f"Great, {name}! Your profile is set up. You can start logging food now."

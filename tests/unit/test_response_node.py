@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents.nodes.response_node import _build_context, response_node
-from tests.conftest import TEST_RUNTIME_A
+from src.context import ContextSchema, DEFAULT_DEV_PROFILE
+from tests.conftest import TEST_RUNTIME_A, TEST_USER_A
 
 
 # ---------------------------------------------------------------------------
@@ -308,3 +309,66 @@ class TestResponseNode:
         call_args = mock_llm.ainvoke.call_args[0][0]
         # Fallback prompt should contain "FitPal"
         assert "FitPal" in call_args[0].content
+
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
+    async def test_current_time_in_system_message(self, mock_get_llm):
+        """System message should include a current time prefix."""
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="ok"))
+        mock_get_llm.return_value = mock_llm
+
+        state = _make_state(last_action="CHITCHAT")
+        await response_node(state, TEST_RUNTIME_A)
+
+        call_args = mock_llm.ainvoke.call_args[0][0]
+        system_content = call_args[0].content
+        assert system_content.startswith("Current time:")
+
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
+    async def test_plan_injected_in_system_message(self, mock_get_llm):
+        """System message should include the user's nutrition plan when set."""
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="ok"))
+        mock_get_llm.return_value = mock_llm
+
+        plan_text = "Daily targets: 2000 kcal, 150g protein."
+        profile_with_plan = {**DEFAULT_DEV_PROFILE, "nutrition_plan": plan_text}
+        runtime = MagicMock()
+        runtime.context = ContextSchema(
+            user_id=TEST_USER_A,
+            user_profile=profile_with_plan,
+        )
+
+        state = _make_state(last_action="CHITCHAT")
+        await response_node(state, runtime)
+
+        call_args = mock_llm.ainvoke.call_args[0][0]
+        system_content = call_args[0].content
+        assert "## User Nutrition Plan" in system_content
+        assert plan_text in system_content
+
+    @patch("src.agents.nodes.response_node.get_llm_for_node")
+    async def test_no_plan_shows_placeholder(self, mock_get_llm):
+        """System message should show fallback text when no plan is set."""
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="ok"))
+        mock_get_llm.return_value = mock_llm
+
+        profile_no_plan = {
+            "name": "No Plan User",
+            "height_cm": 170.0,
+            "age": 30,
+            "gender": "female",
+        }
+        runtime = MagicMock()
+        runtime.context = ContextSchema(
+            user_id=TEST_USER_A,
+            user_profile=profile_no_plan,
+        )
+
+        state = _make_state(last_action="CHITCHAT")
+        await response_node(state, runtime)
+
+        call_args = mock_llm.ainvoke.call_args[0][0]
+        system_content = call_args[0].content
+        assert "No plan set for this user yet." in system_content

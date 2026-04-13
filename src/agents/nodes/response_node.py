@@ -91,20 +91,34 @@ async def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> d
     from src.context import DEFAULT_DEV_PROFILE
     context = runtime.context if runtime.context is not None else ContextSchema()
     profile = context.user_profile if context.user_profile else DEFAULT_DEV_PROFILE
-    profile_section = (
-        f"\nUser Profile:\n"
-        f"- Name: {profile.get('name', 'Unknown')}\n"
-        f"- Age: {profile.get('age', 'Unknown')}\n"
-        f"- Gender: {profile.get('gender', 'Unknown')}\n"
-        f"- Height: {profile.get('height_cm', 'Unknown')}cm\n"
+
+    # Current time (injected at call time, not import time)
+    now_str = datetime.now().strftime("%A, %Y-%m-%d %H:%M")
+
+    # Nutrition plan section
+    plan = profile.get("nutrition_plan")
+    plan_section = (
+        f"\n\n## User Nutrition Plan\n{plan}"
+        if plan
+        else "\n\n## User Nutrition Plan\nNo plan set for this user yet."
     )
 
     # Build selective context JSON
     json_context = _build_context(state)
 
-    # Construct system message with prompt + profile + context
+    # Construct system message with time + prompt + profile + plan + context
     system_message = SystemMessage(
-        content=f"{_SYSTEM_PROMPT}\n{profile_section}\n---\nContext JSON:\n```json\n{json_context}\n```"
+        content=(
+            f"Current time: {now_str}\n\n"
+            f"{_SYSTEM_PROMPT}"
+            f"\n\n---\n## User Profile\n"
+            f"- Name: {profile.get('name', 'Unknown')}\n"
+            f"- Age: {profile.get('age', 'Unknown')}\n"
+            f"- Gender: {profile.get('gender', 'Unknown')}\n"
+            f"- Height: {profile.get('height_cm', 'Unknown')}cm"
+            f"{plan_section}"
+            f"\n\n---\nContext JSON:\n```json\n{json_context}\n```"
+        )
     )
 
     # Prepend system message to full conversation history

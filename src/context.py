@@ -17,6 +17,7 @@ DEFAULT_DEV_PROFILE: dict = {
     "height_cm": 175.0,
     "age": 25,
     "gender": "male",
+    "nutrition_plan": "Daily targets: 1600 kcal, 120g protein, 150g carbs, 50g fat.",
 }
 
 
@@ -27,6 +28,7 @@ class UserProfile(TypedDict, total=False):
     height_cm: float
     age: int
     gender: str
+    nutrition_plan: str
 
 
 @dataclass

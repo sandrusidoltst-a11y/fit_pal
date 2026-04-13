@@ -40,6 +40,22 @@ async def create_user_profile(
     return profile
 
 
+async def set_nutrition_plan(
+    session: AsyncSession,
+    user_id: str,
+    nutrition_plan: str,
+) -> None:
+    """Set or update the nutrition plan for a user."""
+    stmt = select(UserProfile).where(UserProfile.user_id == uuid_mod.UUID(user_id))
+    result = await session.execute(stmt)
+    profile = result.scalar_one_or_none()
+    if profile is None:
+        raise ValueError(f"No profile found for user_id={user_id}")
+    profile.nutrition_plan = nutrition_plan
+    await session.commit()
+    logger.info("Nutrition plan updated", user_id=user_id)
+
+
 async def get_user_profile(
     session: AsyncSession,
     user_id: str,
@@ -57,4 +73,5 @@ async def get_user_profile(
         "height_cm": profile.height_cm,
         "age": profile.age,
         "gender": profile.gender,
+        "nutrition_plan": profile.nutrition_plan,
     }
