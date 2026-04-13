@@ -24,6 +24,7 @@ async def create_user_profile(
     height_cm: float,
     age: int,
     gender: str,
+    nutrition_plan: Optional[str] = None,
 ) -> UserProfile:
     """Create a new user profile."""
     profile = UserProfile(
@@ -32,6 +33,7 @@ async def create_user_profile(
         height_cm=height_cm,
         age=age,
         gender=gender,
+        nutrition_plan=nutrition_plan,
     )
     session.add(profile)
     await session.commit()
