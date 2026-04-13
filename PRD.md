@@ -495,6 +495,8 @@ Developer pushes to main
 - ⏳ **Bot Session Persistence (Redis)**: Replace the in-memory `user_sessions` dict in `bot/gateway.py` with Redis-backed sessions. Currently if the bot restarts, all sessions are lost (users must re-authenticate). Redis would persist session data (thread_id, cached profile, interrupt state) across bot restarts.
 - ✅ **LangSmith Tracing**: Enabled — all graph runs traced via `LANGCHAIN_TRACING_V2=true`.
 - ✅ **LangSmith Evaluations**: Single-step eval framework for graph nodes. Eval notebooks in `notebooks/evals/`, datasets in LangSmith UI, 5 evaluator types (deterministic, tolerance, date-aware, LLM-as-judge). Skills: `eval-setup` (create evals), `eval-debugger` (diagnose failures).
+- ✅ **Per-User Nutrition Plan Injection** *(completed 2026-04-13)*: Added `nutrition_plan` TEXT column to `user_profiles`, `set_nutrition_plan` service function, coach CLI script (`src/scripts/set_plan.py`), and end-to-end wiring through `ContextSchema` → `response_node` system prompt. Response node now injects current time and nutrition plan (with fallback) into the system message. Input parser updated with plan-vs-actual routing examples.
+- ✅ **Coaching Prompt Rewrite** *(completed 2026-04-12)*: Rewrote `prompts/response_generator.md` with structured coaching method, nutrition principles, and user language support (responds in the user's language).
 - Upgrade to Semantic Search for food lookup.
 - Proactive coaching logic (suggestions for ending the day).
 - Implement postponed Phase 2 items (Structured Macro Targets, Assessment Reasoning, Correction Workflow, Context Limit Management).
