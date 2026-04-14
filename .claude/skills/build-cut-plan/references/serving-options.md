@@ -1,62 +1,64 @@
 # Serving Options (Bilingual)
 
-Each item listed = **one serving** of that macro. Amounts are pre-cooked unless noted. Sources tagged as `L` (lean), `M` (mid-range), or `F` (fatty) — use `M` for the fat estimation when computing the plan, and default the trainee toward `L`.
+Each item listed = **one serving** of that macro. Amounts are pre-cooked unless noted. Sources tagged as `L` (lean), `M` (mid-range), or `F` (fatty). The `kcal` column shows total calories for that serving (protein + native fat combined). Use this for the protein-skeleton calorie estimation — default assumption is `~145 kcal/serving` (lean-leaning average).
 
 ## 1 Protein serving = 20g complete protein
 
 ### English
 
-| Source | Amount | Tag |
-|---|---|---|
-| Chicken breast | 100g | L |
-| Turkey breast | 100g | L |
-| Lean beef (shoulder/round) | 100g | L |
-| Pastrami ≤3% fat | 100g | L |
-| Chicken liver | 100g | L |
-| Lean fish (cod, hake, sole, tilapia) | 120g | L |
-| Tuna in water (drained) | 110g | L |
-| Salmon | 70g | F |
-| Sea bream (denis) | 70g | F |
-| Tuna in oil (drained) | 110g | F |
-| Beef burger / kebab / minced | 70g | F |
-| Sirloin / fillet steak | 70g | F |
-| Oven chicken (thighs, drumsticks) | 70g | F |
-| Cottage cheese / white cheese 3% | 180g | L |
-| Cottage cheese / white cheese 5% | 140g | M |
-| Bulgarian / tzfatit cheese 5% | 120g | M |
-| Yellow cheese 9% (2 slices) | ~50g | M |
-| Whole eggs (half yolks) | 3 eggs | M |
-| Protein yogurt | 1 cup (~130 cal, 20g protein) | L |
-| Yotvata Pro 0% sugar | 1 bottle | L |
-| Whey scoop | 1 scoop (~25g protein) | L |
-| Protein bar | 1 bar (trust / one / quest / zero / pure / all-in / tnuva go) | M |
+| Source | Amount | kcal | Tag |
+|---|---|---|---|
+| Chicken breast | 100g | ~165 | L |
+| Turkey breast | 100g | ~135 | L |
+| Lean beef (shoulder/round) | 100g | ~170 | L |
+| Pastrami ≤3% fat | 100g | ~110 | L |
+| Chicken liver | 100g | ~135 | L |
+| Lean fish (cod, hake, sole, tilapia) | 120g | ~130 | L |
+| Tuna in water (drained) | 110g | ~115 | L |
+| Salmon | 70g | ~145 | F |
+| Sea bream (denis) | 70g | ~135 | F |
+| Tuna in oil (drained) | 110g | ~215 | F |
+| Beef burger / kebab / minced | 70g | ~180 | F |
+| Sirloin / fillet steak | 70g | ~175 | F |
+| Ribeye | 70g | ~200 | F |
+| Oven chicken (thighs, drumsticks) | 70g | ~155 | F |
+| Cottage cheese / white cheese 3% | 180g | ~135 | L |
+| Cottage cheese / white cheese 5% | 140g | ~140 | M |
+| Bulgarian / tzfatit cheese 5% | 120g | ~140 | M |
+| Yellow cheese 9% (2 slices) | ~50g | ~160 | M |
+| Whole eggs (half yolks) | 3 eggs | ~215 | M |
+| Protein yogurt | 1 cup | ~130 | L |
+| Yotvata Pro 0% sugar | 1 bottle | ~130 | L |
+| Whey scoop | 1 scoop | ~130 | L |
+| Protein bar | 1 bar | ~180 | M |
 
 ### Hebrew (עברית)
 
-| מקור | כמות | תגית |
-|---|---|---|
-| חזה עוף | 100 גרם | רזה |
-| חזה הודו | 100 גרם | רזה |
-| שייטל / כתף בקר | 100 גרם | רזה |
-| פסטרמה עד 3% שומן | 100 גרם | רזה |
-| כבד עוף | 100 גרם | רזה |
-| דג רזה (בקלה, מושט, אמנון) | 120 גרם | רזה |
-| פחית טונה במים (מסוננת) | 110 גרם | רזה |
-| סלמון | 70 גרם | שמן |
-| דניס | 70 גרם | שמן |
-| פחית טונה בשמן (מסוננת) | 110 גרם | שמן |
-| המבורגר / קבב / בשר טחון | 70 גרם | שמן |
-| סינטה / פילה בקר | 70 גרם | שמן |
-| עוף בתנור (שוקיים, כרעיים) | 70 גרם | שמן |
-| קוטג' / גבינה לבנה 3% | 180 גרם | רזה |
-| קוטג' / גבינה לבנה 5% | 140 גרם | בינוני |
-| גבינה בולגרית / צפתית 5% | 120 גרם | בינוני |
-| גבינה צהובה 9% (2 פרוסות) | ~50 גרם | בינוני |
-| ביצים שלמות (חצי חלמונים) | 3 ביצים | בינוני |
-| יוגורט חלבון | גביע (~130 קל', 20 גרם חלבון) | רזה |
-| יטבתה פרו 0% סוכר | בקבוק | רזה |
-| סקופ אבקת חלבון | סקופ (~25 גרם חלבון) | רזה |
-| חטיף חלבון | יחידה (trust / one / quest / zero / pure / all-in / tnuva go) | בינוני |
+| מקור | כמות | קל' | תגית |
+|---|---|---|---|
+| חזה עוף | 100 גרם | ~165 | רזה |
+| חזה הודו | 100 גרם | ~135 | רזה |
+| שייטל / כתף בקר | 100 גרם | ~170 | רזה |
+| פסטרמה עד 3% שומן | 100 גרם | ~110 | רזה |
+| כבד עוף | 100 גרם | ~135 | רזה |
+| דג רזה (בקלה, מושט, אמנון) | 120 גרם | ~130 | רזה |
+| פחית טונה במים (מסוננת) | 110 גרם | ~115 | רזה |
+| סלמון | 70 גרם | ~145 | שמן |
+| דניס | 70 גרם | ~135 | שמן |
+| פחית טונה בשמן (מסוננת) | 110 גרם | ~215 | שמן |
+| המבורגר / קבב / בשר טחון | 70 גרם | ~180 | שמן |
+| סינטה / פילה בקר | 70 גרם | ~175 | שמן |
+| אנטריקוט | 70 גרם | ~200 | שמן |
+| עוף בתנור (שוקיים, כרעיים) | 70 גרם | ~155 | שמן |
+| קוטג' / גבינה לבנה 3% | 180 גרם | ~135 | רזה |
+| קוטג' / גבינה לבנה 5% | 140 גרם | ~140 | בינוני |
+| גבינה בולגרית / צפתית 5% | 120 גרם | ~140 | בינוני |
+| גבינה צהובה 9% (2 פרוסות) | ~50 גרם | ~160 | בינוני |
+| ביצים שלמות (חצי חלמונים) | 3 ביצים | ~215 | בינוני |
+| יוגורט חלבון | גביע | ~130 | רזה |
+| יטבתה פרו 0% סוכר | בקבוק | ~130 | רזה |
+| סקופ אבקת חלבון | סקופ | ~130 | רזה |
+| חטיף חלבון | יחידה (trust / one / quest / zero / pure / all-in / tnuva go) | ~180 | בינוני |
 
 ## 1 Carb serving = 50g carbs
 

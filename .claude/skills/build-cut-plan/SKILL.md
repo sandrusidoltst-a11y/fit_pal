@@ -53,26 +53,42 @@ Then compute, showing each step in chat:
 - Take the smaller of the two
 - Daily intake target = TDEE − deficit
 
-**Step 3 — Protein**
+**Step 3 — Protein target (grams + servings)**
 - 2.0 g/kg (use target weight, not current, if BF > 25%)
 - 2.3 g/kg if BF < 13%, spread across 3 meals
 - Only complete proteins count; min 20g per serving
-- Protein calories = grams × 4
+- Divide by 20 → **number of protein servings per day**
 
-**Step 4 — Fat (verify, don't add)**
-- Assume mid-range protein sources (not leanest, not fattiest). Rough estimate:
-  - Lean options average ~3g fat per 20g protein
-  - Mid-range average ~6–8g fat per 20g protein
-  - Fatty options ~12g fat per 20g protein
-- Pick mid-range → multiply by protein servings → fat grams
-- Sanity check: fat should land in ~0.8–1.2 g/kg. If outside, nudge the estimation toward leaner or fattier sources.
-- Fat calories = grams × 9
+**Step 4 — Protein skeleton calories (food-based, not macro math)**
 
-**Step 5 — Discretionary**
-- Carve out 100 cal/day for sauces, milk in coffee, small treats
+This is the biggest mental shift: **do not** calculate protein calories as `grams × 4` and then fat as a separate add-on. The trainee eats *foods*, and each food brings its protein and its native fat together. Estimate the calories the trainee will actually consume from their protein servings.
+
+How to estimate:
+- Each protein serving in `references/serving-options.md` lists `kcal_per_serving` (calories for the food amount that delivers 20g protein)
+- Values span roughly 130 kcal (very lean, e.g. white fish) → 250 kcal (fatty, e.g. ribeye, salmon, fatty cheese)
+- **Default anchor: 170 kcal/serving** — realistic mix for someone who eats mostly lean-to-mid sources with occasional fattier meals (chicken breast, lean beef, cottage 3%, eggs, salmon here and there)
+- `protein_skeleton_cal = protein_servings × 170`
+
+Example check — 200g chicken breast ≈ 330 kcal, 200g ribeye ≈ 570 kcal. The 170 kcal/serving anchor assumes a mostly-lean mix with some variety. Adjust downward (145–155) if the trainee is very strict about lean-only; upward (185–200) if they truly lean fatty.
+
+The fat does **not** need separate verification — it's already inside the skeleton calorie number. If the trainee eats leaner than the estimate, they'll have more calories left for carbs (good). If fattier, carbs tighten.
+
+**Step 5 — Two separate 100-kcal buckets (pre-allocated off the top)**
+
+These are two different things — keep them separate in the plan, both in the calculation and in the output file.
+
+1. **Background allowance — 100 kcal/day**
+   - Covers incidental calories that happen anyway: cooking oil spray, milk in coffee, sauce drizzle, dressings
+   - NOT the trainee's choice — it's a realistic buffer so the plan math matches real life
+   - Used daily, not aggregatable
+
+2. **Free calories — 100 kcal/day**
+   - The trainee picks what to spend it on: wine, chocolate, fruit, tahini, mayo, etc.
+   - **Aggregatable across days** — skip Monday+Tuesday → 300 kcal available Wednesday for a glass of wine + chocolate
+   - The output plan MUST include an examples list (≈100 kcal equivalents: 1 apple / 1 banana / 3 dates / 60ml whiskey / 125ml wine / 6 chocolate squares / 1 tbsp tahini / 1.5 tbsp olive oil / 2 tbsp mayo / 3 tsp peanut butter / etc.)
 
 **Step 6 — Weekly carb budget**
-- `daily_carb_cal = daily_intake − protein_cal − fat_cal − discretionary_cal`
+- `daily_carb_cal = daily_intake − protein_skeleton_cal − 100 (background) − 100 (free)`
 - `weekly_carb_g = 7 × daily_carb_cal / 4`
 
 **Step 7 — Distribute carbs across the week**

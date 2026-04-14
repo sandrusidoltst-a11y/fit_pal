@@ -26,8 +26,9 @@
 | Target intake | {INTAKE} kcal |
 | Deficit | {DEFICIT} kcal/day |
 | Protein | {PROTEIN_G}g ({PROTEIN_SERVINGS} servings × 20g) |
-| Fat (passive) | ~{FAT_G}g |
-| Discretionary | 100 kcal |
+| Protein skeleton kcal | ~{PROTEIN_KCAL} kcal (from food, includes native fat) |
+| Background allowance | 100 kcal (sauces, milk in coffee, cooking oil — non-negotiable) |
+| Free calories | 100 kcal (trainee's choice, **aggregatable across days**) |
 | Carbs (weekly avg) | {CARBS_AVG}g/day |
 
 ## Weekly Carb Distribution
