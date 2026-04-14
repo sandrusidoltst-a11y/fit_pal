@@ -1,6 +1,9 @@
 # MCP
 .mcp.json
 
+# Private plan documents
+docs/ייעוץ דולב סנדרוסי.pdf
+
 # Python
 __pycache__/
 *.py[cod]
