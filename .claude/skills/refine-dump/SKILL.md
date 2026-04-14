@@ -188,3 +188,5 @@ After writing all files, show the user a summary:
 - **Always output in English** — translate Hebrew or other languages
 - **Reuse existing tags** — check what tags already exist before creating new ones
 - **Questions are not tasks** — they stay as questions in the note, never go to TASKS.md
+- **Never auto-commit** — write the files but leave them unstaged. The user decides when and what to commit
+- **Link to commit logs** — when a chunk references a specific commit or PR, add a reference to the relevant `commit_logs/` file using inline code (not wikilinks, since commit logs live outside `brain/`)
