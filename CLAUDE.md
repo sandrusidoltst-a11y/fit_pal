@@ -53,15 +53,16 @@ fit_pal/
 │   │       ├── commit_node.py     # Batch DB write after confirmation
 │   │       ├── stats_node.py      # Stats lookup node
 │   │       ├── personal_stats_node.py # Personal stats logging (weight, body fat)
-│   │       └── response_node.py   # LLM response generator
+│   │       └── response_node.py   # LLM response generator (injects time, profile, nutrition plan)
 │   ├── services/
 │   │   ├── daily_log_service.py   # CRUD for daily logs + @tool wrappers (log_food_entry, query_food_logs)
 │   │   ├── food_service.py        # FoodItem CRUD + @tool wrappers (search_food, calculate_food_macros, create_food_item) + compute_food_macros helper
 │   │   ├── personal_stats_service.py # Personal stats CRUD + @tool wrappers (log_personal_stat, get_latest_personal_stats)
-│   │   └── user_profile_service.py # User profile CRUD (onboarding data)
+│   │   └── user_profile_service.py # User profile CRUD (onboarding data, nutrition plan set/get)
 │   ├── scripts/
 │   │   ├── ingest_simple_db.py    # ETL script (CSV -> Supabase Postgres)
-│   │   └── print_trace.py         # LangSmith thread trace viewer (by thread_id)
+│   │   ├── print_trace.py         # LangSmith thread trace viewer (by thread_id)
+│   │   └── set_plan.py            # Coach CLI: upload nutrition plan per user
 │   ├── schemas/
 │   │   ├── input_schema.py        # FoodIntakeEvent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
@@ -124,7 +125,7 @@ Detailed pattern files live in `docs/patterns/`. Each pattern below has a summar
 |---|---|---|
 | **Tool-First + Service Layer**: All DB access through async `@tool` functions. Nodes are thin orchestrators via `await tool.ainvoke(...)` — never import DB sessions. `src/services/` has raw service functions (accept `session` for DI/testability) + `@tool` wrappers that own their session. | [tool-first.md](docs/patterns/tool-first.md) | Before adding tools, nodes, or DB access |
 | **State Schemas**: `InputState` (messages only, public API) → `AgentState` (internal) → `OutputState`. Enables clean LangSmith Studio chat interface without exposing internal state fields. | [state-schemas.md](docs/patterns/state-schemas.md) | Before modifying state, adding fields, or changing graph I/O |
-| **Runtime Context + User Profile**: `ContextSchema` (dataclass in `src/context.py`) defines `user_id` and `user_profile`, registered on `StateGraph` via `context_schema`. Bot sends `context` field in HTTP body. Nodes access via `runtime: Runtime[ContextSchema]` and pass `user_id` as a plain string to tools. `response_node` injects user profile into `SystemMessage`. `DEFAULT_DEV_USER_ID` fallback for Studio. | [runtime-context.md](docs/patterns/runtime-context.md) | Before touching user_id, user_profile, or context flow |
+| **Runtime Context + User Profile**: `ContextSchema` (dataclass in `src/context.py`) defines `user_id` and `user_profile` (including optional `nutrition_plan`), registered on `StateGraph` via `context_schema`. Bot sends `context` field in HTTP body. Nodes access via `runtime: Runtime[ContextSchema]` and pass `user_id` as a plain string to tools. `response_node` injects user profile, nutrition plan, and current time into `SystemMessage`. `DEFAULT_DEV_USER_ID` fallback for Studio. | [runtime-context.md](docs/patterns/runtime-context.md) | Before touching user_id, user_profile, nutrition_plan, or context flow |
 | **LLM Configuration + Pydantic Output**: `get_llm_for_node()` in `config.py` centralises LLM instantiation with per-node overrides. Never hardcode models. Use `.with_structured_output(Schema)` for typed nodes and access fields as attributes; call `.model_dump()` only at the state-write boundary. `response_node` is the conversational carve-out (no schema). Never parse raw LLM strings. | [llm-config.md](docs/patterns/llm-config.md) | Before adding or configuring LLM calls in nodes |
 | **Fully Async**: All nodes, tools, and DB access use `async`/`await`. The async engine (`asyncpg`) is the primary DB path. Sync engine (`psycopg2`) exists only for ETL scripts. | [async-patterns.md](docs/patterns/async-patterns.md) | Before adding any DB, tool, or node code |
 | **HITL Batch Confirmation**: All food items accumulated into `pending_confirmations` as `MacroResult` previews. `confirmation_node` uses `interrupt()` in a validation loop for confirm/reject/edit via natural language. `Command` return enables dynamic routing to `commit` or `response`. | [hitl-confirmation.md](docs/patterns/hitl-confirmation.md) | Before modifying confirmation/commit flow |
@@ -243,4 +244,9 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 | [.claude/skills/use-railway/SKILL.md](.claude/skills/use-railway/SKILL.md) | Skill | Railway infrastructure operations (deploy, configure, troubleshoot) | When working with Railway deployment, services, or environment variables |
 | [.claude/skills/eval-debugger/SKILL.md](.claude/skills/eval-debugger/SKILL.md) | Skill | Debug eval failures from LangSmith experiments, generate diagnostic reports | After running evals, when failures need investigation |
 | [.claude/skills/eval-setup/SKILL.md](.claude/skills/eval-setup/SKILL.md) | Skill | Create single-step evaluation notebooks for graph nodes | When creating a new eval for a node |
+| [.claude/skills/focus/SKILL.md](.claude/skills/focus/SKILL.md) | Skill | Plan focused work sessions, recommend prioritized tasks | When starting a session or deciding what to work on next |
+| [.claude/skills/skill-creator/SKILL.md](.claude/skills/skill-creator/SKILL.md) | Skill | Create, modify, and benchmark skills | When building or improving a skill |
+| [.claude/skills/obsidian-markdown/SKILL.md](.claude/skills/obsidian-markdown/SKILL.md) | Skill | Obsidian-flavored Markdown (wikilinks, callouts, embeds) | When creating or editing Obsidian notes |
+| [.claude/skills/obsidian-cli/SKILL.md](.claude/skills/obsidian-cli/SKILL.md) | Skill | Obsidian CLI interactions (read, create, search notes) | When interacting with the Obsidian vault programmatically |
+| [.claude/skills/refine-dump/SKILL.md](.claude/skills/refine-dump/SKILL.md) | Skill | Refine raw brain dump notes into structured Obsidian notes | When processing daily brain dump notes |
 | [docs/orphaned-langgraph-server.md](docs/orphaned-langgraph-server.md) | Documentation | Guide for finding/killing zombie langgraph dev processes on Windows | When `langgraph dev` fails with "port 2024 already in use" |

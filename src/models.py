@@ -2,7 +2,7 @@ import uuid as uuid_mod
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Uuid, String, Float, Integer, DateTime, ForeignKey
+from sqlalchemy import Uuid, String, Float, Integer, DateTime, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
 
 
@@ -74,6 +74,7 @@ class UserProfile(Base):
     height_cm: Mapped[float] = mapped_column(Float, nullable=False)
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     gender: Mapped[str] = mapped_column(String, nullable=False)
+    nutrition_plan: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
