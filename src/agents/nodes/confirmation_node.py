@@ -9,6 +9,7 @@ from langgraph.types import Command, interrupt
 from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
 from src.context import ContextSchema
+from src.i18n import MESSAGES
 from src.schemas.confirmation_schema import ConfirmationResponse
 from src.services.food_service import calculate_food_macros
 
@@ -30,7 +31,7 @@ def _format_batch_preview(items: list[MacroResult]) -> dict:
     """Build human-readable batch preview payload for interrupt."""
     formatted_items = []
     for i, item in enumerate(items):
-        source_tag = " (estimated)" if item["source"] == "estimated" else ""
+        source_tag = MESSAGES["confirmation_estimated_tag"] if item["source"] == "estimated" else ""
         formatted_items.append(
             {
                 "index": i,
@@ -51,7 +52,7 @@ def _format_batch_preview(items: list[MacroResult]) -> dict:
     }
 
     return {
-        "question": "Please review the following items before I log them. You can confirm, reject, or edit specific items.",
+        "question": MESSAGES["confirmation_question"],
         "items": formatted_items,
         "totals": totals,
     }

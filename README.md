@@ -90,6 +90,17 @@ Test the Telegram bot locally without deploying:
 
 ---
 
+## Localization
+
+The bot UI language is set via the `BOT_LANGUAGE` env var.
+
+- Supported: `en` (default), `he`
+- Set on **both** the `langgraph-server` and `fitpal-bot` Railway services — they each load the i18n module independently, so a mismatch yields half-translated chats.
+- Adding a new user-facing string: add the key to the `Messages` TypedDict in `src/i18n/__init__.py`, then add the same key to both `src/i18n/en.yaml` and `src/i18n/he.yaml`. The startup parity check refuses to boot if any of the three drift apart.
+- LLM-generated coach responses are not in the YAML — the response-node system prompt instructs the model to match the user's language automatically.
+
+---
+
 ## Testing
 
 ```bash

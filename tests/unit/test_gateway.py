@@ -64,9 +64,7 @@ class TestPassphraseFlow:
 
         await gw.handle_message(mock_message)
 
-        mock_message.answer.assert_called_once_with(
-            "Send the invite code to get started."
-        )
+        mock_message.answer.assert_called_once_with(gw.MESSAGES["auth_invite_prompt"])
 
     async def test_wrong_passphrase_rejected(self, mock_message):
         """
@@ -78,9 +76,7 @@ class TestPassphraseFlow:
 
         await gw.handle_message(mock_message)
 
-        mock_message.answer.assert_called_once_with(
-            "Send the invite code to get started."
-        )
+        mock_message.answer.assert_called_once_with(gw.MESSAGES["auth_invite_prompt"])
 
     @patch("bot.gateway.BOT_PASSPHRASE", "secret123")
     @patch("bot.gateway._load_user_profile", new_callable=AsyncMock, return_value={"name": "Test", "height_cm": 170, "age": 25, "gender": "male"})
@@ -105,9 +101,7 @@ class TestPassphraseFlow:
 
         await gw.handle_message(mock_message)
 
-        mock_message.answer.assert_called_once_with(
-            "Welcome back to FitPal! You can start logging food now."
-        )
+        mock_message.answer.assert_called_once_with(gw.MESSAGES["onboarding_welcome_back"])
         assert 12345 in gw.user_sessions
         assert gw.user_sessions[12345]["user_id"] == "uuid-abc"
         assert gw.user_sessions[12345]["thread_id"] == "thread-123"
@@ -125,9 +119,7 @@ class TestPassphraseFlow:
 
         await gw.handle_message(mock_message)
 
-        mock_message.answer.assert_called_once_with(
-            "I can only process text messages."
-        )
+        mock_message.answer.assert_called_once_with(gw.MESSAGES["error_non_text"])
 
 
 class TestMessageRelay:

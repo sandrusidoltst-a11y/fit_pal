@@ -1,0 +1,42 @@
+# FitPal user-facing strings — Hebrew skeleton.
+#
+# Every value is currently TODO_HE-prefixed with the English fallback.
+# Replace each value with the Hebrew translation. The TODO_HE prefix
+# satisfies the non-empty-string parity rule, so the loader will boot,
+# but any user running with BOT_LANGUAGE=he will see the literal
+# "TODO_HE:" prefix until you translate. That's intentional — it makes
+# untranslated strings loud.
+#
+# Keep keys in sync with src/i18n/en.yaml and the Messages TypedDict.
+# Keep placeholder syntax intact: {name}, {cals}, {protein}, {carbs}, {fat}.
+
+# --- Onboarding ---
+onboarding_welcome: "TODO_HE: Welcome to FitPal! Let's set up your profile."
+onboarding_welcome_back: "TODO_HE: Welcome back to FitPal! You can start logging food now."
+onboarding_complete: "TODO_HE: Great, {name}! Your profile is set up. You can start logging food now."
+onboarding_q_name: "TODO_HE: What's your name?"
+onboarding_q_height: "TODO_HE: What's your height in cm?"
+onboarding_q_age: "TODO_HE: How old are you?"
+onboarding_q_gender: "TODO_HE: What's your gender? (male/female/other)"
+onboarding_invalid_height: "TODO_HE: Please enter a number for height (cm)."
+onboarding_invalid_age: "TODO_HE: Please enter a number for age."
+onboarding_invalid_gender: "TODO_HE: Please enter male, female, or other."
+
+# --- Auth / passphrase ---
+auth_invite_prompt: "TODO_HE: Send the invite code to get started."
+auth_registration_error: "TODO_HE: Something went wrong during registration. Please try again."
+
+# --- Errors ---
+error_generic_thread: "TODO_HE: Something went wrong. Please try again later."
+error_generic_request: "TODO_HE: Something went wrong processing your request. Please try again."
+error_empty_response: "TODO_HE: I processed your request but have no response to show."
+error_non_text: "TODO_HE: I can only process text messages."
+
+# --- HITL confirmation (graph node payload) ---
+confirmation_question: "TODO_HE: Please review the following items before I log them. You can confirm, reject, or edit specific items."
+confirmation_estimated_tag: "TODO_HE: (estimated)"
+
+# --- HITL confirmation render (bot) ---
+confirmation_macro_line: "TODO_HE:   {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
+confirmation_total_line: "TODO_HE: Total: {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
+confirmation_reply_hint: "TODO_HE: Reply 'yes' to confirm, 'no' to reject, or describe edits."
