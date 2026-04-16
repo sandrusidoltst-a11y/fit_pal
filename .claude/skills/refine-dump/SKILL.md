@@ -160,10 +160,12 @@ After creating all refined notes, check if any of them contain explicit action i
 **Where to add the task:** `TASKS.md` is organized into priority sections — `## Critical — POC Blockers`, `## Important — Real User Quality`, `## Maintenance — Keep the House Clean`, and `## Backlog — Nice to Have`. Read `brain/GOALS.md` and the existing `TASKS.md` structure to understand the priorities, then place each new task in the section that best fits.
 
 **Classification guidance:**
-- **Critical (POC Blockers)** — Directly unblocks the mid-May POC demo (coach dashboard, macro targets, plan vs actual). Only add here if it's genuinely blocking the POC.
-- **Important (Real User Quality)** — Makes the bot better for daily users (correction flows, session persistence, UX fixes). Tag with `goal:users`.
-- **Maintenance** — Project hygiene that isn't tied to any goal (CI fixes, doc updates, cleanup). No goal tag.
+- **Critical (POC Blockers)** — Directly unblocks the mid-May POC demo (coach dashboard, macro targets, plan vs actual). Only add here if it's genuinely blocking the POC. Tag with `goal:poc`.
+- **Important (Real User Quality)** — Anything the end user sees, hears, or feels: correction flows, session persistence, UX fixes, bot copy, tone, Hebrew/localization, prewritten message config, error messages, onboarding polish, anything affecting bot responses. Tag with `goal:users`. **Size and urgency don't matter — if it touches the user experience at all, it belongs here, not in Maintenance.**
+- **Maintenance** — Dev-flow and project-hygiene tasks ONLY: CI, tooling, skill updates, commit/sync-context scripts, brain/vault setup, internal docs, repo structure. If the work affects what the user experiences at all, it is NOT maintenance — it is Important. No goal tag.
 - **Backlog (Nice to Have)** — Future ideas, optimizations, not blocking anything. Tag with the most relevant goal.
+
+**The Maintenance vs Important split is by audience, not urgency.** A one-line fix to a bot message is Important (`goal:users`), not Maintenance. A multi-hour CI refactor is Maintenance, not Important. When in doubt, ask yourself: *does the end user perceive the outcome?* If yes → Important. If no → Maintenance.
 
 **Goal tags:** Add `goal:poc`, `goal:users`, or `goal:learning` after the wikilink, matching the existing tasks. Maintenance tasks get no goal tag.
 
