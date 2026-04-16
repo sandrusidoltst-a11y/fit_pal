@@ -355,7 +355,11 @@ async def handle_message(message: Message) -> None:
     # Check if user has an active session
     if chat_id not in user_sessions:
         # Passphrase check for new users
-        if hmac.compare_digest(message.text.strip(), BOT_PASSPHRASE):
+        # Encode to bytes before compare_digest — it refuses non-ASCII strings,
+        # and any non-English first message (Hebrew, emoji, etc.) would crash.
+        if hmac.compare_digest(
+            message.text.strip().encode("utf-8"), BOT_PASSPHRASE.encode("utf-8")
+        ):
             try:
                 result = await get_or_create_user(chat_id)
                 thread_id = await _create_thread()
