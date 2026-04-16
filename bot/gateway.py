@@ -150,30 +150,31 @@ async def _get_interrupt_state(thread_id: str) -> tuple[bool, str | None]:
 
 def _format_interrupt_value(value: dict) -> str:
     """Format an interrupt value dict into a user-friendly Telegram message."""
-    lines = []
+    sections: list[str] = []
+
     question = value.get("question", "")
     if question:
-        lines.append(question)
-        lines.append("")
+        sections.append(question)
 
-    items = value.get("items", [])
-    for item in items:
+    item_blocks: list[str] = []
+    for item in value.get("items", []):
         desc = item.get("description", "")
         cals = item.get("calories", 0)
         protein = item.get("protein", 0)
         carbs = item.get("carbs", 0)
         fat = item.get("fat", 0)
-        source = item.get("source", "")
-        source_tag = MESSAGES["confirmation_estimated_tag"] if source == "estimated" else ""
+        # The graph node already appends the "(estimated)" tag to desc via
+        # MESSAGES["confirmation_estimated_tag"]; don't double-tag here.
         macro_line = MESSAGES["confirmation_macro_line"].format(
             cals=cals, protein=protein, carbs=carbs, fat=fat
         )
-        lines.append(f"• {desc}{source_tag}\n{macro_line}")
+        item_blocks.append(f"{desc}\n{macro_line}")
+    if item_blocks:
+        sections.append("\n\n".join(item_blocks))
 
     totals = value.get("totals")
     if totals:
-        lines.append("")
-        lines.append(
+        sections.append(
             MESSAGES["confirmation_total_line"].format(
                 cals=totals.get("calories", 0),
                 protein=totals.get("protein", 0),
@@ -182,10 +183,9 @@ def _format_interrupt_value(value: dict) -> str:
             )
         )
 
-    lines.append("")
-    lines.append(MESSAGES["confirmation_reply_hint"])
+    sections.append(MESSAGES["confirmation_reply_hint"])
 
-    return "\n".join(lines)
+    return "\n\n".join(sections)
 
 
 async def _save_user_profile(user_id: str, data: dict) -> None:

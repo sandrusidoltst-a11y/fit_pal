@@ -152,7 +152,7 @@ class TestOnboardingCollectsData:
         """
         arrange: session at onboarding_step="height".
         act:     user sends non-numeric "tall".
-        assert:  error message sent, step stays at "height".
+        assert:  localized height error message sent, step stays at "height".
         """
         gw.user_sessions[mock_message.chat.id] = _onboarding_session("height")
         mock_message.text = "tall"
@@ -162,7 +162,7 @@ class TestOnboardingCollectsData:
         assert result is True
         session = gw.user_sessions[mock_message.chat.id]
         assert session["onboarding_step"] == "height"
-        assert "number" in mock_message.answer.call_args[0][0].lower()
+        mock_message.answer.assert_called_with(gw.MESSAGES["onboarding_invalid_height"])
 
     async def test_onboarding_validates_age(self, mock_message):
         """

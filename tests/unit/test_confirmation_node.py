@@ -16,6 +16,7 @@ from src.agents.nodes.confirmation_node import (
     _format_batch_preview,
     confirmation_node,
 )
+from src.i18n import MESSAGES
 from src.schemas.confirmation_schema import ConfirmationResponse, ItemEdit
 
 
@@ -65,15 +66,19 @@ class TestFormatBatchPreview:
         """
         arrange: batch with an estimated item.
         act:     format batch preview.
-        assert:  estimated item has "(estimated)" in description.
+        assert:  estimated item has the localized estimated tag in description;
+                 DB item does not.
         """
         preview = _format_batch_preview(SAMPLE_BATCH)
 
         db_item = preview["items"][0]
         est_item = preview["items"][1]
+        tag = MESSAGES["confirmation_estimated_tag"]
 
-        assert "(estimated)" not in db_item["description"]
-        assert "(estimated)" in est_item["description"]
+        assert tag not in db_item["description"]
+        assert tag in est_item["description"]
+        assert db_item["source"] == "database"
+        assert est_item["source"] == "estimated"
 
     def test_totals_calculation(self):
         """

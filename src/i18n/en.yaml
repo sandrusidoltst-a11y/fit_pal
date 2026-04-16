@@ -29,10 +29,10 @@ error_empty_response: "I processed your request but have no response to show."
 error_non_text: "I can only process text messages."
 
 # --- HITL confirmation (graph node payload) ---
-confirmation_question: "Please review the following items before I log them. You can confirm, reject, or edit specific items."
+confirmation_question: "Let me double-check these before I save them:"
 confirmation_estimated_tag: " (estimated)"
 
 # --- HITL confirmation render (bot) ---
-confirmation_macro_line: "  {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
-confirmation_total_line: "Total: {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
-confirmation_reply_hint: "Reply 'yes' to confirm, 'no' to reject, or describe edits."
+confirmation_macro_line: "{cals} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat"
+confirmation_total_line: "Altogether that's {cals} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat."
+confirmation_reply_hint: "Does this look right? Say yes to save, no to skip, or tell me what to change."

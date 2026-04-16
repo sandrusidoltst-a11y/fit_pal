@@ -11,32 +11,32 @@
 # Keep placeholder syntax intact: {name}, {cals}, {protein}, {carbs}, {fat}.
 
 # --- Onboarding ---
-onboarding_welcome: "TODO_HE: Welcome to FitPal! Let's set up your profile."
-onboarding_welcome_back: "TODO_HE: Welcome back to FitPal! You can start logging food now."
-onboarding_complete: "TODO_HE: Great, {name}! Your profile is set up. You can start logging food now."
-onboarding_q_name: "TODO_HE: What's your name?"
-onboarding_q_height: "TODO_HE: What's your height in cm?"
-onboarding_q_age: "TODO_HE: How old are you?"
-onboarding_q_gender: "TODO_HE: What's your gender? (male/female/other)"
-onboarding_invalid_height: "TODO_HE: Please enter a number for height (cm)."
-onboarding_invalid_age: "TODO_HE: Please enter a number for age."
-onboarding_invalid_gender: "TODO_HE: Please enter male, female, or other."
+onboarding_welcome: "היי ברוך הבא לFitpal בוא נגדיר את הפרופיל שלך"
+onboarding_welcome_back: "היי מה קורה? איך מתקדם? בא לך לספר לי מה אכלת?"
+onboarding_complete: "מעולה {name}! נרשמת בהצלחה. מעכשיו אני פה לעקוב ולעזור לך עם תהליך התזונה שלך"
+onboarding_q_name: "מה השם שלך ?"
+onboarding_q_height: "תעשה טובה תכניס את הגובה שלך בסנטימטרים?"
+onboarding_q_age: "בן כמה אתה ?"
+onboarding_q_gender: "גבר או אישה ?"
+onboarding_invalid_height: "גובה זה גם רק מספר, בסנטימטרים בבקשה"
+onboarding_invalid_age: "גיל זה רק מספר אז בבקשה תכניס או תכניסי רק מספר לגיל?"
+onboarding_invalid_gender: "תכניס או תכניסי גבר או אישה בלי להתחכם"
 
 # --- Auth / passphrase ---
-auth_invite_prompt: "TODO_HE: Send the invite code to get started."
-auth_registration_error: "TODO_HE: Something went wrong during registration. Please try again."
+auth_invite_prompt: "מה הקוד? , מה חשבת לא כולם יכולים להתשמש בי"
+auth_registration_error: "לא להמציא , תכניס את הקוד הנכון"
 
 # --- Errors ---
-error_generic_thread: "TODO_HE: Something went wrong. Please try again later."
-error_generic_request: "TODO_HE: Something went wrong processing your request. Please try again."
-error_empty_response: "TODO_HE: I processed your request but have no response to show."
-error_non_text: "TODO_HE: I can only process text messages."
+error_generic_thread: "משהו לא עובד כמו שצריך תנסה שוב מאוחר יותר"
+error_generic_request: "משהו לא עבד טוב עם הבקשה שלך בבקשה תנסה שוב מאוחר יותר"
+error_empty_response: "קיבלתי מה שאמרת אבל אין לי הודעה להחזיר לך"
+error_non_text: "לא להגזים אחי כרגע רק טקסט"
 
 # --- HITL confirmation (graph node payload) ---
-confirmation_question: "TODO_HE: Please review the following items before I log them. You can confirm, reject, or edit specific items."
-confirmation_estimated_tag: "TODO_HE: (estimated)"
+confirmation_question: "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:"
+confirmation_estimated_tag: " (משוערך)"
 
 # --- HITL confirmation render (bot) ---
-confirmation_macro_line: "TODO_HE:   {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
-confirmation_total_line: "TODO_HE: Total: {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
-confirmation_reply_hint: "TODO_HE: Reply 'yes' to confirm, 'no' to reject, or describe edits."
+confirmation_macro_line: "{cals} קלוריות, {protein}ג׳ חלבון, {carbs}ג׳ פחמימות, {fat}ג׳ שומן"
+confirmation_total_line: "בסך הכל יוצא {cals} קלוריות, {protein}ג׳ חלבון, {carbs}ג׳ פחמימות, {fat}ג׳ שומן."
+confirmation_reply_hint: "נראה לך טוב? תגיד כן לשמור, לא לביטול, או ספר לי מה לשנות."
