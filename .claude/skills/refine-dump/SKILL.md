@@ -68,6 +68,18 @@ Read through the dump and split it into separate chunks. Each chunk is a distinc
 
 If a chunk doesn't clearly fit one type, ask the user: "This chunk about [brief description] — is this a learning, planning, or idea note?" Don't guess on ambiguous ones.
 
+**Content clarification — ask when unsure about meaning, scope, or implied action.**
+
+Dumps are captured fast and are often unclear. Type classification is only one axis. If any of the following apply, ASK the user a specific question before writing the note — do not pick a direction yourself:
+
+- The chunk mentions something (a feature, a bug, a concern) whose **scope** is unclear — one instance vs. a pattern, a passing observation vs. a blocking issue
+- Two or more chunks could be **merged or kept separate** — ask whether to combine them
+- The chunk hints at an **implied task** ("I should look into X", "I noticed Y is bad") without explicitly stating it as a TODO — clarify whether the user wants it captured as a task in TASKS.md
+- A chunk references a **decision, finding, or investigation the user appears to have already done** (e.g., "dug deep and it's not good") but the **finding** itself is unclear — ask what specifically they want surfaced
+- The phrasing is **ambiguous or fragmented** to the point that a reasonable refined note could go multiple ways — ask which direction reflects what they meant
+
+Dumps are dumps — they're not always clear, but part of this skill's job is to make them clearer. When in doubt, ask a specific question rather than guess. Err on the side of asking one extra question over producing a note that doesn't match intent.
+
 ### 4. For each chunk, scan the repo for related files
 
 Use Grep and Glob to find code files, commit logs, plans, patterns, and docs related to the chunk's content. Look in:
@@ -166,6 +178,21 @@ After creating all refined notes, check if any of them contain explicit action i
 - **Backlog (Nice to Have)** — Future ideas, optimizations, not blocking anything. Tag with the most relevant goal.
 
 **The Maintenance vs Important split is by audience, not urgency.** A one-line fix to a bot message is Important (`goal:users`), not Maintenance. A multi-hour CI refactor is Maintenance, not Important. When in doubt, ask yourself: *does the end user perceive the outcome?* If yes → Important. If no → Maintenance.
+
+**Quality-failure observations trigger review/audit tasks — don't silently fold them into a planning note.**
+
+When the dump contains an observation about product or code quality failing ("this conversation is bad", "the bot didn't understand X", "response quality dropped", "users aren't getting Y", "dug deep and it's not good"), do NOT treat it as just a supporting detail for a planning note. A quality-failure observation from the user is essentially a call to action — they noticed a problem and implicitly need to:
+
+1. Verify the scope (is this one instance or a pattern?)
+2. Surface concrete findings for fixing
+
+Capture it as BOTH:
+- A planning note with the observation + open questions about scope/pattern
+- A TASKS.md entry under **Important `goal:users`** for a review/audit task that sources the planning note
+
+Example: *"dug deep into this conversation, it's really not a good one"* → planning note + task: *"Review recent bot conversations in LangSmith for quality issues — surface concrete findings."*
+
+This applies even when the user phrased it in past tense ("I noticed X") or passively ("this is bad"). One deep review surfacing one issue almost always means more reviews will surface more issues — that's worth a task, not just a note. If unsure whether a specific observation qualifies, apply the content-clarification rule above and ask.
 
 **Goal tags:** Add `goal:poc`, `goal:users`, or `goal:learning` after the wikilink, matching the existing tasks. Maintenance tasks get no goal tag.
 
