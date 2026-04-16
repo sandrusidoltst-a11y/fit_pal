@@ -1,0 +1,42 @@
+# FitPal user-facing strings — Hebrew skeleton.
+#
+# Every value is currently TODO_HE-prefixed with the English fallback.
+# Replace each value with the Hebrew translation. The TODO_HE prefix
+# satisfies the non-empty-string parity rule, so the loader will boot,
+# but any user running with BOT_LANGUAGE=he will see the literal
+# "TODO_HE:" prefix until you translate. That's intentional — it makes
+# untranslated strings loud.
+#
+# Keep keys in sync with src/i18n/en.yaml and the Messages TypedDict.
+# Keep placeholder syntax intact: {name}, {cals}, {protein}, {carbs}, {fat}.
+
+# --- Onboarding ---
+onboarding_welcome: "היי ברוך הבא לFitpal בוא נגדיר את הפרופיל שלך"
+onboarding_welcome_back: "היי מה קורה? איך מתקדם? בא לך לספר לי מה אכלת?"
+onboarding_complete: "מעולה {name}! נרשמת בהצלחה. מעכשיו אני פה לעקוב ולעזור לך עם תהליך התזונה שלך"
+onboarding_q_name: "מה השם שלך ?"
+onboarding_q_height: "תעשה טובה תכניס את הגובה שלך בסנטימטרים?"
+onboarding_q_age: "בן כמה אתה ?"
+onboarding_q_gender: "גבר או אישה ?"
+onboarding_invalid_height: "גובה זה גם רק מספר, בסנטימטרים בבקשה"
+onboarding_invalid_age: "גיל זה רק מספר אז בבקשה תכניס או תכניסי רק מספר לגיל?"
+onboarding_invalid_gender: "תכניס או תכניסי גבר או אישה בלי להתחכם"
+
+# --- Auth / passphrase ---
+auth_invite_prompt: "מה הקוד? , מה חשבת לא כולם יכולים להתשמש בי"
+auth_registration_error: "לא להמציא , תכניס את הקוד הנכון"
+
+# --- Errors ---
+error_generic_thread: "משהו לא עובד כמו שצריך תנסה שוב מאוחר יותר"
+error_generic_request: "משהו לא עבד טוב עם הבקשה שלך בבקשה תנסה שוב מאוחר יותר"
+error_empty_response: "קיבלתי מה שאמרת אבל אין לי הודעה להחזיר לך"
+error_non_text: "לא להגזים אחי כרגע רק טקסט"
+
+# --- HITL confirmation (graph node payload) ---
+confirmation_question: "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:"
+confirmation_estimated_tag: " (משוערך)"
+
+# --- HITL confirmation render (bot) ---
+confirmation_macro_line: "{cals} קלוריות, {protein}ג׳ חלבון, {carbs}ג׳ פחמימות, {fat}ג׳ שומן"
+confirmation_total_line: "בסך הכל יוצא {cals} קלוריות, {protein}ג׳ חלבון, {carbs}ג׳ פחמימות, {fat}ג׳ שומן."
+confirmation_reply_hint: "נראה לך טוב? תגיד כן לשמור, לא לביטול, או ספר לי מה לשנות."

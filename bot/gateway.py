@@ -27,6 +27,7 @@ from aiohttp import web  # noqa: E402
 
 from bot.supabase_admin import get_or_create_user  # noqa: E402
 from src.database import get_async_db_session  # noqa: E402
+from src.i18n import MESSAGES  # noqa: E402
 from src.services.user_profile_service import create_user_profile, get_user_profile  # noqa: E402
 
 logger = structlog.get_logger(__name__)
@@ -43,13 +44,12 @@ POLLING_MODE = os.environ.get("POLLING_MODE", "").lower() in ("true", "1", "yes"
 ASSISTANT_ID = "fitpal"
 SESSION_TIMEOUT = timedelta(minutes=30)
 
-ONBOARDING_QUESTIONS = {
-    "name": "What's your name?",
-    "height": "What's your height in cm?",
-    "age": "How old are you?",
-    "gender": "What's your gender? (male/female/other)",
-}
 ONBOARDING_ORDER = ["name", "height", "age", "gender"]
+
+
+def _onboarding_question(step: str) -> str:
+    """Look up the localized prompt for a given onboarding step."""
+    return MESSAGES[f"onboarding_q_{step}"]  # type: ignore[literal-required]
 
 
 class SessionData(TypedDict):
@@ -150,40 +150,42 @@ async def _get_interrupt_state(thread_id: str) -> tuple[bool, str | None]:
 
 def _format_interrupt_value(value: dict) -> str:
     """Format an interrupt value dict into a user-friendly Telegram message."""
-    lines = []
+    sections: list[str] = []
+
     question = value.get("question", "")
     if question:
-        lines.append(question)
-        lines.append("")
+        sections.append(question)
 
-    items = value.get("items", [])
-    for item in items:
+    item_blocks: list[str] = []
+    for item in value.get("items", []):
         desc = item.get("description", "")
         cals = item.get("calories", 0)
         protein = item.get("protein", 0)
         carbs = item.get("carbs", 0)
         fat = item.get("fat", 0)
-        source = item.get("source", "")
-        source_tag = " (estimated)" if source == "estimated" else ""
-        lines.append(
-            f"• {desc}{source_tag}\n"
-            f"  {cals} kcal | P: {protein}g | C: {carbs}g | F: {fat}g"
+        # The graph node already appends the "(estimated)" tag to desc via
+        # MESSAGES["confirmation_estimated_tag"]; don't double-tag here.
+        macro_line = MESSAGES["confirmation_macro_line"].format(
+            cals=cals, protein=protein, carbs=carbs, fat=fat
         )
+        item_blocks.append(f"{desc}\n{macro_line}")
+    if item_blocks:
+        sections.append("\n\n".join(item_blocks))
 
     totals = value.get("totals")
     if totals:
-        lines.append("")
-        lines.append(
-            f"Total: {totals.get('calories', 0)} kcal | "
-            f"P: {totals.get('protein', 0)}g | "
-            f"C: {totals.get('carbs', 0)}g | "
-            f"F: {totals.get('fat', 0)}g"
+        sections.append(
+            MESSAGES["confirmation_total_line"].format(
+                cals=totals.get("calories", 0),
+                protein=totals.get("protein", 0),
+                carbs=totals.get("carbs", 0),
+                fat=totals.get("fat", 0),
+            )
         )
 
-    lines.append("")
-    lines.append("Reply 'yes' to confirm, 'no' to reject, or describe edits.")
+    sections.append(MESSAGES["confirmation_reply_hint"])
 
-    return "\n".join(lines)
+    return "\n\n".join(sections)
 
 
 async def _save_user_profile(user_id: str, data: dict) -> None:
@@ -219,17 +221,17 @@ async def _handle_onboarding(message: Message, session: dict) -> bool:
         try:
             session["onboarding_data"]["height_cm"] = float(text)
         except ValueError:
-            await message.answer("Please enter a number for height (cm).")
+            await message.answer(MESSAGES["onboarding_invalid_height"])
             return True
     elif step == "age":
         try:
             session["onboarding_data"]["age"] = int(text)
         except ValueError:
-            await message.answer("Please enter a number for age.")
+            await message.answer(MESSAGES["onboarding_invalid_age"])
             return True
     elif step == "gender":
         if text.lower() not in ("male", "female", "other"):
-            await message.answer("Please enter male, female, or other.")
+            await message.answer(MESSAGES["onboarding_invalid_gender"])
             return True
         session["onboarding_data"]["gender"] = text.lower()
 
@@ -238,7 +240,7 @@ async def _handle_onboarding(message: Message, session: dict) -> bool:
     if current_idx + 1 < len(ONBOARDING_ORDER):
         next_step = ONBOARDING_ORDER[current_idx + 1]
         session["onboarding_step"] = next_step
-        await message.answer(ONBOARDING_QUESTIONS[next_step])
+        await message.answer(_onboarding_question(next_step))
         return True
 
     # Onboarding complete — save profile to DB
@@ -259,9 +261,7 @@ async def _handle_onboarding(message: Message, session: dict) -> bool:
         "gender": session["onboarding_data"]["gender"],
         "nutrition_plan": existing_plan,
     }
-    await message.answer(
-        f"Great, {name}! Your profile is set up. You can start logging food now."
-    )
+    await message.answer(MESSAGES["onboarding_complete"].format(name=name))
     return True
 
 
@@ -282,9 +282,7 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
             logger.info("Created new thread %s for chat_id=%s", session["thread_id"], chat_id)
         except Exception:
             logger.exception("Failed to create thread for chat_id=%s", chat_id)
-            await message.answer(
-                "Something went wrong. Please try again later."
-            )
+            await message.answer(MESSAGES["error_generic_thread"])
             return
         session["interrupted"] = False
 
@@ -335,25 +333,21 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
             return
 
         logger.warning("No response to send", chat_id=chat_id, thread_id=thread_id)
-        await message.answer("I processed your request but have no response to show.")
+        await message.answer(MESSAGES["error_empty_response"])
 
     except httpx.HTTPStatusError as exc:
         logger.exception("HTTP error relaying message", chat_id=chat_id, status_code=exc.response.status_code)
-        await message.answer(
-            "Something went wrong processing your request. Please try again."
-        )
+        await message.answer(MESSAGES["error_generic_request"])
     except Exception:
         logger.exception("Error relaying message", chat_id=chat_id)
-        await message.answer(
-            "Something went wrong processing your request. Please try again."
-        )
+        await message.answer(MESSAGES["error_generic_request"])
 
 
 @router.message()
 async def handle_message(message: Message) -> None:
     """Main message handler -- routes through passphrase check or to LangGraph."""
     if not message.text:
-        await message.answer("I can only process text messages.")
+        await message.answer(MESSAGES["error_non_text"])
         return
 
     chat_id = message.chat.id
@@ -361,7 +355,11 @@ async def handle_message(message: Message) -> None:
     # Check if user has an active session
     if chat_id not in user_sessions:
         # Passphrase check for new users
-        if hmac.compare_digest(message.text.strip(), BOT_PASSPHRASE):
+        # Encode to bytes before compare_digest — it refuses non-ASCII strings,
+        # and any non-English first message (Hebrew, emoji, etc.) would crash.
+        if hmac.compare_digest(
+            message.text.strip().encode("utf-8"), BOT_PASSPHRASE.encode("utf-8")
+        ):
             try:
                 result = await get_or_create_user(chat_id)
                 thread_id = await _create_thread()
@@ -389,21 +387,15 @@ async def handle_message(message: Message) -> None:
                     needs_onboarding=needs_onboarding,
                 )
                 if needs_onboarding:
-                    await message.answer(
-                        "Welcome to FitPal! Let's set up your profile."
-                    )
-                    await message.answer(ONBOARDING_QUESTIONS["name"])
+                    await message.answer(MESSAGES["onboarding_welcome"])
+                    await message.answer(_onboarding_question("name"))
                 else:
-                    await message.answer(
-                        "Welcome back to FitPal! You can start logging food now."
-                    )
+                    await message.answer(MESSAGES["onboarding_welcome_back"])
             except Exception:
                 logger.exception("Registration failed for chat_id=%s", chat_id)
-                await message.answer(
-                    "Something went wrong during registration. Please try again."
-                )
+                await message.answer(MESSAGES["auth_registration_error"])
         else:
-            await message.answer("Send the invite code to get started.")
+            await message.answer(MESSAGES["auth_invite_prompt"])
         return
 
     # Authenticated user -- relay to LangGraph

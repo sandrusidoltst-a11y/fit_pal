@@ -1,0 +1,38 @@
+# FitPal user-facing strings — English.
+#
+# Keep keys in sync with src/i18n/he.yaml and the Messages TypedDict in
+# src/i18n/__init__.py. The startup parity check refuses to boot if any
+# of the three drift apart.
+#
+# Placeholders use Python str.format syntax: {name}, {cals}, etc.
+
+# --- Onboarding ---
+onboarding_welcome: "Welcome to FitPal! Let's set up your profile."
+onboarding_welcome_back: "Welcome back to FitPal! You can start logging food now."
+onboarding_complete: "Great, {name}! Your profile is set up. You can start logging food now."
+onboarding_q_name: "What's your name?"
+onboarding_q_height: "What's your height in cm?"
+onboarding_q_age: "How old are you?"
+onboarding_q_gender: "What's your gender? (male/female/other)"
+onboarding_invalid_height: "Please enter a number for height (cm)."
+onboarding_invalid_age: "Please enter a number for age."
+onboarding_invalid_gender: "Please enter male, female, or other."
+
+# --- Auth / passphrase ---
+auth_invite_prompt: "Send the invite code to get started."
+auth_registration_error: "Something went wrong during registration. Please try again."
+
+# --- Errors ---
+error_generic_thread: "Something went wrong. Please try again later."
+error_generic_request: "Something went wrong processing your request. Please try again."
+error_empty_response: "I processed your request but have no response to show."
+error_non_text: "I can only process text messages."
+
+# --- HITL confirmation (graph node payload) ---
+confirmation_question: "Let me double-check these before I save them:"
+confirmation_estimated_tag: " (estimated)"
+
+# --- HITL confirmation render (bot) ---
+confirmation_macro_line: "{cals} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat"
+confirmation_total_line: "Altogether that's {cals} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat."
+confirmation_reply_hint: "Does this look right? Say yes to save, no to skip, or tell me what to change."
