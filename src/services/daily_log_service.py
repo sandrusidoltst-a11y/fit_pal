@@ -17,6 +17,7 @@ from langchain_core.tools import tool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import USER_TIMEZONE
 from src.database import get_async_db_session
 from src.models import DailyLog
 
@@ -160,7 +161,17 @@ async def get_logs_by_date_range(
 # ---------------------------------------------------------------------------
 
 def _serialize_log(log: DailyLog) -> dict:
-    """Convert a DailyLog ORM object to a JSON-serializable dict."""
+    """Convert a DailyLog ORM object to a JSON-serializable dict.
+
+    Timestamps are stored UTC in Postgres; we emit them in the user's local
+    timezone so downstream consumers (LLM, response_node, stats_node) read
+    the time the user actually experienced. See bot UX audit F2 / Bug 2.
+    """
+    ts_local = (
+        log.timestamp.astimezone(USER_TIMEZONE).isoformat()
+        if log.timestamp
+        else None
+    )
     return {
         "id": str(log.id),
         "food_id": str(log.food_id) if log.food_id else None,
@@ -169,10 +180,28 @@ def _serialize_log(log: DailyLog) -> dict:
         "protein": log.protein,
         "carbs": log.carbs,
         "fat": log.fat,
-        "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+        "timestamp": ts_local,
         "meal_type": log.meal_type,
         "original_text": log.original_text,
     }
+
+
+async def get_todays_logs_serialized(
+    session: AsyncSession, user_id: str
+) -> list[dict]:
+    """Return today's logs for a user (Israel local day), serialized for context injection.
+
+    Encapsulates the 'today in Israel' date computation + serialization in one place
+    so the bot gateway doesn't need to touch ORM objects or the private serializer.
+
+    KNOWN LIMITATION: `get_logs_by_date` uses `func.date(timestamp) == target_date`
+    which evaluates in the DB session's timezone (UTC on Supabase). Logs made
+    00:00-03:00 Israel local time fall on the previous UTC date and are missed.
+    Follow-up tracked in brain/TASKS.md (Bug 1 from bot UX audit 2026-04-17).
+    """
+    today = datetime.now(USER_TIMEZONE).date()
+    logs = await get_logs_by_date(session, user_id, today)
+    return [_serialize_log(log) for log in logs]
 
 
 @tool

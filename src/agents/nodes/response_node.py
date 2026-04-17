@@ -7,7 +7,7 @@ from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
-from src.config import BASE_DIR, get_llm_for_node
+from src.config import BASE_DIR, USER_TIMEZONE, get_llm_for_node
 from src.context import ContextSchema
 
 logger = structlog.get_logger(__name__)
@@ -23,6 +23,43 @@ except FileNotFoundError:
         "You are FitPal, a helpful fitness and nutrition coach. "
         "Respond based on the provided context."
     )
+
+
+def _current_time_str(now: datetime | None = None) -> str:
+    """Format current time for system-prompt injection, in the user's local timezone.
+
+    Optional ``now`` is a testability hook — tests pass a fixed UTC datetime and
+    assert the conversion to Israel local time.
+    """
+    if now is None:
+        now = datetime.now(USER_TIMEZONE)
+    return now.astimezone(USER_TIMEZONE).strftime("%A, %Y-%m-%d %H:%M")
+
+
+def _format_daily_log(logs: list[dict]) -> str:
+    """Render today's logs as a markdown section for the system prompt.
+
+    Always emits a section (never silent): explicit "nothing logged yet today"
+    is a useful signal for the empty-log coach-voice opener (audit Fix #5).
+    Timestamps in each log dict are already Israel-local via _serialize_log.
+    """
+    if not logs:
+        return "\n\n## Today's Log\nNothing logged yet today."
+    lines = ["\n\n## Today's Log"]
+    for log in logs:
+        ts = log.get("timestamp") or ""
+        amount = log.get("amount_g", 0)
+        cals = log.get("calories", 0)
+        protein = log.get("protein", 0)
+        carbs = log.get("carbs", 0)
+        fat = log.get("fat", 0)
+        original = log.get("original_text") or ""
+        label = original or f"{amount}g"
+        lines.append(
+            f"- {ts} — {label} — "
+            f"{cals:.0f} kcal, {protein:.1f}g protein, {carbs:.1f}g carbs, {fat:.1f}g fat"
+        )
+    return "\n".join(lines)
 
 
 def _serialize_date(obj):
@@ -93,7 +130,7 @@ async def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> d
     profile = context.user_profile if context.user_profile else DEFAULT_DEV_PROFILE
 
     # Current time (injected at call time, not import time)
-    now_str = datetime.now().strftime("%A, %Y-%m-%d %H:%M")
+    now_str = _current_time_str()
 
     # Nutrition plan section
     plan = profile.get("nutrition_plan")
@@ -103,10 +140,14 @@ async def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> d
         else "\n\n## User Nutrition Plan\nNo plan set for this user yet."
     )
 
+    # Today's log section — always rendered (empty state is a useful signal for the LLM)
+    daily_log = context.daily_log_today if context.daily_log_today is not None else []
+    log_section = _format_daily_log(daily_log)
+
     # Build selective context JSON
     json_context = _build_context(state)
 
-    # Construct system message with time + prompt + profile + plan + context
+    # Construct system message with time + prompt + profile + plan + log + context
     system_message = SystemMessage(
         content=(
             f"Current time: {now_str}\n\n"
@@ -117,6 +158,7 @@ async def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> d
             f"- Gender: {profile.get('gender', 'Unknown')}\n"
             f"- Height: {profile.get('height_cm', 'Unknown')}cm"
             f"{plan_section}"
+            f"{log_section}"
             f"\n\n---\nContext JSON:\n```json\n{json_context}\n```"
         )
     )

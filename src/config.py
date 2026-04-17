@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import structlog
 from dotenv import load_dotenv
@@ -15,6 +16,9 @@ logger = structlog.get_logger(__name__)
 # Project Root (calculated relative to this file: src/config.py -> src -> root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
+
+# All POC users are in Israel. Hardcoded until per-user timezone lands on user_profile.
+USER_TIMEZONE = ZoneInfo("Asia/Jerusalem")
 
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")
