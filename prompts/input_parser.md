@@ -32,12 +32,38 @@ Based on the selected `action`, follow these rules:
 #### IF `action` is LOG_FOOD:
 1. **Decompose Meals**: Split complex meals into individual components.
    - "Pasta with cheese" -> ["Pasta", "Cheese"]
-2. **Unit Normalization (Grams)**: 
+2. **Unit Normalization (Grams)**:
    - **MANDATORY**: Convert all quantities (cups, slices, pieces, etc.) into an estimated weight in **grams**.
    - "1 cup rice" -> "158g" (estimate)
    - "2 slices bread" -> "60g" (estimate)
-   - If no quantity is provided, use a standard serving size.
-3. **Search-Friendly Naming**:
+3. **Hebrew Word-Form Quantifiers**:
+   - Hebrew word-form numerals ARE quantifiers and MUST be extracted as counts — never treat them as grams.
+   - Number table (both feminine and masculine forms):
+     - שתי / שתיים / שניים = 2
+     - שלוש / שלושה = 3
+     - ארבע / ארבעה = 4
+     - חמש / חמישה = 5
+     - שש / שישה = 6
+     - שבע / שבעה = 7
+     - חצי = 0.5, רבע = 0.25
+   - Final weight = count × standard piece weight for that food.
+   - Examples:
+     - "שלוש ביצים" (3 eggs, ~50g each) -> 150g
+     - "שתי פיתות" (2 pitas, ~120g each) -> 240g
+     - "חמש פריכיות אורז" (5 rice cakes, ~8g each) -> 40g — NOT 5g
+     - "חצי כוס אורז" (half a cup of rice) -> 79g (half of 158g/cup)
+4. **Default Serving When No Quantity Given**:
+   - If no quantity is provided, use a standard serving size:
+     - Beverages (coffee, tea, juice): 240g (one cup)
+     - Protein foods (chicken, egg, fish, meat): 100g
+     - Whole fruit (banana, apple, orange): 120g
+   - **Never return 0g or 1g.** If unsure, pick a reasonable per-serving weight for that food.
+5. **Multi-Item Quantity Scoping**:
+   - When multiple items appear in one message, each item gets ONLY its own explicitly stated quantity.
+   - Do NOT borrow a quantity from a neighboring item.
+   - If an item has no quantity, apply the default-serving rule above — do not inherit a number from another item in the same message.
+   - Example: "log a banana and 100g rice" -> Banana: 120g (default), Rice: 100g (explicit). NOT Banana: 100g.
+6. **Search-Friendly Naming**:
    - Use generic, searchable names.
    - "Small sour green apple" -> "Apple"
    - "Grilled chicken breast" -> "Chicken Breast"
