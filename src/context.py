@@ -41,6 +41,7 @@ class ContextSchema:
 
     user_id: str = DEFAULT_DEV_USER_ID
     user_profile: dict = field(default_factory=lambda: DEFAULT_DEV_PROFILE.copy())
+    daily_log_today: list[dict] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate user_id is a valid UUID, fall back to default if not."""
