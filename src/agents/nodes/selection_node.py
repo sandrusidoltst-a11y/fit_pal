@@ -52,7 +52,18 @@ async def agent_selection_node(state: AgentState) -> dict:
     # Construct context for LLM
     user_context = f"User input: {pending_items[0]['original_text'] if pending_items else 'Unknown'}"
     search_context = "Search results:\n" + "\n".join(
-        [f"- ID {r['id']}: {r['name']}" for r in search_results]
+        [
+            f"- ID {r['id']}: {r['name_en']}"
+            + (f" / {r['name_he']}" if r.get("name_he") else "")
+            + (
+                f" [{r['category']}"
+                + (f",{r['tag']}" if r.get("tag") else "")
+                + "]"
+                if r.get("category")
+                else ""
+            )
+            for r in search_results
+        ]
     )
 
     messages = [

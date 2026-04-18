@@ -7,8 +7,13 @@ from langgraph.runtime import Runtime
 from src.agents.state import AgentState, MacroResult
 from src.config import BASE_DIR, get_llm_for_node
 from src.context import ContextSchema
+from src.database import get_async_db_session
 from src.schemas.estimation_schema import MacroEstimation
-from src.services.food_service import calculate_food_macros
+from src.services.food_service import (
+    compute_food_macros,
+    get_food_by_id,
+    resolve_amount_g,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -28,8 +33,9 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
     """Calculate macros for the current food item (preview only, no DB write).
 
     Two paths:
-    1. DB match (selected_food_id exists): Use calculate_food_macros tool
-    2. Off-menu (selected_food_id is None): Use LLM estimation
+    1. DB match (selected_food_id exists): fetch food+mapping via get_food_by_id,
+       resolve unit/count to grams, compute macros via pure helper.
+    2. Off-menu (selected_food_id is None): Use LLM estimation.
 
     Accumulates results into pending_confirmations for batch confirmation.
     """
@@ -40,21 +46,21 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
         return {}
 
     current_item = pending_items[0]
-    amount = current_item.get("amount", 0.0)
+    count = current_item.get("count", 0.0)
+    unit = current_item.get("unit", "g")
     food_name = current_item.get("food_name", "")
 
     if selected_food_id:
-        # DB path — use tool
-        macros = await calculate_food_macros.ainvoke(
-            {"food_id": selected_food_id, "amount_g": amount}
-        )
-        if "error" in macros:
-            logger.error("Macro calculation failed", food=food_name, error=macros["error"])
-            # Calculation failed — add FAILED result, skip this item
+        # DB path — single query for food+mapping, then pure compute
+        async with get_async_db_session() as session:
+            row = await get_food_by_id(session, selected_food_id)
+
+        if row is None:
+            logger.error("Selected food vanished", food=food_name, food_id=selected_food_id)
             result_item = {
                 **current_item,
                 "status": "FAILED",
-                "message": f"Could not calculate macros for {food_name}: {macros['error']}",
+                "message": f"Could not find food {food_name} with id {selected_food_id}",
             }
             remaining = pending_items[1:]
             return {
@@ -65,22 +71,53 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
                 "selected_food_id": None,
             }
 
+        food, mapping = row
+        try:
+            amount_g = resolve_amount_g(food, unit, count)
+        except ValueError as e:
+            logger.warning(
+                "Unit resolution failed", food=food.name_en, unit=unit, error=str(e)
+            )
+            result_item = {
+                **current_item,
+                "status": "FAILED",
+                "message": str(e),
+            }
+            remaining = pending_items[1:]
+            return {
+                "pending_food_items": remaining,
+                "processing_results": state.get("processing_results", [])
+                + [result_item],
+                "last_action": "NO_MATCH",
+                "selected_food_id": None,
+            }
+
+        macros = compute_food_macros(food, mapping, amount_g)
         macro_result: MacroResult = {
-            "food_name": food_name,
-            "amount_g": amount,
+            "name_en": macros["name_en"],
+            "name_he": macros.get("name_he"),
+            "amount_g": amount_g,
             "calories": macros["calories"],
             "protein": macros["protein"],
             "carbs": macros["carbs"],
             "fat": macros["fat"],
             "source": macros.get("source", "database"),
+            "category": macros.get("category"),
+            "tag": macros.get("tag"),
+            "serving_amount_g": macros.get("serving_amount_g"),
+            "servings": macros.get("servings"),
+            "default_unit": macros.get("default_unit"),
+            "default_unit_weight_g": macros.get("default_unit_weight_g"),
             "original_text": current_item.get("original_text", ""),
             "food_id": selected_food_id,
         }
     else:
-        # Estimation path — use LLM
-        logger.info("Estimating macros via LLM", food=food_name, amount_g=amount)
+        # Estimation path — use LLM. No food row yet; treat count as grams
+        # (Plan 3 estimation prompt may teach the LLM to emit default_unit/weight).
+        amount_g = count
+        logger.info("Estimating macros via LLM", food=food_name, amount_g=amount_g)
         macro_result = await _estimate_macros(
-            food_name, amount, current_item.get("original_text", "")
+            food_name, amount_g, current_item.get("original_text", "")
         )
 
     # Accumulate into pending_confirmations
@@ -113,13 +150,20 @@ async def _estimate_macros(
     result = await structured_llm.ainvoke(messages)
 
     return {
-        "food_name": food_name,
+        "name_en": result.name_en,
+        "name_he": result.name_he,
         "amount_g": amount_g,
         "calories": round(result.calories, 1),
         "protein": round(result.protein, 1),
         "carbs": round(result.carbs, 1),
         "fat": round(result.fat, 1),
         "source": "estimated",
+        "category": result.category,
+        "tag": result.tag,
+        "serving_amount_g": None,
+        "servings": None,
+        "default_unit": result.default_unit,
+        "default_unit_weight_g": result.default_unit_weight_g,
         "original_text": original_text,
         "food_id": None,
     }

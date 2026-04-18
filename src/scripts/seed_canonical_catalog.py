@@ -101,17 +101,16 @@ def seed_supabase(items: list[dict]) -> tuple[int, int]:
         conn.commit()
 
         for item in items:
-            # Insert food_items row, capture id. Set legacy `name` = name_en so
-            # food_service.py (still querying `name`) keeps working until Plan 2.
+            # Insert food_items row, capture id.
             food_result = conn.execute(
                 text(
                     """
                     INSERT INTO food_items (
-                        name, name_en, name_he, calories, protein, fat, carbs,
+                        name_en, name_he, calories, protein, fat, carbs,
                         default_unit, default_unit_weight_g, source
                     )
                     VALUES (
-                        :name_en, :name_en, :name_he, :calories, :protein, :fat, :carbs,
+                        :name_en, :name_he, :calories, :protein, :fat, :carbs,
                         :default_unit, :default_unit_weight_g, 'database'
                     )
                     RETURNING id

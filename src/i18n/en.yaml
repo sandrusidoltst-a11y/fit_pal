@@ -36,3 +36,12 @@ confirmation_estimated_tag: " (estimated)"
 confirmation_macro_line: "{cals} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat"
 confirmation_total_line: "Altogether that's {cals} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat."
 confirmation_reply_hint: "Does this look right? Say yes to save, no to skip, or tell me what to change."
+
+# --- HITL serving info (bot-rendered per item) ---
+confirmation_serving_line: "~{servings} {category_label} serving(s)"
+confirmation_category_label_protein: "protein"
+confirmation_category_label_carb: "carb"
+confirmation_category_label_fat: "fat"
+confirmation_category_label_free: "free"
+confirmation_category_label_free_calories: "free-calorie"
+confirmation_category_label_forbidden_main: "low-GI"

@@ -22,24 +22,38 @@ from src.schemas.confirmation_schema import ConfirmationResponse, ItemEdit
 
 SAMPLE_BATCH = [
     {
-        "food_name": "chicken",
+        "name_en": "chicken",
+        "name_he": "עוף",
         "amount_g": 200,
         "calories": 330,
         "protein": 62,
         "carbs": 0,
         "fat": 7.2,
         "source": "database",
+        "category": "protein",
+        "tag": "lean",
+        "serving_amount_g": 100.0,
+        "servings": 2.0,
+        "default_unit": "g",
+        "default_unit_weight_g": None,
         "original_text": "200g chicken",
         "food_id": "food-uuid-1",
     },
     {
-        "food_name": "pizza",
+        "name_en": "pizza",
+        "name_he": None,
         "amount_g": 300,
         "calories": 750,
         "protein": 30,
         "carbs": 85,
         "fat": 32,
         "source": "estimated",
+        "category": None,
+        "tag": None,
+        "serving_amount_g": None,
+        "servings": None,
+        "default_unit": None,
+        "default_unit_weight_g": None,
         "original_text": "3 slices of pizza",
         "food_id": None,
     },
@@ -62,13 +76,14 @@ class TestFormatBatchPreview:
         assert "totals" in preview
         assert len(preview["items"]) == 2
 
-    def test_estimated_item_tag(self):
+    def test_estimated_item_tag(self, monkeypatch):
         """
-        arrange: batch with an estimated item.
+        arrange: batch with an estimated item; force BOT_LANGUAGE=en.
         act:     format batch preview.
         assert:  estimated item has the localized estimated tag in description;
                  DB item does not.
         """
+        monkeypatch.setenv("BOT_LANGUAGE", "en")
         preview = _format_batch_preview(SAMPLE_BATCH)
 
         db_item = preview["items"][0]
@@ -79,6 +94,36 @@ class TestFormatBatchPreview:
         assert tag in est_item["description"]
         assert db_item["source"] == "database"
         assert est_item["source"] == "estimated"
+        assert "chicken" in db_item["description"]  # name_en renders in EN mode
+
+    def test_hebrew_rendering(self, monkeypatch):
+        """
+        arrange: set BOT_LANGUAGE=he.
+        act:     format batch preview.
+        assert:  items with name_he render the Hebrew name;
+                 items without name_he fall back to name_en.
+        """
+        monkeypatch.setenv("BOT_LANGUAGE", "he")
+        preview = _format_batch_preview(SAMPLE_BATCH)
+
+        db_item = preview["items"][0]  # has name_he="עוף"
+        est_item = preview["items"][1]  # no name_he → falls back to name_en
+
+        assert "עוף" in db_item["description"]
+        assert "pizza" in est_item["description"]
+
+    def test_servings_and_category_in_payload(self):
+        """
+        arrange: batch with db item (has servings/category) + estimated item (no mapping).
+        act:     format batch preview.
+        assert:  per-item payload surfaces servings + category fields for the bot to render.
+        """
+        preview = _format_batch_preview(SAMPLE_BATCH)
+
+        assert preview["items"][0]["servings"] == 2.0
+        assert preview["items"][0]["category"] == "protein"
+        assert preview["items"][1]["servings"] is None
+        assert preview["items"][1]["category"] is None
 
     def test_totals_calculation(self):
         """
@@ -149,13 +194,20 @@ class TestConfirmationNodeEdit:
         """
         basic_state["pending_confirmations"] = [
             {
-                "food_name": "chicken",
+                "name_en": "chicken",
+                "name_he": "עוף",
                 "amount_g": 200,
                 "calories": 330,
                 "protein": 62,
                 "carbs": 0,
                 "fat": 7.2,
                 "source": "database",
+                "category": "protein",
+                "tag": "lean",
+                "serving_amount_g": 100.0,
+                "servings": 2.0,
+                "default_unit": "g",
+                "default_unit_weight_g": None,
                 "original_text": "200g chicken",
                 "food_id": "food-uuid-1",
             },
@@ -189,12 +241,18 @@ class TestConfirmationNodeEdit:
              patch("src.agents.nodes.confirmation_node._parse_confirmation", side_effect=mock_parse), \
              patch("src.agents.nodes.confirmation_node.calculate_food_macros") as mock_calc:
             mock_calc.ainvoke = AsyncMock(return_value={
-                "name": "Chicken",
+                "name_en": "Chicken",
+                "name_he": "עוף",
                 "amount_g": 150,
                 "calories": 247.5,
                 "protein": 46.5,
                 "carbs": 0,
                 "fat": 5.4,
+                "source": "database",
+                "category": "protein",
+                "tag": "lean",
+                "serving_amount_g": 100.0,
+                "servings": 1.5,
             })
 
             result = await confirmation_node(basic_state, TEST_RUNTIME_A)

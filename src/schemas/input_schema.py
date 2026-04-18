@@ -15,9 +15,15 @@ class ActionType(str, Enum):
 
 class SingleFoodItem(BaseModel):
     food_name: str = Field(..., description="Normalized name for DB lookup")
-    amount: float = Field(..., description="Estimated weight of the food")
-    unit: Literal["g"] = Field(
-        default="g", description="Unit of measurement, strictly 'g'"
+    count: float = Field(
+        ...,
+        description="Numeric quantity in the given unit (e.g., 2 for '2 eggs', 200 for '200g chicken')",
+    )
+    unit: Literal[
+        "g", "piece", "slice", "scoop", "bottle", "cup", "tbsp", "tsp", "can"
+    ] = Field(
+        default="g",
+        description="Unit of measurement. 'g' for grams; natural units otherwise.",
     )
     original_text: str = Field(
         ..., description="The original text description of the food item"

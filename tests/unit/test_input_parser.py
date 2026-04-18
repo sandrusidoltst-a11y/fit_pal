@@ -53,7 +53,7 @@ class TestInputParserLogFood:
             mock_llm.with_structured_output.return_value = mock_structured
             mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(
                 action=ActionType.LOG_FOOD,
-                items=[SingleFoodItem(food_name="Chicken breast", amount=200.0, unit="g", original_text="200g of chicken breast")]
+                items=[SingleFoodItem(food_name="Chicken breast", count=200.0, unit="g", original_text="200g of chicken breast")]
             ))
 
             basic_state["messages"] = [HumanMessage(content="I had 200g of chicken breast")]
@@ -63,7 +63,7 @@ class TestInputParserLogFood:
             items = result.get("pending_food_items", [])
             assert len(items) == 1
             assert "chicken" in items[0]["food_name"].lower()
-            assert items[0]["amount"] == 200.0
+            assert items[0]["count"] == 200.0
             assert items[0]["unit"] == "g"
 
     async def test_unit_normalization(self, basic_state):
@@ -79,7 +79,7 @@ class TestInputParserLogFood:
             mock_llm.with_structured_output.return_value = mock_structured
             mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(
                 action=ActionType.LOG_FOOD,
-                items=[SingleFoodItem(food_name="Rice", amount=185.0, unit="g", original_text="a cup of rice")]
+                items=[SingleFoodItem(food_name="Rice", count=185.0, unit="g", original_text="a cup of rice")]
             ))
 
             basic_state["messages"] = [HumanMessage(content="I ate a cup of rice")]
@@ -88,11 +88,12 @@ class TestInputParserLogFood:
             items = result.get("pending_food_items", [])
             assert len(items) == 1
             assert "rice" in items[0]["food_name"].lower()
-            amt = items[0]["amount"]
+            amt = items[0]["count"]
             unit = items[0]["unit"]
             assert isinstance(amt, float)
             assert amt > 0
             assert unit == "g"
+
 
     async def test_complex_meal_decomposition(self, basic_state):
         """
@@ -108,9 +109,9 @@ class TestInputParserLogFood:
             mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(
                 action=ActionType.LOG_FOOD,
                 items=[
-                    SingleFoodItem(food_name="Pasta", amount=150.0, unit="g", original_text="pasta"),
-                    SingleFoodItem(food_name="Cheese", amount=50.0, unit="g", original_text="cheese"),
-                    SingleFoodItem(food_name="Tomato", amount=100.0, unit="g", original_text="a tomato")
+                    SingleFoodItem(food_name="Pasta", count=150.0, unit="g", original_text="pasta"),
+                    SingleFoodItem(food_name="Cheese", count=50.0, unit="g", original_text="cheese"),
+                    SingleFoodItem(food_name="Tomato", count=100.0, unit="g", original_text="a tomato")
                 ]
             ))
 

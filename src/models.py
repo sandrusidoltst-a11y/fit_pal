@@ -14,7 +14,6 @@ class FoodItem(Base):
     __tablename__ = "food_items"
 
     id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, primary_key=True, default=uuid_mod.uuid4)
-    name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     name_en: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     name_he: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     calories: Mapped[Optional[float]] = mapped_column(Float)

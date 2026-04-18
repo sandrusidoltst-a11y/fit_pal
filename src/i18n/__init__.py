@@ -57,6 +57,14 @@ class Messages(TypedDict):
     confirmation_macro_line: str
     confirmation_total_line: str
     confirmation_reply_hint: str
+    # HITL serving info (bot-rendered per item)
+    confirmation_serving_line: str
+    confirmation_category_label_protein: str
+    confirmation_category_label_carb: str
+    confirmation_category_label_fat: str
+    confirmation_category_label_free: str
+    confirmation_category_label_free_calories: str
+    confirmation_category_label_forbidden_main: str
 
 
 # Derive the expected key set from the TypedDict so adding a new field
