@@ -2,7 +2,7 @@ import uuid as uuid_mod
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Uuid, String, Float, Integer, DateTime, Text, ForeignKey
+from sqlalchemy import Uuid, String, Float, Integer, DateTime, Text, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
 
 
@@ -15,15 +15,22 @@ class FoodItem(Base):
 
     id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, primary_key=True, default=uuid_mod.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    name_en: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    name_he: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     calories: Mapped[Optional[float]] = mapped_column(Float)
     protein: Mapped[Optional[float]] = mapped_column(Float)
     fat: Mapped[Optional[float]] = mapped_column(Float)
     carbs: Mapped[Optional[float]] = mapped_column(Float)
+    default_unit: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    default_unit_weight_g: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False, server_default="database")
     user_id: Mapped[Optional[uuid_mod.UUID]] = mapped_column(Uuid, nullable=True, index=True)
 
     # Relationship: one FoodItem -> many DailyLog entries
     logs: Mapped[list["DailyLog"]] = relationship("DailyLog", back_populates="food_item")
+    coach_mappings: Mapped[list["CoachFoodMapping"]] = relationship(
+        "CoachFoodMapping", back_populates="food_item", cascade="all, delete-orphan"
+    )
 
 
 class DailyLog(Base):
@@ -99,3 +106,36 @@ class PersonalStatsLog(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class CoachFoodMapping(Base):
+    """Coach-method-specific overlay on top of universal food data.
+
+    One row per (food_id, coach_id) tuple — multiple coaches can map the same food
+    differently (different categories, serving sizes per their methods).
+    """
+
+    __tablename__ = "coach_food_mappings"
+
+    id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, primary_key=True, default=uuid_mod.uuid4)
+    food_id: Mapped[uuid_mod.UUID] = mapped_column(
+        Uuid, ForeignKey("food_items.id"), nullable=False, index=True
+    )
+    coach_id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String, nullable=False)  # CHECK constraint enforced in Postgres
+    tag: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    serving_amount_g: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    food_item: Mapped["FoodItem"] = relationship("FoodItem", back_populates="coach_mappings")
+
+    __table_args__ = (UniqueConstraint("food_id", "coach_id", name="uq_coach_food_mappings_food_coach"),)
