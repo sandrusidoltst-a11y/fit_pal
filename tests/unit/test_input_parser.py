@@ -7,13 +7,35 @@ Scope:
 LLM Usage:
     MOCKED — all LLM calls are mocked.
 """
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import HumanMessage
 
-from src.agents.nodes.input_node import input_parser_node
+from src.agents.nodes.input_node import _current_time_str, input_parser_node
 from src.schemas.input_schema import ActionType, FoodIntakeEvent, SingleFoodItem
 
+
+# ---------------------------------------------------------------------------
+# Tests for _current_time_str (timezone regression guard)
+# ---------------------------------------------------------------------------
+
+class TestCurrentTimeStr:
+    """A UTC instant must render as Israel local time — not UTC.
+
+    Regression guard: on UTC hosts (Railway) naive datetime.now() produced
+    times 3h behind for Israeli users (same bug fixed in response_node on 2026-04-14).
+    """
+
+    def test_utc_instant_renders_in_israel_local_time(self):
+        # 2026-04-16 19:11 UTC == 22:11 Israel (IDT, UTC+3). 2026-04-16 is a Thursday.
+        utc_moment = datetime(2026, 4, 16, 19, 11, tzinfo=timezone.utc)
+        result = _current_time_str(now=utc_moment)
+        assert "22:11" in result
+        assert "2026-04-16" in result
+
+
+# ---------------------------------------------------------------------------
 
 class TestInputParserLogFood:
     """Tests for actions classifying as LOG_FOOD."""

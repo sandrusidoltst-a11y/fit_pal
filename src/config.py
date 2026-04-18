@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -19,6 +20,13 @@ DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
 
 # All POC users are in Israel. Hardcoded until per-user timezone lands on user_profile.
 USER_TIMEZONE = ZoneInfo("Asia/Jerusalem")
+
+
+def serialize_timestamp(ts: datetime | None) -> str | None:
+    """Serialize a UTC-stored datetime to Israel-local ISO string for LLM consumption."""
+    if ts is None:
+        return None
+    return ts.astimezone(USER_TIMEZONE).isoformat()
 
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")

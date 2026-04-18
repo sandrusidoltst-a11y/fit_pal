@@ -14,6 +14,42 @@ from src.services.personal_stats_service import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Timezone serialization regression guard
+# ---------------------------------------------------------------------------
+
+class TestSerializeStatIsraelLocalTimestamp:
+    """Verify _serialize_stat emits Israel-local ISO timestamps.
+
+    Stats are stored as UTC in Postgres; the serializer must convert them to
+    the user's local timezone — same requirement as daily_log_service.
+    Regression guard for the UTC bug fixed alongside the serialize_timestamp refactor.
+    """
+
+    async def test_utc_stored_stat_serializes_as_israel_iso(self, async_test_db_session):
+        """
+        arrange: Create a stat entry with a known UTC timestamp during IDT (April, UTC+3).
+        act:     Fetch via get_latest_stats (calls _serialize_stat internally).
+        assert:  recorded_at string ends with +03:00 and hour is shifted +3.
+        """
+        # 2026-04-16 19:11 UTC == 22:11 Israel (IDT, UTC+3).
+        utc_moment = datetime(2026, 4, 16, 19, 11, tzinfo=timezone.utc)
+        await create_stat_entry(
+            async_test_db_session,
+            user_id=TEST_USER_A,
+            weight_kg=74.0,
+            recorded_at=utc_moment,
+        )
+
+        latest = await get_latest_stats(async_test_db_session, TEST_USER_A)
+
+        assert latest is not None
+        ts = latest["recorded_at"]
+        assert ts is not None
+        assert ts.endswith("+03:00")
+        assert "T22:11" in ts
+
+
 async def test_create_weight_entry(async_test_db_session):
     """
     arrange: provide weight_kg value.

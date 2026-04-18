@@ -17,7 +17,7 @@ from langchain_core.tools import tool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import USER_TIMEZONE
+from src.config import USER_TIMEZONE, serialize_timestamp
 from src.database import get_async_db_session
 from src.models import DailyLog
 
@@ -167,11 +167,7 @@ def _serialize_log(log: DailyLog) -> dict:
     timezone so downstream consumers (LLM, response_node, stats_node) read
     the time the user actually experienced. See bot UX audit F2 / Bug 2.
     """
-    ts_local = (
-        log.timestamp.astimezone(USER_TIMEZONE).isoformat()
-        if log.timestamp
-        else None
-    )
+    ts_local = serialize_timestamp(log.timestamp)
     return {
         "id": str(log.id),
         "food_id": str(log.food_id) if log.food_id else None,
