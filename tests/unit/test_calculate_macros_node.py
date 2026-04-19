@@ -7,88 +7,59 @@ Scope:
 LLM Usage:
     MOCKED — estimation path LLM is mocked via get_llm_for_node.
 """
-import uuid as uuid_mod
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.calculate_macros_node import calculate_macros_node
 
 
-def _make_food(
+def _macros_return(
     *,
     name_en="Chicken breast",
     name_he="חזה עוף",
-    calories=165.0,
-    protein=31.0,
-    fat=3.6,
+    amount_g=200.0,
+    calories=330.0,
+    protein=62.0,
     carbs=0.0,
+    fat=7.2,
+    source="database",
+    category="protein",
+    tag="lean",
+    serving_amount_g=100.0,
+    servings=2.0,
     default_unit="g",
     default_unit_weight_g=None,
-    source="database",
-    food_id="00000000-0000-0000-0000-000000000001",
 ):
-    """Build a MagicMock FoodItem with the attributes compute_food_macros reads."""
-    food = MagicMock()
-    food.id = uuid_mod.UUID(food_id)
-    food.name_en = name_en
-    food.name_he = name_he
-    food.calories = calories
-    food.protein = protein
-    food.fat = fat
-    food.carbs = carbs
-    food.default_unit = default_unit
-    food.default_unit_weight_g = default_unit_weight_g
-    food.source = source
-    return food
-
-
-def _make_mapping(category="protein", tag="lean", serving_amount_g=100.0):
-    mapping = MagicMock()
-    mapping.category = category
-    mapping.tag = tag
-    mapping.serving_amount_g = serving_amount_g
-    return mapping
-
-
-@pytest.fixture
-def mock_get_food_by_id():
-    """Mock get_food_by_id service used by calculate_macros_node."""
-    with patch(
-        "src.agents.nodes.calculate_macros_node.get_food_by_id",
-        new_callable=AsyncMock,
-    ) as mock:
-        yield mock
-
-
-@pytest.fixture
-def _fake_session_cm():
-    """Patch get_async_db_session to yield a dummy async session object."""
-    from contextlib import asynccontextmanager
-
-    @asynccontextmanager
-    async def _fake():
-        yield MagicMock()
-
-    with patch(
-        "src.agents.nodes.calculate_macros_node.get_async_db_session", _fake
-    ):
-        yield
+    """Build a calculate_food_macros tool return-value dict."""
+    return {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "name_en": name_en,
+        "name_he": name_he,
+        "amount_g": amount_g,
+        "calories": calories,
+        "protein": protein,
+        "carbs": carbs,
+        "fat": fat,
+        "source": source,
+        "category": category,
+        "tag": tag,
+        "serving_amount_g": serving_amount_g,
+        "servings": servings,
+        "default_unit": default_unit,
+        "default_unit_weight_g": default_unit_weight_g,
+    }
 
 
 class TestCalculateMacrosDBPath:
     """Tests for the DB lookup path (selected_food_id is set)."""
 
-    async def test_db_path_success(self, basic_state, _fake_session_cm, mock_get_food_by_id):
+    async def test_db_path_success(self, basic_state, mock_calculate_macros):
         """
-        arrange: mock get_food_by_id returns (FoodItem, CoachFoodMapping).
+        arrange: mock calculate_food_macros returns enriched macros dict.
         act:     run calculate_macros_node with selected_food_id.
-        assert:  MacroResult with database fields added to pending_confirmations.
+        assert:  MacroResult with all fields added to pending_confirmations.
         """
-        food = _make_food()
-        mapping = _make_mapping()
-        mock_get_food_by_id.return_value = (food, mapping)
+        mock_calculate_macros.ainvoke = AsyncMock(return_value=_macros_return())
 
         basic_state.update({
             "pending_food_items": [
@@ -112,14 +83,21 @@ class TestCalculateMacrosDBPath:
         assert macro["food_id"] == "00000000-0000-0000-0000-000000000001"
         assert result["pending_food_items"] == []
         assert result["selected_food_id"] is None
+        mock_calculate_macros.ainvoke.assert_called_once_with(
+            {
+                "food_id": "00000000-0000-0000-0000-000000000001",
+                "count": 200.0,
+                "unit": "g",
+            }
+        )
 
-    async def test_db_path_food_not_found(self, basic_state, _fake_session_cm, mock_get_food_by_id):
+    async def test_db_path_error(self, basic_state, mock_calculate_macros):
         """
-        arrange: get_food_by_id returns None (food vanished).
+        arrange: tool returns {"error": "..."} (not found or unit mismatch).
         act:     run calculate_macros_node.
         assert:  FAILED result; last_action=NO_MATCH; no confirmation added.
         """
-        mock_get_food_by_id.return_value = None
+        mock_calculate_macros.ainvoke = AsyncMock(return_value={"error": "Food not found"})
 
         basic_state.update({
             "pending_food_items": [
@@ -135,19 +113,19 @@ class TestCalculateMacrosDBPath:
         assert result["last_action"] == "NO_MATCH"
         assert "pending_confirmations" not in result
 
-    async def test_db_path_unit_mismatch(self, basic_state, _fake_session_cm, mock_get_food_by_id):
+    async def test_db_path_unit_mismatch_error(self, basic_state, mock_calculate_macros):
         """
-        arrange: food has default_unit='piece', user gave unit='slice'.
+        arrange: tool returns unit-mismatch error (food expects 'slice', user gave 'piece').
         act:     run calculate_macros_node.
         assert:  FAILED with unit-mismatch message.
         """
-        food = _make_food(default_unit="piece", default_unit_weight_g=50.0)
-        mapping = _make_mapping()
-        mock_get_food_by_id.return_value = (food, mapping)
+        mock_calculate_macros.ainvoke = AsyncMock(
+            return_value={"error": "Unit mismatch: user gave 'piece', food 'Bread' expects 'slice'"}
+        )
 
         basic_state.update({
             "pending_food_items": [
-                {"food_name": "egg", "count": 2.0, "unit": "slice", "original_text": "2 slices of egg"}
+                {"food_name": "bread", "count": 1.0, "unit": "piece", "original_text": "a piece of bread"}
             ],
             "selected_food_id": "00000000-0000-0000-0000-000000000001",
         })
@@ -156,21 +134,19 @@ class TestCalculateMacrosDBPath:
 
         assert result["processing_results"][0]["status"] == "FAILED"
         assert "Unit mismatch" in result["processing_results"][0]["message"]
+        assert result["last_action"] == "NO_MATCH"
 
-    async def test_db_path_piece_unit_resolves_to_grams(
-        self, basic_state, _fake_session_cm, mock_get_food_by_id
+    async def test_db_path_passes_count_and_unit_to_tool(
+        self, basic_state, mock_calculate_macros
     ):
         """
-        arrange: food default_unit=piece, weight=50g; user said 2 pieces.
+        arrange: user input has natural unit (piece), selected_food_id set.
         act:     run calculate_macros_node.
-        assert:  amount_g=100; macros calculated for 100g.
+        assert:  tool called with count=2 and unit='piece' — resolution happens in tool.
         """
-        food = _make_food(
-            name_en="Egg", default_unit="piece", default_unit_weight_g=50.0,
-            calories=155.0, protein=13.0, fat=11.0, carbs=1.1,
+        mock_calculate_macros.ainvoke = AsyncMock(
+            return_value=_macros_return(name_en="Egg", amount_g=100.0, calories=155.0)
         )
-        mapping = _make_mapping(category="protein", tag="medium", serving_amount_g=50.0)
-        mock_get_food_by_id.return_value = (food, mapping)
 
         basic_state.update({
             "pending_food_items": [
@@ -179,16 +155,17 @@ class TestCalculateMacrosDBPath:
             "selected_food_id": "00000000-0000-0000-0000-000000000001",
         })
 
-        result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
+        await calculate_macros_node(basic_state, TEST_RUNTIME_A)
 
-        macro = result["pending_confirmations"][0]
-        assert macro["amount_g"] == 100.0
-        assert macro["calories"] == 155.0
-        assert macro["servings"] == 2.0
+        mock_calculate_macros.ainvoke.assert_called_once_with(
+            {
+                "food_id": "00000000-0000-0000-0000-000000000001",
+                "count": 2.0,
+                "unit": "piece",
+            }
+        )
 
-    async def test_accumulates_confirmations(
-        self, basic_state, _fake_session_cm, mock_get_food_by_id
-    ):
+    async def test_accumulates_confirmations(self, basic_state, mock_calculate_macros):
         """
         arrange: set existing pending_confirmations in state.
         act:     run calculate_macros_node.
@@ -213,9 +190,7 @@ class TestCalculateMacrosDBPath:
             "food_id": "food-uuid-2",
         }
 
-        food = _make_food()
-        mapping = _make_mapping()
-        mock_get_food_by_id.return_value = (food, mapping)
+        mock_calculate_macros.ainvoke = AsyncMock(return_value=_macros_return())
 
         basic_state.update({
             "pending_food_items": [
@@ -232,16 +207,23 @@ class TestCalculateMacrosDBPath:
         assert result["pending_confirmations"][1]["name_en"] == "Chicken breast"
 
     async def test_db_path_preserves_estimated_source(
-        self, basic_state, _fake_session_cm, mock_get_food_by_id
+        self, basic_state, mock_calculate_macros
     ):
         """
-        arrange: food.source='estimated' (re-used estimated food).
+        arrange: tool returns source='estimated' (re-used estimated food).
         act:     run calculate_macros_node.
         assert:  MacroResult preserves source='estimated'.
         """
-        food = _make_food(source="estimated", name_en="Protein Shake")
-        mapping = None
-        mock_get_food_by_id.return_value = (food, mapping)
+        mock_calculate_macros.ainvoke = AsyncMock(
+            return_value=_macros_return(
+                name_en="Protein Shake",
+                source="estimated",
+                category=None,
+                tag=None,
+                serving_amount_g=None,
+                servings=None,
+            )
+        )
 
         basic_state.update({
             "pending_food_items": [
@@ -257,17 +239,13 @@ class TestCalculateMacrosDBPath:
         assert macro["category"] is None
         assert macro["tag"] is None
 
-    async def test_pops_pending_item(
-        self, basic_state, _fake_session_cm, mock_get_food_by_id
-    ):
+    async def test_pops_pending_item(self, basic_state, mock_calculate_macros):
         """
         arrange: set two pending items.
         act:     run calculate_macros_node.
         assert:  first item removed, second remains.
         """
-        food = _make_food()
-        mapping = _make_mapping()
-        mock_get_food_by_id.return_value = (food, mapping)
+        mock_calculate_macros.ainvoke = AsyncMock(return_value=_macros_return())
 
         basic_state.update({
             "pending_food_items": [

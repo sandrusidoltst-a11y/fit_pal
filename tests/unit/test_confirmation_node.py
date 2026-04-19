@@ -262,6 +262,10 @@ class TestConfirmationNodeEdit:
         assert result.goto == "commit"
         # Verify the batch was updated with new amount
         assert result.update["pending_confirmations"][0]["amount_g"] == 150
+        # Verify the edit called the tool with the new (count, unit) signature
+        mock_calc.ainvoke.assert_called_once_with(
+            {"food_id": "food-uuid-1", "count": 150.0, "unit": "g"}
+        )
 
 
 class TestConfirmationNodeEdgeCases:

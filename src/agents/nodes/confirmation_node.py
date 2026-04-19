@@ -190,9 +190,10 @@ async def _apply_edits(
                 logger.info("User edit: changed amount", index=edit.item_index, old_g=old_amount, new_g=new_amount)
 
                 if item["food_id"] is not None:
-                    # DB item — recalculate via tool
+                    # DB item — recalculate via tool. Edits are grams-only for now
+                    # (unit-aware edits are a Plan 3+ concern).
                     macros = await calculate_food_macros.ainvoke(
-                        {"food_id": item["food_id"], "amount_g": new_amount}
+                        {"food_id": item["food_id"], "count": new_amount, "unit": "g"}
                     )
                     if "error" not in macros:
                         item["amount_g"] = new_amount

@@ -282,12 +282,17 @@ async def search_food(query: str, user_id: str) -> list[dict]:
 
 
 @tool
-async def calculate_food_macros(food_id: str, amount_g: float) -> dict:
-    """Calculate nutritional values + coach mapping fields for a food item at a given amount in grams.
+async def calculate_food_macros(food_id: str, count: float, unit: str = "g") -> dict:
+    """Calculate nutritional values + coach mapping fields for a food item at a given (count, unit).
 
-    Returns a dict with: name_en, name_he, amount_g, calories, protein, fat, carbs,
-    source, category, tag, serving_amount_g, servings, default_unit, default_unit_weight_g.
-    Returns ``{"error": "..."}`` if food is not found.
+    Resolves (count, unit) to grams internally via resolve_amount_g — unit="g"
+    always passes through; any other unit must match the food's configured
+    default_unit, otherwise returns ``{"error": "Unit mismatch: ..."}``.
+
+    Returns a dict with: name_en, name_he, amount_g (resolved), calories, protein,
+    fat, carbs, source, category, tag, serving_amount_g, servings, default_unit,
+    default_unit_weight_g. Returns ``{"error": "..."}`` if food is not found or
+    unit resolution fails.
     """
     async with get_async_db_session() as session:
         result = await get_food_by_id(session, food_id)
@@ -295,6 +300,14 @@ async def calculate_food_macros(food_id: str, amount_g: float) -> dict:
             logger.warning("calculate_food_macros: food not found", food_id=food_id)
             return {"error": f"Food item with ID {food_id} not found"}
         food, mapping = result
+        try:
+            amount_g = resolve_amount_g(food, unit, count)
+        except ValueError as e:
+            logger.warning(
+                "calculate_food_macros: unit resolution failed",
+                food_id=food_id, food=food.name_en, unit=unit, count=count,
+            )
+            return {"error": str(e)}
         return compute_food_macros(food, mapping, amount_g)
 
 
