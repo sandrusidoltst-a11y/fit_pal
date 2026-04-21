@@ -116,6 +116,23 @@ uv run pytest tests/graph_api/ -v -s
 
 ---
 
+## Repository Conventions
+
+### Generic template snapshot (`v0-generic-template` tag + `generic-template` branch)
+
+The `main` branch of this repo evolves toward **Dolev's** coach deployment — his nutrition method, his catalog, his prompt tuning. A snapshot of `main` from **before** the coach-method-heavy rewrites landed (commit `f3391c4`) is preserved as two pointers:
+
+- **Tag `v0-generic-template`** — immutable, frozen reference. Use `git checkout v0-generic-template` to get the clean baseline.
+- **Branch `generic-template`** — mutable, can accept cherry-picks of architecture-only improvements (schema changes, service-layer patterns, graph infrastructure) without the coach-method prompts or serving-math constants.
+
+**When to use it.** If we ever decide to deploy a separate FitPal instance for a different coach (instance-per-coach, not multi-tenant), branch from `generic-template` (or `v0-generic-template` for an untouched base) and layer the new coach's method/catalog/prompts on top — instead of forking `main` and ripping out Dolev-specific content.
+
+**What's in it vs. not.** The template has: the full LangGraph graph, Supabase schema, tool-first service layer, Telegram bot gateway, HITL confirmation flow, i18n scaffolding. It does **not** have: Dolev's coach method in `response_generator.md`, the 20g/50g/100kcal serving-math constants in the response node, the curated 93-row catalog with category/tag mappings, or the Plan 3 prompt trilogy.
+
+**Maintenance.** If a generic architecture improvement lands on `main` and should also flow to the template, `git checkout generic-template && git cherry-pick <commit>`. If a change is coach-method-specific, leave it on `main` only.
+
+---
+
 ## Further Reading
 
 - [`PRD.md`](PRD.md) — Full requirements, features, and specs
