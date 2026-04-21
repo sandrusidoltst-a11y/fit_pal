@@ -13,6 +13,7 @@ import structlog
 from langchain_core.tools import tool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.config import serialize_timestamp
 from src.database import get_async_db_session
 from src.models import PersonalStatsLog
 
@@ -115,7 +116,7 @@ def _serialize_stat(entry: PersonalStatsLog) -> dict:
         "id": str(entry.id),
         "weight_kg": entry.weight_kg,
         "body_fat_pct": entry.body_fat_pct,
-        "recorded_at": entry.recorded_at.isoformat() if entry.recorded_at else None,
+        "recorded_at": serialize_timestamp(entry.recorded_at),
     }
 
 

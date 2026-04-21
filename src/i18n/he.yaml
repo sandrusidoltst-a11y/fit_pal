@@ -40,3 +40,12 @@ confirmation_estimated_tag: " (משוערך)"
 confirmation_macro_line: "{cals} קלוריות, {protein}ג׳ חלבון, {carbs}ג׳ פחמימות, {fat}ג׳ שומן"
 confirmation_total_line: "בסך הכל יוצא {cals} קלוריות, {protein}ג׳ חלבון, {carbs}ג׳ פחמימות, {fat}ג׳ שומן."
 confirmation_reply_hint: "נראה לך טוב? תגיד כן לשמור, לא לביטול, או ספר לי מה לשנות."
+
+# --- HITL serving info (bot-rendered per item) ---
+confirmation_serving_line: "~{servings} מנת {category_label}"
+confirmation_category_label_protein: "חלבון"
+confirmation_category_label_carb: "פחמימה"
+confirmation_category_label_fat: "שומן"
+confirmation_category_label_free: "חופשי"
+confirmation_category_label_free_calories: "קלוריות חופשיות"
+confirmation_category_label_forbidden_main: "GI נמוך"

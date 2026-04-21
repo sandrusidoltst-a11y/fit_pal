@@ -5,7 +5,7 @@ import structlog
 from langchain_core.messages import SystemMessage
 
 from src.agents.state import AgentState
-from src.config import BASE_DIR, get_llm_for_node
+from src.config import BASE_DIR, USER_TIMEZONE, get_llm_for_node
 from src.schemas.input_schema import FoodIntakeEvent
 
 logger = structlog.get_logger(__name__)
@@ -20,6 +20,17 @@ except FileNotFoundError:
     _SYSTEM_PROMPT = "You are a helpful nutrition assistant. Parse food intake."
 
 
+def _current_time_str(now: datetime | None = None) -> str:
+    """Format current time for system-prompt injection, in the user's local timezone.
+
+    Optional ``now`` is a testability hook — tests pass a fixed UTC datetime and
+    assert the conversion to Israel local time.
+    """
+    if now is None:
+        now = datetime.now(USER_TIMEZONE)
+    return now.astimezone(USER_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+
+
 async def input_parser_node(state: AgentState):
     """
     Node to parse user input into structured food intake data.
@@ -31,7 +42,7 @@ async def input_parser_node(state: AgentState):
     last_message = state["messages"][-1]
 
     # Prepend the system time to the prompt
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = _current_time_str()
     system_prompt_with_time = f"The current system time is: {now_str}\n\n{_SYSTEM_PROMPT}"
 
     # Construct prompt

@@ -168,12 +168,23 @@ def _format_interrupt_value(value: dict) -> str:
         protein = item.get("protein", 0)
         carbs = item.get("carbs", 0)
         fat = item.get("fat", 0)
+        servings = item.get("servings")
+        category = item.get("category")
         # The graph node already appends the "(estimated)" tag to desc via
         # MESSAGES["confirmation_estimated_tag"]; don't double-tag here.
         macro_line = MESSAGES["confirmation_macro_line"].format(
             cals=cals, protein=protein, carbs=carbs, fat=fat
         )
-        item_blocks.append(f"{desc}\n{macro_line}")
+        lines = [desc, macro_line]
+        if servings is not None and category is not None:
+            category_label_key = f"confirmation_category_label_{category}"
+            category_label = MESSAGES.get(category_label_key, category)  # type: ignore[attr-defined]
+            lines.append(
+                MESSAGES["confirmation_serving_line"].format(
+                    servings=servings, category_label=category_label
+                )
+            )
+        item_blocks.append("\n".join(lines))
     if item_blocks:
         sections.append("\n\n".join(item_blocks))
 

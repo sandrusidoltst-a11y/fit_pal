@@ -14,9 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.config import DATABASE_URL
+from src.config import DATABASE_URL, DEFAULT_COACH_ID
 from src.context import ContextSchema, DEFAULT_DEV_PROFILE
-from src.models import FoodItem
+from src.models import CoachFoodMapping, FoodItem
 
 load_dotenv()
 
@@ -89,19 +89,33 @@ async def async_test_db_session():
             if trans.nested and not trans._parent.nested:
                 sync_session.begin_nested()
 
-        # Seed with sample food item for testing
+        # Seed with sample food item + coach mapping for testing
         sample_food = FoodItem(
             id=uuid_mod.UUID(SEED_FOOD_ID),
-            name="Test Chicken",
+            name_en="Test Chicken",
+            name_he="עוף לבדיקה",
             calories=165.0,
             protein=31.0,
             fat=3.6,
             carbs=0.0,
+            default_unit="g",
+            default_unit_weight_g=None,
             source="database",
             user_id=None,  # shared database food
         )
         session.add(sample_food)
         await session.flush()  # make visible within TX, don't commit outer
+
+        sample_mapping = CoachFoodMapping(
+            food_id=sample_food.id,
+            coach_id=DEFAULT_COACH_ID,
+            category="protein",
+            tag="lean",
+            serving_amount_g=100.0,
+            active=True,
+        )
+        session.add(sample_mapping)
+        await session.flush()
 
         yield session
 

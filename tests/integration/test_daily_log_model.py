@@ -145,7 +145,7 @@ class TestDailyLogModelRelationships:
 
         # Test DailyLog -> FoodItem direction
         assert log.food_item is not None
-        assert log.food_item.name == "Test Chicken"
+        assert log.food_item.name_en == "Test Chicken"
 
         # Test FoodItem -> DailyLog direction
         food = await async_test_db_session.get(FoodItem, food_uuid)

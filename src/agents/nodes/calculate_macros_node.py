@@ -28,8 +28,9 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
     """Calculate macros for the current food item (preview only, no DB write).
 
     Two paths:
-    1. DB match (selected_food_id exists): Use calculate_food_macros tool
-    2. Off-menu (selected_food_id is None): Use LLM estimation
+    1. DB match (selected_food_id exists): call calculate_food_macros tool
+       with (count, unit) — tool resolves to grams internally.
+    2. Off-menu (selected_food_id is None): Use LLM estimation.
 
     Accumulates results into pending_confirmations for batch confirmation.
     """
@@ -40,21 +41,23 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
         return {}
 
     current_item = pending_items[0]
-    amount = current_item.get("amount", 0.0)
+    count = current_item.get("count", 0.0)
+    unit = current_item.get("unit", "g")
     food_name = current_item.get("food_name", "")
 
     if selected_food_id:
-        # DB path — use tool
+        # DB path — tool handles fetch + unit resolution + macro compute
         macros = await calculate_food_macros.ainvoke(
-            {"food_id": selected_food_id, "amount_g": amount}
+            {"food_id": selected_food_id, "count": count, "unit": unit}
         )
         if "error" in macros:
-            logger.error("Macro calculation failed", food=food_name, error=macros["error"])
-            # Calculation failed — add FAILED result, skip this item
+            logger.warning(
+                "Macro calculation failed", food=food_name, error=macros["error"]
+            )
             result_item = {
                 **current_item,
                 "status": "FAILED",
-                "message": f"Could not calculate macros for {food_name}: {macros['error']}",
+                "message": macros["error"],
             }
             remaining = pending_items[1:]
             return {
@@ -66,21 +69,30 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
             }
 
         macro_result: MacroResult = {
-            "food_name": food_name,
-            "amount_g": amount,
+            "name_en": macros["name_en"],
+            "name_he": macros.get("name_he"),
+            "amount_g": macros["amount_g"],
             "calories": macros["calories"],
             "protein": macros["protein"],
             "carbs": macros["carbs"],
             "fat": macros["fat"],
             "source": macros.get("source", "database"),
+            "category": macros.get("category"),
+            "tag": macros.get("tag"),
+            "serving_amount_g": macros.get("serving_amount_g"),
+            "servings": macros.get("servings"),
+            "default_unit": macros.get("default_unit"),
+            "default_unit_weight_g": macros.get("default_unit_weight_g"),
             "original_text": current_item.get("original_text", ""),
             "food_id": selected_food_id,
         }
     else:
-        # Estimation path — use LLM
-        logger.info("Estimating macros via LLM", food=food_name, amount_g=amount)
+        # Estimation path — use LLM. No food row yet; treat count as grams
+        # (Plan 3 estimation prompt may teach the LLM to emit default_unit/weight).
+        amount_g = count
+        logger.info("Estimating macros via LLM", food=food_name, amount_g=amount_g)
         macro_result = await _estimate_macros(
-            food_name, amount, current_item.get("original_text", "")
+            food_name, amount_g, current_item.get("original_text", "")
         )
 
     # Accumulate into pending_confirmations
@@ -113,13 +125,20 @@ async def _estimate_macros(
     result = await structured_llm.ainvoke(messages)
 
     return {
-        "food_name": food_name,
+        "name_en": result.name_en,
+        "name_he": result.name_he,
         "amount_g": amount_g,
         "calories": round(result.calories, 1),
         "protein": round(result.protein, 1),
         "carbs": round(result.carbs, 1),
         "fat": round(result.fat, 1),
         "source": "estimated",
+        "category": result.category,
+        "tag": result.tag,
+        "serving_amount_g": None,
+        "servings": None,
+        "default_unit": result.default_unit,
+        "default_unit_weight_g": result.default_unit_weight_g,
         "original_text": original_text,
         "food_id": None,
     }

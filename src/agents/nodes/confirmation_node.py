@@ -28,19 +28,34 @@ except FileNotFoundError:
 
 
 def _format_batch_preview(items: list[MacroResult]) -> dict:
-    """Build human-readable batch preview payload for interrupt."""
+    """Build human-readable batch preview payload for interrupt.
+
+    Renders the food name in the user's language (he if BOT_LANGUAGE=he).
+    Includes servings + category info per item when available — the bot
+    gateway renders them via the confirmation_serving_line i18n template.
+    """
+    lang = os.environ.get("BOT_LANGUAGE", "en").lower()
     formatted_items = []
     for i, item in enumerate(items):
-        source_tag = MESSAGES["confirmation_estimated_tag"] if item["source"] == "estimated" else ""
+        source_tag = (
+            MESSAGES["confirmation_estimated_tag"] if item["source"] == "estimated" else ""
+        )
+        name = (
+            item.get("name_he")
+            if lang == "he" and item.get("name_he")
+            else item["name_en"]
+        )
         formatted_items.append(
             {
                 "index": i,
-                "description": f"{item['food_name']} — {item['amount_g']}g{source_tag}",
+                "description": f"{name} — {item['amount_g']}g{source_tag}",
                 "calories": item["calories"],
                 "protein": item["protein"],
                 "carbs": item["carbs"],
                 "fat": item["fat"],
                 "source": item["source"],
+                "servings": item.get("servings"),
+                "category": item.get("category"),
             }
         )
 
@@ -100,12 +115,13 @@ async def confirmation_node(
             for item in batch:
                 failed_results.append(
                     {
-                        "food_name": item["food_name"],
-                        "amount": item["amount_g"],
+                        "food_name": item["name_en"],
+                        "name_he": item.get("name_he"),
+                        "count": item["amount_g"],
                         "unit": "g",
                         "original_text": item["original_text"],
                         "status": "FAILED",
-                        "message": f"User rejected logging {item['food_name']}",
+                        "message": f"User rejected logging {item['name_en']}",
                         "source": item.get("source"),
                     }
                 )
@@ -134,7 +150,7 @@ async def _parse_confirmation(
     """Use LLM to parse user's natural language confirmation response."""
     # Build batch context and inject into prompt template
     batch_context = "\n".join(
-        f"[{i}] {item['food_name']} — {item['amount_g']}g ({item['source']})"
+        f"[{i}] {item.get('name_he') or item['name_en']} — {item['amount_g']}g ({item['source']})"
         for i, item in enumerate(batch)
     )
     system_prompt = _CONFIRMATION_PROMPT.replace("{batch_context}", batch_context)
@@ -174,9 +190,10 @@ async def _apply_edits(
                 logger.info("User edit: changed amount", index=edit.item_index, old_g=old_amount, new_g=new_amount)
 
                 if item["food_id"] is not None:
-                    # DB item — recalculate via tool
+                    # DB item — recalculate via tool. Edits are grams-only for now
+                    # (unit-aware edits are a Plan 3+ concern).
                     macros = await calculate_food_macros.ainvoke(
-                        {"food_id": item["food_id"], "amount_g": new_amount}
+                        {"food_id": item["food_id"], "count": new_amount, "unit": "g"}
                     )
                     if "error" not in macros:
                         item["amount_g"] = new_amount

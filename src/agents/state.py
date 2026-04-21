@@ -13,7 +13,7 @@ class PendingFoodItem(TypedDict):
     """
 
     food_name: str
-    amount: float
+    count: float
     unit: str
     original_text: str
 
@@ -21,13 +21,18 @@ class PendingFoodItem(TypedDict):
 class SearchResult(TypedDict):
     """Result from food database search.
 
-    Mirrors the return type of search_food tool
-    from src/services/food_service.py.
+    Mirrors the partial return type of search_food tool
+    from src/services/food_service.py — minimal fields used by
+    selection_node. calculate_macros_node fetches full row + mapping
+    via get_food_by_id when needed.
     """
 
     id: str
-    name: str
+    name_en: str
+    name_he: Optional[str]
     source: str
+    category: Optional[str]
+    tag: Optional[str]
 
 
 class QueriedLog(TypedDict):
@@ -46,6 +51,9 @@ class QueriedLog(TypedDict):
     timestamp: datetime
     meal_type: Optional[str]
     original_text: Optional[str]
+    category: Optional[str]
+    tag: Optional[str]
+    serving_amount_g: Optional[float]
 
 
 GraphAction = Literal[
@@ -67,13 +75,15 @@ GraphAction = Literal[
 class ProcessingResult(PendingFoodItem):
     """Result of processing a single food item.
 
-    Inherits all fields from PendingFoodItem (food_name, amount, unit, original_text)
-    and adds status/message for user feedback.
+    Inherits all fields from PendingFoodItem (food_name, count, unit, original_text)
+    and adds status/message for user feedback. ``name_he`` is carried through
+    so response_node can address the user in Hebrew.
     """
 
     status: Literal["LOGGED", "FAILED"]
     message: str
     source: Optional[Literal["database", "estimated"]]
+    name_he: Optional[str]
 
 
 class MacroResult(TypedDict):
@@ -83,13 +93,20 @@ class MacroResult(TypedDict):
     before presenting to user for HITL confirmation.
     """
 
-    food_name: str
+    name_en: str
+    name_he: Optional[str]
     amount_g: float
     calories: float
     protein: float
     carbs: float
     fat: float
     source: Literal["database", "estimated"]
+    category: Optional[str]
+    tag: Optional[str]
+    serving_amount_g: Optional[float]
+    servings: Optional[float]
+    default_unit: Optional[str]
+    default_unit_weight_g: Optional[float]
     original_text: str
     food_id: Optional[str]
 

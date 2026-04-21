@@ -225,6 +225,169 @@ class TestFormatDailyLog:
         # Macro formatting
         assert "330 kcal" in result
         assert "62.0g protein" in result
+        # Uncategorized logs: NO totals block (preserves pre-Plan-3d shape)
+        assert "## Today's Totals by Category" not in result
+
+    def test_category_and_tag_annotation_rendered(self):
+        """
+        arrange: single log carrying category + tag from coach mapping.
+        act:     _format_daily_log.
+        assert:  the annotation `[protein,lean]` appears on the line.
+        """
+        logs = [
+            {
+                "id": "log-1",
+                "food_id": "food-1",
+                "amount_g": 200.0,
+                "calories": 330.0,
+                "protein": 62.0,
+                "carbs": 0.0,
+                "fat": 7.2,
+                "timestamp": "2026-04-20T14:00:00+03:00",
+                "meal_type": None,
+                "original_text": "200g chicken",
+                "category": "protein",
+                "tag": "lean",
+            }
+        ]
+        result = _format_daily_log(logs)
+        assert "[protein,lean]" in result
+
+    def test_category_only_annotation_when_no_tag(self):
+        """
+        arrange: log with category but no tag (e.g. carb food).
+        act:     _format_daily_log.
+        assert:  bracket annotation is `[carb]`, not `[carb,None]`.
+        """
+        logs = [
+            {
+                "id": "log-2",
+                "food_id": "food-2",
+                "amount_g": 200.0,
+                "calories": 260.0,
+                "protein": 5.0,
+                "carbs": 56.0,
+                "fat": 0.6,
+                "timestamp": "2026-04-20T09:30:00+03:00",
+                "meal_type": None,
+                "original_text": "rice",
+                "category": "carb",
+                "tag": None,
+            }
+        ]
+        result = _format_daily_log(logs)
+        assert "[carb]" in result
+        assert "[carb,None]" not in result
+        assert "[carb,]" not in result
+
+    def test_totals_block_computes_protein_and_carb_servings(self):
+        """
+        arrange: mixed log — 200g chicken (protein, 62g prot) + 200g rice (carb, 56g carbs).
+        act:     _format_daily_log.
+        assert:  totals block reports 3.1 protein servings (62/20) and 1.1 carb servings (56/50).
+        """
+        logs = [
+            {
+                "id": "p",
+                "food_id": "p",
+                "amount_g": 200.0,
+                "calories": 330.0,
+                "protein": 62.0,
+                "carbs": 0.0,
+                "fat": 7.2,
+                "timestamp": "2026-04-20T14:00:00+03:00",
+                "meal_type": None,
+                "original_text": "chicken",
+                "category": "protein",
+                "tag": "lean",
+            },
+            {
+                "id": "c",
+                "food_id": "c",
+                "amount_g": 200.0,
+                "calories": 260.0,
+                "protein": 5.0,
+                "carbs": 56.0,
+                "fat": 0.6,
+                "timestamp": "2026-04-20T14:05:00+03:00",
+                "meal_type": None,
+                "original_text": "rice",
+                "category": "carb",
+                "tag": None,
+            },
+        ]
+        result = _format_daily_log(logs)
+        assert "## Today's Totals by Category" in result
+        assert "3.1 protein servings" in result
+        assert "1.1 carb servings" in result
+
+    def test_totals_block_free_calories_reports_budget_units(self):
+        """
+        arrange: log with 100 kcal banana under free_calories.
+        act:     _format_daily_log.
+        assert:  free-calorie budget renders as 1.0 units.
+        """
+        logs = [
+            {
+                "id": "fc",
+                "food_id": "fc",
+                "amount_g": 120.0,
+                "calories": 107.0,
+                "protein": 1.3,
+                "carbs": 27.0,
+                "fat": 0.4,
+                "timestamp": "2026-04-20T10:00:00+03:00",
+                "meal_type": None,
+                "original_text": "banana",
+                "category": "free_calories",
+                "tag": None,
+            }
+        ]
+        result = _format_daily_log(logs)
+        assert "## Today's Totals by Category" in result
+        assert "free-calorie units" in result
+
+    def test_uncategorized_logs_excluded_from_totals(self):
+        """
+        arrange: one categorized log + one uncategorized log.
+        act:     _format_daily_log.
+        assert:  totals block appears (one log has category) but excludes the uncategorized one.
+        """
+        logs = [
+            {
+                "id": "p",
+                "food_id": "p",
+                "amount_g": 100.0,
+                "calories": 165.0,
+                "protein": 31.0,
+                "carbs": 0.0,
+                "fat": 3.6,
+                "timestamp": "2026-04-20T14:00:00+03:00",
+                "meal_type": None,
+                "original_text": "chicken",
+                "category": "protein",
+                "tag": "lean",
+            },
+            {
+                "id": "u",
+                "food_id": None,
+                "amount_g": 50.0,
+                "calories": 100.0,
+                "protein": 5.0,
+                "carbs": 15.0,
+                "fat": 2.0,
+                "timestamp": "2026-04-20T15:00:00+03:00",
+                "meal_type": None,
+                "original_text": "mystery food",
+            },
+        ]
+        result = _format_daily_log(logs)
+        # Totals block renders (because at least one log has a category)
+        assert "## Today's Totals by Category" in result
+        # Protein line reflects only the categorized 100g chicken (31g protein = 1.6 servings)
+        assert "1.6 protein servings" in result
+        # Uncategorized entry still appears in per-log section
+        assert "mystery food" in result
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +463,13 @@ class TestResponseNode:
         assert output["messages"][0] == mock_ai_msg
 
         call_args = mock_llm.ainvoke.call_args[0][0]
-        assert "daily_log_report" in call_args[0].content
-        assert "processing_results" not in call_args[0].content
+        # Scope these assertions to the Context JSON block — prompt body legitimately
+        # mentions both terms in the "Before every reply" checklist, which would cause
+        # a naive whole-prompt "not in" check to false-positive.
+        system_content = call_args[0].content
+        context_json = system_content.split("Context JSON:", 1)[1]
+        assert "daily_log_report" in context_json
+        assert "processing_results" not in context_json
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
     async def test_no_match_context(self, mock_get_llm):
@@ -486,7 +654,16 @@ class TestResponseNode:
         system_content = call_args[0].content
         assert "## Today's Log" in system_content
         assert "200g chicken" in system_content
-        assert "Nothing logged yet today" not in system_content
+        # The injected log section is appended after the prompt body, and the
+        # "Context JSON:" block is the last thing in the system message. So the
+        # injected log lives between "---\n## User Profile" and "---\nContext JSON:"
+        # — slice there to isolate it from prompt-body mentions of "## Today's Log"
+        # (checklist step 2) and "Nothing logged yet today" (empty-log-opener rule).
+        injected = system_content.split("## User Profile", 1)[1].split(
+            "Context JSON:", 1
+        )[0]
+        assert "200g chicken" in injected
+        assert "Nothing logged yet today" not in injected
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
     async def test_daily_log_empty_section_shown_when_log_empty(self, mock_get_llm):

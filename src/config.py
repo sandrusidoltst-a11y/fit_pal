@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import uuid
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,6 +22,18 @@ DB_PATH = os.path.join(BASE_DIR, "data", "nutrition.db")
 # All POC users are in Israel. Hardcoded until per-user timezone lands on user_profile.
 USER_TIMEZONE = ZoneInfo("Asia/Jerusalem")
 
+# Single-coach POC fallback. Maps to Dolev's production Telegram user
+# (275939731@telegram.fitpal.bot). When we extend to multiple coaches,
+# replace this constant with a coaches-table lookup.
+DEFAULT_COACH_ID = uuid.UUID("71a8c873-c6bd-498e-a6ca-bd27d6118329")
+
+
+def serialize_timestamp(ts: datetime | None) -> str | None:
+    """Serialize a UTC-stored datetime to Israel-local ISO string for LLM consumption."""
+    if ts is None:
+        return None
+    return ts.astimezone(USER_TIMEZONE).isoformat()
+
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")
 if _supabase_url:
@@ -30,7 +44,7 @@ else:
 logger.info("Database backend resolved", backend="asyncpg (Supabase)" if _supabase_url else "sqlite (local)")
 
 GLOBAL_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
-GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-4.1-nano")
+GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-5.4-nano")
 
 logger.info("LLM config loaded", provider=GLOBAL_PROVIDER, model=GLOBAL_MODEL)
 

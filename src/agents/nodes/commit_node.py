@@ -49,11 +49,17 @@ async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dic
             amount_g = item["amount_g"]
             created = await create_food_item.ainvoke(
                 {
-                    "name": item["food_name"],
+                    "name_en": item["name_en"],
+                    "name_he": item.get("name_he"),
                     "calories_per_100g": round((item["calories"] / amount_g) * 100, 2),
                     "protein_per_100g": round((item["protein"] / amount_g) * 100, 2),
                     "carbs_per_100g": round((item["carbs"] / amount_g) * 100, 2),
                     "fat_per_100g": round((item["fat"] / amount_g) * 100, 2),
+                    "default_unit": item.get("default_unit"),
+                    "default_unit_weight_g": item.get("default_unit_weight_g"),
+                    "category": item.get("category"),
+                    "tag": item.get("tag"),
+                    "serving_amount_g": item.get("serving_amount_g"),
                     "user_id": user_id,
                 },
             )
@@ -75,12 +81,13 @@ async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dic
 
         processing_results.append(
             {
-                "food_name": item["food_name"],
-                "amount": item["amount_g"],
+                "food_name": item["name_en"],
+                "name_he": item.get("name_he"),
+                "count": item["amount_g"],
                 "unit": "g",
                 "original_text": item.get("original_text", ""),
                 "status": "LOGGED",
-                "message": f"Logged {item['food_name']} ({item['calories']}kcal)",
+                "message": f"Logged {item['name_en']} ({item['calories']}kcal)",
                 "source": item.get("source"),
             }
         )

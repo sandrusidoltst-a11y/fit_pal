@@ -10,16 +10,16 @@ session — these are used by graph nodes and are available for LLM tool-calling
 
 import uuid as uuid_mod
 from datetime import date, datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import structlog
 from langchain_core.tools import tool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import USER_TIMEZONE
+from src.config import DEFAULT_COACH_ID, USER_TIMEZONE, serialize_timestamp
 from src.database import get_async_db_session
-from src.models import DailyLog
+from src.models import CoachFoodMapping, DailyLog
 
 logger = structlog.get_logger(__name__)
 
@@ -129,6 +129,36 @@ async def get_logs_by_date(session: AsyncSession, user_id: str, target_date: dat
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def get_logs_by_date_with_mappings(
+    session: AsyncSession,
+    user_id: str,
+    target_date: date,
+    coach_id: uuid_mod.UUID = DEFAULT_COACH_ID,
+) -> List[Tuple[DailyLog, Optional[CoachFoodMapping]]]:
+    """Retrieve logs for a date, LEFT-joined with the coach's food mappings.
+
+    Returns ``(DailyLog, Optional[CoachFoodMapping])`` tuples — the mapping is
+    ``None`` when the log has no ``food_id`` (CASCADE SET NULL survivor) or when
+    the food has no mapping for the given coach. Mirrors the LEFT JOIN pattern
+    from ``search_food_items`` in ``food_service.py``.
+    """
+    stmt = (
+        select(DailyLog, CoachFoodMapping)
+        .outerjoin(
+            CoachFoodMapping,
+            (CoachFoodMapping.food_id == DailyLog.food_id)
+            & (CoachFoodMapping.coach_id == coach_id),
+        )
+        .where(
+            DailyLog.user_id == uuid_mod.UUID(user_id),
+            func.date(DailyLog.timestamp) == target_date,
+        )
+        .order_by(DailyLog.timestamp)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [(r[0], r[1]) for r in rows]
+
+
 async def get_logs_by_date_range(
     session: AsyncSession, user_id: str, start_date: date, end_date: date
 ) -> List[DailyLog]:
@@ -160,19 +190,23 @@ async def get_logs_by_date_range(
 # @tool wrappers — own their session, used by graph nodes and LLM tool-calling
 # ---------------------------------------------------------------------------
 
-def _serialize_log(log: DailyLog) -> dict:
+def _serialize_log(
+    log: DailyLog, mapping: Optional[CoachFoodMapping] = None
+) -> dict:
     """Convert a DailyLog ORM object to a JSON-serializable dict.
 
     Timestamps are stored UTC in Postgres; we emit them in the user's local
     timezone so downstream consumers (LLM, response_node, stats_node) read
     the time the user actually experienced. See bot UX audit F2 / Bug 2.
+
+    When ``mapping`` is provided (via ``get_logs_by_date_with_mappings``), the
+    returned dict carries ``category``, ``tag``, and ``serving_amount_g``
+    fields so the response-node renderer can surface coach-method metadata
+    to the LLM. When ``mapping`` is ``None`` (legacy callers, or logs without
+    a coach mapping), the shape is unchanged from the pre-Plan-3d version.
     """
-    ts_local = (
-        log.timestamp.astimezone(USER_TIMEZONE).isoformat()
-        if log.timestamp
-        else None
-    )
-    return {
+    ts_local = serialize_timestamp(log.timestamp)
+    serialized = {
         "id": str(log.id),
         "food_id": str(log.food_id) if log.food_id else None,
         "amount_g": log.amount_g,
@@ -184,6 +218,11 @@ def _serialize_log(log: DailyLog) -> dict:
         "meal_type": log.meal_type,
         "original_text": log.original_text,
     }
+    if mapping is not None:
+        serialized["category"] = mapping.category
+        serialized["tag"] = mapping.tag
+        serialized["serving_amount_g"] = mapping.serving_amount_g
+    return serialized
 
 
 async def get_todays_logs_serialized(
@@ -200,8 +239,8 @@ async def get_todays_logs_serialized(
     Follow-up tracked in brain/TASKS.md (Bug 1 from bot UX audit 2026-04-17).
     """
     today = datetime.now(USER_TIMEZONE).date()
-    logs = await get_logs_by_date(session, user_id, today)
-    return [_serialize_log(log) for log in logs]
+    rows = await get_logs_by_date_with_mappings(session, user_id, today)
+    return [_serialize_log(log, mapping) for log, mapping in rows]
 
 
 @tool

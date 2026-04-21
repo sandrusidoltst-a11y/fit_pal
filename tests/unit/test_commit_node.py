@@ -14,10 +14,68 @@ from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.commit_node import commit_node
 
 
+def _macro(
+    *,
+    name_en,
+    amount_g,
+    calories,
+    protein,
+    carbs,
+    fat,
+    source,
+    food_id,
+    name_he=None,
+    original_text=None,
+    category=None,
+    tag=None,
+    serving_amount_g=None,
+    servings=None,
+    default_unit="g",
+    default_unit_weight_g=None,
+):
+    """Build a MacroResult dict for commit_node fixtures."""
+    return {
+        "name_en": name_en,
+        "name_he": name_he,
+        "amount_g": amount_g,
+        "calories": calories,
+        "protein": protein,
+        "carbs": carbs,
+        "fat": fat,
+        "source": source,
+        "category": category,
+        "tag": tag,
+        "serving_amount_g": serving_amount_g,
+        "servings": servings,
+        "default_unit": default_unit,
+        "default_unit_weight_g": default_unit_weight_g,
+        "original_text": original_text or f"{amount_g}g {name_en}",
+        "food_id": food_id,
+    }
+
+
+CHICKEN = _macro(
+    name_en="chicken", name_he="עוף", amount_g=200, calories=330, protein=62,
+    carbs=0, fat=7.2, source="database", food_id="food-uuid-1",
+    category="protein", tag="lean", serving_amount_g=100.0, servings=2.0,
+)
+RICE = _macro(
+    name_en="rice", amount_g=150, calories=195, protein=4, carbs=42, fat=0.4,
+    source="database", food_id="food-uuid-2", category="carb",
+    serving_amount_g=100.0, servings=1.5,
+)
+PIZZA = _macro(
+    name_en="pizza", amount_g=300, calories=750, protein=30, carbs=85, fat=32,
+    source="estimated", food_id=None, original_text="3 slices of pizza",
+)
+
+
 class TestCommitNodeSuccess:
     """Test successful batch commit flows."""
 
-    async def test_commit_batch_success(self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit):
+    async def test_commit_batch_success(
+        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit
+    ):
         """
         arrange: set pending_confirmations with two items and mock tools.
         act:     run commit_node.
@@ -27,30 +85,7 @@ class TestCommitNodeSuccess:
         mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
-            "pending_confirmations": [
-                {
-                    "food_name": "chicken",
-                    "amount_g": 200,
-                    "calories": 330,
-                    "protein": 62,
-                    "carbs": 0,
-                    "fat": 7.2,
-                    "source": "database",
-                    "original_text": "200g chicken",
-                    "food_id": "food-uuid-1",
-                },
-                {
-                    "food_name": "rice",
-                    "amount_g": 150,
-                    "calories": 195,
-                    "protein": 4,
-                    "carbs": 42,
-                    "fat": 0.4,
-                    "source": "database",
-                    "original_text": "150g rice",
-                    "food_id": "food-uuid-2",
-                },
-            ],
+            "pending_confirmations": [CHICKEN, RICE],
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
@@ -60,6 +95,9 @@ class TestCommitNodeSuccess:
         assert len(result["processing_results"]) == 2
         assert all(r["status"] == "LOGGED" for r in result["processing_results"])
         assert result["last_action"] == "LOGGED"
+        # food_name in ProcessingResult should carry the English name
+        assert result["processing_results"][0]["food_name"] == "chicken"
+        assert result["processing_results"][0]["name_he"] == "עוף"
 
     async def test_commit_estimated_item_creates_food_item(
         self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit, mock_create_food_item
@@ -70,32 +108,23 @@ class TestCommitNodeSuccess:
         assert:  create_food_item called with back-calculated per-100g values,
                  log_food_entry called with returned food_id.
         """
-        mock_create_food_item.ainvoke = AsyncMock(return_value={"id": "food-uuid-99", "name": "pizza"})
+        mock_create_food_item.ainvoke = AsyncMock(
+            return_value={"id": "food-uuid-99", "name_en": "pizza", "name_he": None, "mapping_created": False}
+        )
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
         mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
-            "pending_confirmations": [
-                {
-                    "food_name": "pizza",
-                    "amount_g": 300,
-                    "calories": 750,
-                    "protein": 30,
-                    "carbs": 85,
-                    "fat": 32,
-                    "source": "estimated",
-                    "original_text": "3 slices of pizza",
-                    "food_id": None,
-                },
-            ],
+            "pending_confirmations": [PIZZA],
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
         result = await commit_node(basic_state, TEST_RUNTIME_A)
 
-        # Verify create_food_item called with back-calculated per-100g values
+        # Verify create_food_item called with the new signature + back-calculated per-100g values
         create_args = mock_create_food_item.ainvoke.call_args[0][0]
-        assert create_args["name"] == "pizza"
+        assert create_args["name_en"] == "pizza"
+        assert "name_he" in create_args
         assert create_args["calories_per_100g"] == round((750 / 300) * 100, 2)
         assert create_args["protein_per_100g"] == round((30 / 300) * 100, 2)
         assert create_args["carbs_per_100g"] == round((85 / 300) * 100, 2)
@@ -117,19 +146,7 @@ class TestCommitNodeSuccess:
         mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
-            "pending_confirmations": [
-                {
-                    "food_name": "chicken",
-                    "amount_g": 200,
-                    "calories": 330,
-                    "protein": 62,
-                    "carbs": 0,
-                    "fat": 7.2,
-                    "source": "database",
-                    "original_text": "200g chicken",
-                    "food_id": "food-uuid-1",
-                },
-            ],
+            "pending_confirmations": [CHICKEN],
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
@@ -147,35 +164,14 @@ class TestCommitNodeSuccess:
         act:     run commit_node.
         assert:  create_food_item called once (for estimated only), both items logged.
         """
-        mock_create_food_item.ainvoke = AsyncMock(return_value={"id": "food-uuid-99", "name": "pizza"})
+        mock_create_food_item.ainvoke = AsyncMock(
+            return_value={"id": "food-uuid-99", "name_en": "pizza", "name_he": None, "mapping_created": False}
+        )
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
         mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
-            "pending_confirmations": [
-                {
-                    "food_name": "chicken",
-                    "amount_g": 200,
-                    "calories": 330,
-                    "protein": 62,
-                    "carbs": 0,
-                    "fat": 7.2,
-                    "source": "database",
-                    "original_text": "200g chicken",
-                    "food_id": "food-uuid-1",
-                },
-                {
-                    "food_name": "pizza",
-                    "amount_g": 300,
-                    "calories": 750,
-                    "protein": 30,
-                    "carbs": 85,
-                    "fat": 32,
-                    "source": "estimated",
-                    "original_text": "3 slices of pizza",
-                    "food_id": None,
-                },
-            ],
+            "pending_confirmations": [CHICKEN, PIZZA],
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
@@ -185,7 +181,9 @@ class TestCommitNodeSuccess:
         assert mock_log_food_entry.ainvoke.call_count == 2
         assert len(result["processing_results"]) == 2
 
-    async def test_clears_pending_confirmations(self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit):
+    async def test_clears_pending_confirmations(
+        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit
+    ):
         """
         arrange: set pending_confirmations with one item.
         act:     run commit_node.
@@ -195,19 +193,7 @@ class TestCommitNodeSuccess:
         mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
-            "pending_confirmations": [
-                {
-                    "food_name": "chicken",
-                    "amount_g": 200,
-                    "calories": 330,
-                    "protein": 62,
-                    "carbs": 0,
-                    "fat": 7.2,
-                    "source": "database",
-                    "original_text": "200g chicken",
-                    "food_id": "food-uuid-1",
-                },
-            ],
+            "pending_confirmations": [CHICKEN],
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
 
@@ -215,7 +201,9 @@ class TestCommitNodeSuccess:
 
         assert result["pending_confirmations"] == []
 
-    async def test_processing_results_accumulated(self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit):
+    async def test_processing_results_accumulated(
+        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit
+    ):
         """
         arrange: set existing processing_results in state.
         act:     run commit_node.
@@ -226,7 +214,8 @@ class TestCommitNodeSuccess:
 
         existing = {
             "food_name": "prev",
-            "amount": 100,
+            "name_he": None,
+            "count": 100,
             "unit": "g",
             "original_text": "prev",
             "status": "LOGGED",
@@ -235,19 +224,7 @@ class TestCommitNodeSuccess:
         }
 
         basic_state.update({
-            "pending_confirmations": [
-                {
-                    "food_name": "chicken",
-                    "amount_g": 200,
-                    "calories": 330,
-                    "protein": 62,
-                    "carbs": 0,
-                    "fat": 7.2,
-                    "source": "database",
-                    "original_text": "200g chicken",
-                    "food_id": "food-uuid-1",
-                },
-            ],
+            "pending_confirmations": [CHICKEN],
             "processing_results": [existing],
             "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
         })
