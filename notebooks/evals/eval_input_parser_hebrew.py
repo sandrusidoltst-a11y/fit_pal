@@ -1,9 +1,12 @@
 """Input Parser (Hebrew) — single-step evaluation.
 
 Runs `input_parser_node` against the "Input Parser Hebrew" LangSmith dataset
-across 5 dimensions (action, item count, amount accuracy, dates, food-name
-quality). Results land in LangSmith under the experiment prefix derived from
-the effective model — swap `LLM_MODEL_NAME` in `.env` (or set a `model` in
+across 5 dimensions (action, item count, serving correctness, dates, food-name
+quality). Expectations use the current `count` + `unit` schema and accept
+bilingual (Hebrew OR English) food names — the catalog search is bilingual.
+
+Results land in LangSmith under an experiment prefix derived from the effective
+model — swap `LLM_MODEL_NAME` in `.env` (or set a `model` in
 `NODE_CONFIGS["input_node"]`) and rerun; experiments auto-label correctly.
 
 Run: `uv run python notebooks/evals/eval_input_parser_hebrew.py`
@@ -39,7 +42,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "אכלתי 200 גרם עוף",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Chicken", "amount": 200.0}],
+        "items": [{"food_name": "עוף", "count": 200, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -50,8 +53,8 @@ EXAMPLES: list[dict] = [
         "question": "תרשום בננה ו-100 גרם אורז",
         "action": "LOG_FOOD",
         "items": [
-            {"food_name": "Banana", "amount": 120.0},
-            {"food_name": "Rice", "amount": 100.0},
+            {"food_name": "בננה", "count": 120, "unit": "g"},
+            {"food_name": "אורז", "count": 100, "unit": "g"},
         ],
         "item_count": 2,
         "consumed_at": None,
@@ -62,7 +65,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "200 גרם חזה עוף",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Chicken Breast", "amount": 200.0}],
+        "items": [{"food_name": "חזה עוף", "count": 200, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -72,7 +75,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "קפה",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Coffee", "amount": 240.0}],
+        "items": [{"food_name": "קפה", "count": 240, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -83,29 +86,29 @@ EXAMPLES: list[dict] = [
         "question": "פסטה עם גבינה לצהריים",
         "action": "LOG_FOOD",
         "items": [
-            {"food_name": "Pasta", "amount": 200.0},
-            {"food_name": "Cheese", "amount": 30.0},
+            {"food_name": "פסטה", "count": 200, "unit": "g"},
+            {"food_name": "גבינה", "count": 30, "unit": "g"},
         ],
         "item_count": 2,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- LOG_FOOD: Unit conversion (cups -> grams) ---
+    # --- LOG_FOOD: Cup -> grams (rice not in unit-bucket table, gram-native) ---
     {
         "question": "אכלתי כוס אורז",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Rice", "amount": 158.0}],
+        "items": [{"food_name": "אורז", "count": 158, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- LOG_FOOD: Unit conversion (slices -> grams) ---
+    # --- LOG_FOOD: Bread is slice-bucket, keep as slices ---
     {
         "question": "2 פרוסות לחם",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Bread", "amount": 60.0}],
+        "items": [{"food_name": "לחם", "count": 2, "unit": "slice"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -115,7 +118,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "שתיתי שייק חלבון אחרי אימון",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Protein Shake", "amount": 300.0}],
+        "items": [{"food_name": "שייק חלבון", "count": 300, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -125,7 +128,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "אכלתי 200 גרם עוף לפני שעתיים",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Chicken", "amount": 200.0}],
+        "items": [{"food_name": "עוף", "count": 200, "unit": "g"}],
         "item_count": 1,
         "consumed_at": "RELATIVE",
         "start_date": None,
@@ -135,28 +138,28 @@ EXAMPLES: list[dict] = [
     {
         "question": "אכלתי בננה אתמול",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Banana", "amount": 120.0}],
+        "items": [{"food_name": "בננה", "count": 120, "unit": "g"}],
         "item_count": 1,
         "consumed_at": "YESTERDAY_NOON",
         "start_date": None,
         "end_date": None,
     },
-    # --- QUERY_FOOD_INFO ---
+    # --- QUERY_FOOD_INFO: produces items (same extraction as LOG_FOOD) ---
     {
         "question": "כמה חלבון יש בביצה?",
         "action": "QUERY_FOOD_INFO",
-        "items": [],
-        "item_count": 0,
+        "items": [{"food_name": "ביצה", "count": 100, "unit": "g"}],
+        "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- QUERY_FOOD_INFO: Could confuse with LOG_FOOD ---
+    # --- QUERY_FOOD_INFO: banana lookup (whole fruit default = 120g) ---
     {
         "question": "כמה קלוריות יש בבננה?",
         "action": "QUERY_FOOD_INFO",
-        "items": [],
-        "item_count": 0,
+        "items": [{"food_name": "בננה", "count": 120, "unit": "g"}],
+        "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
@@ -215,118 +218,118 @@ EXAMPLES: list[dict] = [
     # Hebrew quantifier stress (audit 2026-04-17, Fix #7)
     # Word-form quantifiers ("שתי", "שלוש", "חמש") drop or get misread as grams.
     # ==========================================================================
-    # --- A1: Exact F3 T6 reproduction — "two pitas" returned as one in prod ---
+    # --- A1: Exact F3 T6 reproduction — pita is piece-bucket ---
     {
         "question": "שתי פיתות",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Pita", "amount": 240.0}],
+        "items": [{"food_name": "פיתה", "count": 2, "unit": "piece"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- A2: Rice cakes — quantifier dropped, treated as grams (5g instead of ~40g) ---
+    # --- A2: Rice cakes — piece-bucket ---
     {
         "question": "חמש פריכיות אורז",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Rice Cake", "amount": 40.0}],
+        "items": [{"food_name": "פריכיות אורז", "count": 5, "unit": "piece"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- A3: Cheese slices — wrong serving weight (prod returned 30g for 2 slices) ---
+    # --- A3: Cheese slices — slice-bucket ---
     {
         "question": "שתי פרוסות גבינה",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Cheese", "amount": 50.0}],
+        "items": [{"food_name": "גבינה צהובה", "count": 2, "unit": "slice"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- A4: Food-name mistranslation — protein pudding → "Protein Bar" in prod ---
+    # --- A4: Protein pudding — piece-bucket but no quantity → grams default (step 2.4) ---
     {
         "question": "מעדן חלבון",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Protein Pudding", "amount": 130.0}],
+        "items": [{"food_name": "מעדן חלבון", "count": 130, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- B1: Three eggs, feminine form ---
+    # --- B1: Three eggs, feminine form — piece-bucket ---
     {
         "question": "שלוש ביצים",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Egg", "amount": 150.0}],
+        "items": [{"food_name": "ביצה", "count": 3, "unit": "piece"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- B2: Four bread slices — direct A/B vs. existing digit-form "2 פרוסות לחם" ---
+    # --- B2: Four bread slices — slice-bucket ---
     {
         "question": "ארבע פרוסות לחם",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Bread", "amount": 120.0}],
+        "items": [{"food_name": "לחם", "count": 4, "unit": "slice"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- B3: Half a banana — fractional quantifier ---
+    # --- B3: Half a banana — piece-bucket fractional ---
     {
         "question": "חצי בננה",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Banana", "amount": 60.0}],
+        "items": [{"food_name": "בננה", "count": 0.5, "unit": "piece"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- B4: Half cup of rice — fractional + unit conversion ---
+    # --- B4: Half cup of rice — rice NOT in table, convert to grams ---
     {
         "question": "חצי כוס אורז",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "Rice", "amount": 79.0}],
+        "items": [{"food_name": "אורז", "count": 79, "unit": "g"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- C1: Multi-item with word quantifiers on both ---
+    # --- C1: Multi-item with word quantifiers on both (both piece-bucket) ---
     {
         "question": "שתי פיתות ושלוש ביצים",
         "action": "LOG_FOOD",
         "items": [
-            {"food_name": "Pita", "amount": 240.0},
-            {"food_name": "Egg", "amount": 150.0},
+            {"food_name": "פיתה", "count": 2, "unit": "piece"},
+            {"food_name": "ביצה", "count": 3, "unit": "piece"},
         ],
         "item_count": 2,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- C2: Mixed word-quantifier + no-quantifier compound ---
+    # --- C2: Mixed slice-bucket + no-quantifier compound (pudding → grams default) ---
     {
         "question": "שתי פרוסות גבינה עם מעדן חלבון",
         "action": "LOG_FOOD",
         "items": [
-            {"food_name": "Cheese", "amount": 50.0},
-            {"food_name": "Protein Pudding", "amount": 130.0},
+            {"food_name": "גבינה צהובה", "count": 2, "unit": "slice"},
+            {"food_name": "מעדן חלבון", "count": 130, "unit": "g"},
         ],
         "item_count": 2,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
     },
-    # --- D1: Control — word quantifier inside a QUERY, must NOT route to LOG_FOOD ---
+    # --- D1: Control — word quantifier inside a QUERY. Produces items per prompt. ---
     {
         "question": "כמה חלבון יש בשלוש ביצים?",
         "action": "QUERY_FOOD_INFO",
-        "items": [],
-        "item_count": 0,
+        "items": [{"food_name": "ביצה", "count": 3, "unit": "piece"}],
+        "item_count": 1,
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
@@ -369,40 +372,46 @@ def correct_item_count(outputs: dict, reference_outputs: dict) -> bool:
     return outputs["item_count"] == reference_outputs["item_count"]
 
 
-def amount_accuracy(outputs: dict, reference_outputs: dict) -> dict:
-    """Fraction of items whose gram amount is within ±20% of expected."""
+def correct_serving(outputs: dict, reference_outputs: dict) -> dict:
+    """Fraction of items with correct unit AND count within ±20% of expected.
+
+    Pairs by emission order (index), so names in either Hebrew or English
+    are accepted — name quality is graded separately by ``food_name_quality``.
+    """
     expected_items = reference_outputs.get("items", [])
     actual_items = outputs.get("items", [])
 
     if not expected_items:
-        return {"key": "amount_accuracy", "score": 1.0, "comment": "No items to check"}
+        return {"key": "correct_serving", "score": 1.0, "comment": "No items to check"}
 
     if len(actual_items) != len(expected_items):
         return {
-            "key": "amount_accuracy",
+            "key": "correct_serving",
             "score": 0.0,
             "comment": f"Item count mismatch: got {len(actual_items)}, expected {len(expected_items)}",
         }
 
-    expected_sorted = sorted(expected_items, key=lambda x: x["food_name"].lower())
-    actual_sorted = sorted(actual_items, key=lambda x: x["food_name"].lower())
-
-    within_tolerance = 0
+    correct = 0
     details = []
-    for exp, act in zip(expected_sorted, actual_sorted):
-        exp_amount = exp["amount"]
-        act_amount = act["amount"]
-        tolerance = exp_amount * 0.20
-        is_close = abs(act_amount - exp_amount) <= tolerance
-        if is_close:
-            within_tolerance += 1
+    for exp, act in zip(expected_items, actual_items):
+        exp_count = float(exp["count"])
+        act_count = float(act.get("count", 0))
+        exp_unit = exp["unit"]
+        act_unit = act.get("unit", "")
+        unit_ok = exp_unit == act_unit
+        tolerance = max(exp_count * 0.20, 0.01)
+        count_ok = abs(act_count - exp_count) <= tolerance
+        is_ok = unit_ok and count_ok
+        if is_ok:
+            correct += 1
         details.append(
-            f"{act.get('food_name', '?')}: {act_amount}g vs {exp_amount}g"
-            f" {'(OK)' if is_close else '(FAIL)'}"
+            f"{act.get('food_name', '?')}: "
+            f"{act_count}{act_unit} vs {exp_count}{exp_unit} "
+            f"{'(OK)' if is_ok else '(FAIL' + ('' if unit_ok else ' unit') + ('' if count_ok else ' count') + ')'}"
         )
 
-    score = within_tolerance / len(expected_items)
-    return {"key": "amount_accuracy", "score": score, "comment": "; ".join(details)}
+    score = correct / len(expected_items)
+    return {"key": "correct_serving", "score": score, "comment": "; ".join(details)}
 
 
 def _resolve_date_sentinel(sentinel: str | None) -> str | None:
@@ -484,19 +493,19 @@ class NameGrade(TypedDict):
 
 JUDGE_INSTRUCTIONS = """You are evaluating whether a food name has been properly normalized for database search.
 
-The original user input is in Hebrew, but the extracted food name should be in English (for database lookup).
+The system performs **bilingual** catalog lookup (Hebrew + English), so the extracted food name is acceptable in **either language**.
 
 Rules:
-- The name should be generic and search-friendly (e.g., "Apple" not "Small sour green apple")
-- Minor variations are acceptable ("Chicken" vs "Chicken Breast" - both valid)
-- The name must still refer to the same food as the original Hebrew text
-- Compound dishes should be decomposed (Hebrew for "pasta with cheese" -> "Pasta" and "Cheese" separately)
-- Individual ingredients from decomposed dishes are valid on their own
-- Common food product names are acceptable even if multi-word ("Protein Shake", "Peanut Butter")
-- Do NOT penalize names that are already standard food category names
-- The name MUST be in English, not Hebrew
+- Accept the name in Hebrew OR English — both are valid. The parser is instructed to keep the user's language, but cross-language output is not a failure here.
+- The name should be generic and search-friendly (e.g., "Apple" / "תפוח" — not "Small sour green apple").
+- Minor variations are acceptable ("Chicken" vs "Chicken Breast"; "עוף" vs "חזה עוף" — both valid).
+- The name must still refer to the same food as the original user text.
+- Compound dishes should be decomposed ("pasta with cheese" / "פסטה עם גבינה" → "Pasta"/"פסטה" and "Cheese"/"גבינה" separately).
+- Individual ingredients from decomposed dishes are valid on their own.
+- Common food product names are acceptable even if multi-word ("Protein Shake" / "שייק חלבון", "Peanut Butter" / "חמאת בוטנים").
+- Do NOT penalize names that are already standard food category names.
 
-Grade as acceptable if a nutrition database search for this name would reasonably find the correct food."""
+Grade as acceptable if a bilingual nutrition catalog search for this name would reasonably find the correct food."""
 
 _judge_llm = None
 
@@ -516,7 +525,10 @@ def _get_judge_llm():
 async def food_name_quality(
     inputs: dict, outputs: dict, reference_outputs: dict
 ) -> dict:
-    """LLM-as-judge: fraction of extracted food names graded acceptable."""
+    """LLM-as-judge: fraction of extracted food names graded acceptable.
+
+    Accepts either Hebrew or English names — the catalog is bilingual.
+    """
     expected_items = reference_outputs.get("items", [])
     actual_items = outputs.get("items", [])
 
@@ -533,7 +545,7 @@ async def food_name_quality(
         msg = (
             f'Original user input (Hebrew): "{inputs["question"]}"\n'
             f'Extracted food name: "{act.get("food_name", "")}"\n'
-            f"\nIs this a reasonable, search-friendly English normalization of the Hebrew input?"
+            f"\nIs this a reasonable, search-friendly canonical name (Hebrew or English) for the input?"
         )
 
         grade = await _get_judge_llm().ainvoke(
@@ -556,24 +568,54 @@ async def food_name_quality(
 
 
 async def sync_dataset(client: Client) -> None:
-    """Idempotent upload: add any EXAMPLES whose question is not yet in LangSmith.
-    Never deletes or mutates existing examples — the code is the append-only
-    source of truth; to retire an example, remove it from EXAMPLES AND from
-    the LangSmith UI."""
+    """Upsert EXAMPLES to LangSmith: add missing, update when outputs differ.
+
+    The code is the source of truth. To retire an example, remove it from
+    EXAMPLES AND from the LangSmith UI (this sync never deletes).
+    """
     existing = list(client.list_examples(dataset_id=DATASET_ID))
-    existing_questions = {ex.inputs.get("question") for ex in existing}
-    new_examples = [ex for ex in EXAMPLES if ex["question"] not in existing_questions]
-    if not new_examples:
-        print(f"Dataset '{DATASET_NAME}' is up to date ({len(existing)} examples)")
-        return
-    client.create_examples(
-        inputs=[{"question": ex["question"]} for ex in new_examples],
-        outputs=[{k: v for k, v in ex.items() if k != "question"} for ex in new_examples],
-        dataset_id=DATASET_ID,
-    )
+    existing_by_q = {ex.inputs.get("question"): ex for ex in existing}
+
+    def _canonical(v):
+        # Normalise for comparison: tuples → lists, set-iteration → sorted.
+        if isinstance(v, dict):
+            return {k: _canonical(v[k]) for k in sorted(v)}
+        if isinstance(v, (list, tuple)):
+            return [_canonical(x) for x in v]
+        return v
+
+    to_create = []
+    updated = 0
+    unchanged = 0
+
+    for ex in EXAMPLES:
+        q = ex["question"]
+        outputs = {k: v for k, v in ex.items() if k != "question"}
+
+        if q in existing_by_q:
+            current_out = dict(existing_by_q[q].outputs or {})
+            if _canonical(current_out) != _canonical(outputs):
+                client.update_example(
+                    example_id=existing_by_q[q].id,
+                    outputs=outputs,
+                )
+                updated += 1
+            else:
+                unchanged += 1
+        else:
+            to_create.append(ex)
+
+    if to_create:
+        client.create_examples(
+            inputs=[{"question": e["question"]} for e in to_create],
+            outputs=[{k: v for k, v in e.items() if k != "question"} for e in to_create],
+            dataset_id=DATASET_ID,
+        )
+
     print(
-        f"Uploaded {len(new_examples)} new examples to '{DATASET_NAME}' "
-        f"(total now {len(existing) + len(new_examples)})"
+        f"Dataset '{DATASET_NAME}': "
+        f"{len(to_create)} added, {updated} updated, {unchanged} unchanged "
+        f"(total {len(existing) + len(to_create)})"
     )
 
 
@@ -590,7 +632,7 @@ async def main() -> None:
         evaluators=[
             correct_action,
             correct_item_count,
-            amount_accuracy,
+            correct_serving,
             correct_dates,
             food_name_quality,
         ],
