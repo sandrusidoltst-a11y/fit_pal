@@ -51,6 +51,9 @@ class QueriedLog(TypedDict):
     timestamp: datetime
     meal_type: Optional[str]
     original_text: Optional[str]
+    category: Optional[str]
+    tag: Optional[str]
+    serving_amount_g: Optional[float]
 
 
 GraphAction = Literal[

@@ -5,7 +5,8 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from src.config import USER_TIMEZONE
+from src.config import DEFAULT_COACH_ID, USER_TIMEZONE
+from src.models import FoodItem
 from tests.conftest import SEED_FOOD_ID, TEST_USER_A, TEST_USER_B
 from src.services.daily_log_service import (
     _serialize_log,
@@ -13,6 +14,7 @@ from src.services.daily_log_service import (
     get_daily_totals,
     get_logs_by_date,
     get_logs_by_date_range,
+    get_logs_by_date_with_mappings,
     get_todays_logs_serialized,
 )
 
@@ -463,3 +465,207 @@ class TestGetTodaysLogsSerialized:
         assert result_a[0]["original_text"] == "user A meal"
         assert len(result_b) == 1
         assert result_b[0]["original_text"] == "user B meal"
+
+
+# ---------------------------------------------------------------------------
+# Plan 3d: enriched query with coach_food_mappings LEFT JOIN
+# ---------------------------------------------------------------------------
+
+class TestEnrichedQuery:
+    """Verify get_logs_by_date_with_mappings LEFT-joins coach mappings correctly.
+
+    Three mapping states to cover:
+    - Log with food_id + valid coach mapping → tuple has non-None mapping
+    - Log with food_id but no mapping for the coach → tuple has None mapping
+    - Log with no food_id (CASCADE SET NULL survivor) → tuple has None mapping
+
+    Also verifies the serialized form (via get_todays_logs_serialized) carries
+    category/tag/serving_amount_g only when the mapping is present.
+    """
+
+    async def test_log_with_coach_mapping_returns_populated_tuple(
+        self, async_test_db_session
+    ):
+        """
+        arrange: log against SEED_FOOD_ID (which conftest seeded with a coach mapping).
+        act:     get_logs_by_date_with_mappings.
+        assert:  tuple mapping is non-None and carries category/tag.
+        """
+        session = async_test_db_session
+        now = datetime.now(timezone.utc)
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID,
+            amount_g=100.0,
+            calories=165.0,
+            protein=31.0,
+            carbs=0.0,
+            fat=3.6,
+            timestamp=now,
+            original_text="seeded food",
+        )
+
+        rows = await get_logs_by_date_with_mappings(
+            session, TEST_USER_A, now.date()
+        )
+
+        assert len(rows) == 1
+        log, mapping = rows[0]
+        assert log.original_text == "seeded food"
+        assert mapping is not None
+        assert mapping.coach_id == DEFAULT_COACH_ID
+        # conftest seeds the mapping with a known category/tag — any non-empty
+        # string passes this structural check.
+        assert isinstance(mapping.category, str) and mapping.category
+
+    async def test_log_with_food_but_no_coach_mapping_returns_none_mapping(
+        self, async_test_db_session
+    ):
+        """
+        arrange: create a FoodItem with NO CoachFoodMapping row, log against it.
+        act:     get_logs_by_date_with_mappings.
+        assert:  tuple mapping is None (LEFT JOIN yields NULL right side).
+        """
+        session = async_test_db_session
+        # New FoodItem without a coach mapping
+        orphan_food = FoodItem(
+            id=uuid_mod.uuid4(),
+            name_en="Orphan food",
+            name_he="אוכל ללא מיפוי",
+            calories=100.0,
+            protein=5.0,
+            fat=1.0,
+            carbs=15.0,
+            source="database",
+        )
+        session.add(orphan_food)
+        await session.commit()
+
+        now = datetime.now(timezone.utc)
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=str(orphan_food.id),
+            amount_g=100.0,
+            calories=100.0,
+            protein=5.0,
+            carbs=15.0,
+            fat=1.0,
+            timestamp=now,
+            original_text="orphan log",
+        )
+
+        rows = await get_logs_by_date_with_mappings(
+            session, TEST_USER_A, now.date()
+        )
+
+        # Find the orphan log in the results
+        orphan_row = next(
+            (r for r in rows if r[0].original_text == "orphan log"), None
+        )
+        assert orphan_row is not None
+        log, mapping = orphan_row
+        assert log.food_id == orphan_food.id
+        assert mapping is None
+
+    async def test_log_with_null_food_id_returns_none_mapping(
+        self, async_test_db_session
+    ):
+        """
+        arrange: log with food_id=None (CASCADE SET NULL survivor).
+        act:     get_logs_by_date_with_mappings.
+        assert:  tuple mapping is None; no join match possible without food_id.
+        """
+        session = async_test_db_session
+        now = datetime.now(timezone.utc)
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=None,
+            amount_g=50.0,
+            calories=75.0,
+            protein=2.0,
+            carbs=10.0,
+            fat=3.0,
+            timestamp=now,
+            original_text="unlinked log",
+        )
+
+        rows = await get_logs_by_date_with_mappings(
+            session, TEST_USER_A, now.date()
+        )
+
+        unlinked = next(
+            (r for r in rows if r[0].original_text == "unlinked log"), None
+        )
+        assert unlinked is not None
+        log, mapping = unlinked
+        assert log.food_id is None
+        assert mapping is None
+
+    async def test_serialized_log_carries_category_when_mapping_present(
+        self, async_test_db_session
+    ):
+        """
+        arrange: log against the seeded food (has coach mapping).
+        act:     get_todays_logs_serialized.
+        assert:  serialized dict contains category/tag/serving_amount_g keys.
+        """
+        session = async_test_db_session
+        today_israel = datetime.now(USER_TIMEZONE).replace(
+            hour=12, minute=0, second=0, microsecond=0
+        )
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID,
+            amount_g=100.0,
+            calories=165.0,
+            protein=31.0,
+            carbs=0.0,
+            fat=3.6,
+            timestamp=today_israel.astimezone(timezone.utc),
+            original_text="seeded today meal",
+        )
+
+        result = await get_todays_logs_serialized(session, TEST_USER_A)
+        assert len(result) == 1
+        entry = result[0]
+        assert "category" in entry
+        assert entry["category"]  # non-empty string from conftest seed
+        assert "tag" in entry
+        assert "serving_amount_g" in entry
+
+    async def test_serialized_log_omits_mapping_fields_when_no_mapping(
+        self, async_test_db_session
+    ):
+        """
+        arrange: log with food_id=None (no mapping possible).
+        act:     get_todays_logs_serialized.
+        assert:  serialized dict does NOT contain category/tag/serving_amount_g keys.
+        """
+        session = async_test_db_session
+        today_israel = datetime.now(USER_TIMEZONE).replace(
+            hour=12, minute=0, second=0, microsecond=0
+        )
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=None,
+            amount_g=50.0,
+            calories=75.0,
+            protein=2.0,
+            carbs=10.0,
+            fat=3.0,
+            timestamp=today_israel.astimezone(timezone.utc),
+            original_text="unlinked today meal",
+        )
+
+        result = await get_todays_logs_serialized(session, TEST_USER_A)
+        assert len(result) == 1
+        entry = result[0]
+        # Optional-fields contract: absent, not None.
+        assert "category" not in entry
+        assert "tag" not in entry
+        assert "serving_amount_g" not in entry

@@ -1,5 +1,6 @@
 import json
 import os
+from collections import defaultdict
 from datetime import date, datetime
 
 import structlog
@@ -42,6 +43,13 @@ def _format_daily_log(logs: list[dict]) -> str:
     Always emits a section (never silent): explicit "nothing logged yet today"
     is a useful signal for the empty-log coach-voice opener (audit Fix #5).
     Timestamps in each log dict are already Israel-local via _serialize_log.
+
+    When logs carry coach-method metadata (``category``/``tag`` from the
+    ``coach_food_mappings`` join), each line is annotated and a trailing
+    "Today's Totals by Category" block gives the LLM pre-computed servings
+    math so it doesn't have to sum grams in prose. Logs without a category
+    still render in the per-line section but are excluded from the totals
+    block (can't aggregate without a category).
     """
     if not logs:
         return "\n\n## Today's Log\nNothing logged yet today."
@@ -55,10 +63,83 @@ def _format_daily_log(logs: list[dict]) -> str:
         fat = log.get("fat", 0)
         original = log.get("original_text") or ""
         label = original or f"{amount}g"
+        category = log.get("category")
+        tag = log.get("tag")
+        annotation = ""
+        if category:
+            annotation = f" [{category},{tag}]" if tag else f" [{category}]"
         lines.append(
             f"- {ts} — {label} — "
             f"{cals:.0f} kcal, {protein:.1f}g protein, {carbs:.1f}g carbs, {fat:.1f}g fat"
+            f"{annotation}"
         )
+
+    totals_block = _format_totals_by_category(logs)
+    if totals_block:
+        lines.append(totals_block)
+    return "\n".join(lines)
+
+
+def _format_totals_by_category(logs: list[dict]) -> str:
+    """Aggregate logs by coach-method category and render a totals block.
+
+    Serving math uses the coach's method constants (not per-food
+    ``serving_amount_g``):
+    - protein: 20g protein = 1 protein serving
+    - carb: 50g carbs = 1 carb serving
+    - free_calories: 100 kcal = 1 unit of the free-calorie budget
+    - free / forbidden_main / fat: no serving concept; raw grams + kcal only
+
+    Returns an empty string when no log carries a category — keeps the legacy
+    prompt shape for pre-Plan-3d (uncategorized) data and preserves existing
+    test assertions that don't expect a totals block.
+    """
+    totals: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"amount_g": 0.0, "calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0}
+    )
+    for log in logs:
+        category = log.get("category")
+        if not category:
+            continue
+        bucket = totals[category]
+        bucket["amount_g"] += log.get("amount_g", 0) or 0
+        bucket["calories"] += log.get("calories", 0) or 0
+        bucket["protein"] += log.get("protein", 0) or 0
+        bucket["carbs"] += log.get("carbs", 0) or 0
+        bucket["fat"] += log.get("fat", 0) or 0
+
+    if not totals:
+        return ""
+
+    lines = ["\n## Today's Totals by Category"]
+    for category in sorted(totals.keys()):
+        bucket = totals[category]
+        if category == "protein":
+            servings = round(bucket["protein"] / 20.0, 1)
+            lines.append(
+                f"- protein: {bucket['amount_g']:.0f}g total, "
+                f"{bucket['protein']:.1f}g protein, {bucket['calories']:.0f} kcal "
+                f"→ {servings} protein servings"
+            )
+        elif category == "carb":
+            servings = round(bucket["carbs"] / 50.0, 1)
+            lines.append(
+                f"- carb: {bucket['amount_g']:.0f}g total, "
+                f"{bucket['carbs']:.1f}g carbs, {bucket['calories']:.0f} kcal "
+                f"→ {servings} carb servings"
+            )
+        elif category == "free_calories":
+            units = round(bucket["calories"] / 100.0, 1)
+            lines.append(
+                f"- free_calories: {bucket['amount_g']:.0f}g total, "
+                f"{bucket['calories']:.0f} kcal → {units} free-calorie units"
+            )
+        else:
+            # free / forbidden_main / fat — no serving concept
+            lines.append(
+                f"- {category}: {bucket['amount_g']:.0f}g total, "
+                f"{bucket['calories']:.0f} kcal"
+            )
     return "\n".join(lines)
 
 
