@@ -189,6 +189,8 @@ fit_pal/
 
 - **Shared service layer** — dashboard and bot reuse `src/services/*`. Only genuinely new domains (e.g. structured macro targets) get new services.
 - **Coach-scoping is non-negotiable** — every dashboard endpoint is scoped to the authenticated coach. The specific enforcement layer (middleware, RLS, both) is an implementation decision.
+  - **Current inclination**: build the dashboard on **DB-layer enforcement (Supabase Auth + RLS)** from day one, even though the bot stays on app-layer scoping for now. The dashboard's coach-trainee many-to-many shape and native Supabase Auth flow make RLS the natural fit — and it becomes the beachhead for later migrating the bot.
+  - See [`docs/adr/0001-app-layer-user-authorization.md`](docs/adr/0001-app-layer-user-authorization.md) for the full context on why the bot currently uses app-layer scoping and why the dashboard is the inflection point where that choice starts to cost more than it saves. A dedicated dashboard-auth ADR will be written when dashboard planning starts — this line records the tendency, not the decision.
 - **Frontend talks to one API** — `/api/dashboard/*` under the same FastAPI service. Hosting model (shared origin vs split) is an implementation decision.
 - **Server state via TanStack Query** — caching, background refetch, stale-while-revalidate.
 - **Auth via Supabase** — coach logs in with email/password; JWT sent as Bearer token; middleware validates and injects `coach_id`.
