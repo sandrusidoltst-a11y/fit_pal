@@ -237,7 +237,8 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 
 | Resource | Type | Purpose | When to Read |
 |---|---|---|---|
-| [PRD.md](PRD.md) | Documentation | Full requirements, features, and specs | Feature planning / understanding scope |
+| [PRD.md](PRD.md) | Documentation | Full requirements, features, and specs for the FitPal bot/agent | Feature planning / understanding scope |
+| [DASHBOARD_PRD.md](DASHBOARD_PRD.md) | Documentation | Coach dashboard PRD — scope, architecture, data model, implementation phases. Most decisions are Claude-proposed defaults flagged for discussion during implementation planning. | Before planning or implementing any coach dashboard work |
 | [.claude/skills/test-engineering/SKILL.md](.claude/skills/test-engineering/SKILL.md) | Skill | Test tiers, mock boundaries, file structure, AAA docstrings, graph-api patterns | **Before** writing any test; when a test fails unexpectedly; when adding a new node, route, or schema |
 | [.claude/skills/plan-feature/SKILL.md](.claude/skills/plan-feature/SKILL.md) | Skill | Feature planning workflow with deep codebase analysis | When planning a new feature or refactor before implementing |
 | [.claude/skills/validation/SKILL.md](.claude/skills/validation/SKILL.md) | Skill | Comprehensive validation and code review workflow | Before committing, after implementing a feature, or when user says "validate" |
