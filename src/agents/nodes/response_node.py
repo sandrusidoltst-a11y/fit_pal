@@ -221,8 +221,10 @@ async def response_node(state: AgentState, runtime: Runtime[ContextSchema]) -> d
         else "\n\n## User Nutrition Plan\nNo plan set for this user yet."
     )
 
-    # Today's log section — always rendered (empty state is a useful signal for the LLM)
-    daily_log = context.daily_log_today if context.daily_log_today is not None else []
+    # Today's log section — always rendered (empty state is a useful signal for the LLM).
+    # Sourced from state, populated by load_daily_context (runs immediately before this node).
+    # See docs/adr/0002-daily-log-loader-node-into-state.md.
+    daily_log = state.get("daily_log_today", [])
     log_section = _format_daily_log(daily_log)
 
     # Build selective context JSON

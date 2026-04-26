@@ -166,7 +166,7 @@ class TestConfirmationNodeReject:
         """
         arrange: state with pending_confirmations, mock interrupt to return "no".
         act:     run confirmation_node.
-        assert:  returns Command(goto="response") with REJECTED action and FAILED results.
+        assert:  returns Command(goto="load_daily_context") with REJECTED action and FAILED results.
         """
         basic_state["pending_confirmations"] = list(SAMPLE_BATCH)
 
@@ -177,7 +177,7 @@ class TestConfirmationNodeReject:
             result = await confirmation_node(basic_state, TEST_RUNTIME_A)
 
         assert isinstance(result, Command)
-        assert result.goto == "response"
+        assert result.goto == "load_daily_context"
         assert result.update["last_action"] == "REJECTED"
         assert len(result.update["processing_results"]) == 2
         assert all(r["status"] == "FAILED" for r in result.update["processing_results"])
@@ -275,11 +275,11 @@ class TestConfirmationNodeEdgeCases:
         """
         arrange: empty pending_confirmations.
         act:     run confirmation_node.
-        assert:  returns Command(goto="response") immediately.
+        assert:  returns Command(goto="load_daily_context") immediately.
         """
         basic_state["pending_confirmations"] = []
 
         result = await confirmation_node(basic_state, TEST_RUNTIME_A)
 
         assert isinstance(result, Command)
-        assert result.goto == "response"
+        assert result.goto == "load_daily_context"

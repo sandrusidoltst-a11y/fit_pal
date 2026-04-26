@@ -37,9 +37,12 @@ class TestFullFlowIntegration:
              patch("src.agents.nutritionist.calculate_macros_node") as mock_calc, \
              patch("src.agents.nutritionist.confirmation_node") as mock_confirm, \
              patch("src.agents.nutritionist.commit_node") as mock_commit, \
+             patch("src.agents.nutritionist.load_daily_context") as mock_loader, \
              patch("src.agents.nodes.response_node.get_llm_for_node") as mock_get_llm:
 
             mock_get_llm.return_value = mock_llm
+            # Loader writes empty list — no DB hit in this unit test scope.
+            mock_loader.return_value = {"daily_log_today": []}
 
             # 1. Input Parser returns initial state
             mock_input.return_value = {

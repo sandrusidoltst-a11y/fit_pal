@@ -76,3 +76,23 @@ Tasks, PRs, plan docs, other ADRs.
 - **Detail**: [full record](0001-app-layer-user-authorization.md)
 - **Conversation**: [[brain/conversations_beckups/2026-04-25_service-role-key-and-auth-architecture]] *(to be backed up)*
 - **Related**: TASKS.md → *Security audit of onboarding*; `docs/plans/phase3-auth-rls-telegram-gateway.md`; `bot/supabase_admin.py`; `src/database.py`
+
+### ADR-0002: `daily_log_today` lives in AgentState via a loader node, not in ContextSchema
+
+- **Status**: Superseded by ADR-0003 (2026-04-26)
+- **Area**: data, agent-architecture
+- **One-liner**: `daily_log_today` moves from `ContextSchema` to `AgentState`, populated by a loader node that runs at graph entry and after any DB-mutating node, replacing the gateway-injected per-request snapshot.
+- **Trade-off**: One extra DB query per commit turn and manual refresh-edge wiring per new mutator, in exchange for guaranteed mid-graph freshness and a single forward-compatible model for multi-consumer growth.
+- **Detail**: [full record](0002-daily-log-loader-node-into-state.md)
+- **Conversation**: [[brain/conversations_beckups/2026-04-25_daily-log-loader-node-into-state]] *(to be backed up)*
+- **Related**: `docs/plans/daily-log-injection-and-israel-tz-serialization.md` (superseded assumption); `docs/patterns/runtime-context.md`; `src/context.py`; `src/agents/state.py`; `src/agents/nodes/response_node.py`; `src/agents/nodes/commit_node.py`; `bot/gateway.py`; LangSmith thread `73ed31fb-8391-4c97-a05f-a4b672c6fcd5`; ADR-0001
+
+### ADR-0003: `daily_log_today` loader sits only before `response_node`, not at graph entry
+
+- **Status**: Accepted (2026-04-26) · revisit when first non-`response_node` consumer of `daily_log_today` is added, or when manual loader-edge maintenance becomes a hazard
+- **Area**: data, agent-architecture
+- **One-liner**: Supersedes ADR-0002's loader topology — the `load_daily_context` node sits as the single hop before `response_node` (every former path to `response` is rewired through it), instead of running at graph entry plus a refresh after commit.
+- **Trade-off**: Simpler graph topology and one DB query per CHITCHAT turn now, in exchange for deferring forward-compat for hypothetical mid-graph consumers (each future non-`response_node` consumer must wire its own loader edge).
+- **Detail**: [full record](0003-daily-log-loader-before-response.md)
+- **Conversation**: [[brain/conversations_beckups/2026-04-25_daily-log-loader-node-into-state]] *(to be backed up — same conversation as ADR-0002)*
+- **Related**: ADR-0002 (superseded); `docs/plans/daily-log-loader-before-response.md`; `docs/patterns/runtime-context.md`; `src/agents/nutritionist.py`; `src/agents/nodes/load_daily_context_node.py`; `src/agents/nodes/response_node.py`; LangSmith thread `73ed31fb-8391-4c97-a05f-a4b672c6fcd5`

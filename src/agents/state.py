@@ -151,6 +151,9 @@ class AgentState(TypedDict):
         search_results: Food search results for agent selection node.
         selected_food_id: Selected food ID from agent selection node.
         processing_results: Feedback results for multi-item processing.
+        daily_log_today: Today's serialized food logs (Israel-local timestamps),
+            populated by load_daily_context node immediately before response_node runs.
+            See docs/adr/0002-daily-log-loader-node-into-state.md.
     """
 
     messages: Annotated[List[AnyMessage], add_messages]
@@ -164,3 +167,4 @@ class AgentState(TypedDict):
     selected_food_id: Optional[str]
     processing_results: List["ProcessingResult"]
     pending_confirmations: List["MacroResult"]
+    daily_log_today: List[dict]

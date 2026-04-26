@@ -88,7 +88,7 @@ async def confirmation_node(
 
     if not batch:
         logger.warning("Confirmation node called with empty batch, skipping to response")
-        return Command(goto="response")
+        return Command(goto="load_daily_context")
 
     preview = _format_batch_preview(batch)
 
@@ -127,7 +127,7 @@ async def confirmation_node(
                 )
 
             return Command(
-                goto="response",
+                goto="load_daily_context",
                 update={
                     "last_action": "REJECTED",
                     "pending_confirmations": [],
