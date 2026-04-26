@@ -75,7 +75,7 @@ def _format_batch_preview(items: list[MacroResult]) -> dict:
 
 async def confirmation_node(
     state: AgentState, runtime: Runtime[ContextSchema],
-) -> Command[Literal["commit", "response"]]:
+) -> Command[Literal["commit", "load_daily_context"]]:
     """Present batch preview and await user confirmation via conversational interrupt loop.
 
     Uses LangGraph's interrupt() in a while loop:
