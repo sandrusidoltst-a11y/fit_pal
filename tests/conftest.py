@@ -55,6 +55,7 @@ def basic_state():
         "selected_food_id": None,
         "processing_results": [],
         "pending_confirmations": [],
+        "daily_log_today": [],
     }
 
 

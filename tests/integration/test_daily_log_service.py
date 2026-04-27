@@ -14,8 +14,8 @@ from src.services.daily_log_service import (
     get_daily_totals,
     get_logs_by_date,
     get_logs_by_date_range,
+    get_logs_by_date_range_with_mappings,
     get_logs_by_date_with_mappings,
-    get_todays_logs_serialized,
 )
 
 
@@ -360,113 +360,6 @@ class TestSerializeLogIsraelLocalTimestamp:
         assert "T22:11" in ts
 
 
-class TestGetTodaysLogsSerialized:
-    """Verify the bot-side helper: today-in-Israel scope, serialized output, user-scoped."""
-
-    async def test_returns_empty_list_for_user_with_no_logs(
-        self, async_test_db_session
-    ):
-        """
-        arrange: No log entries exist for TEST_USER_A.
-        act:     Call get_todays_logs_serialized.
-        assert:  Returns an empty list.
-        """
-        session = async_test_db_session
-        result = await get_todays_logs_serialized(session, TEST_USER_A)
-        assert result == []
-
-    async def test_returns_only_todays_logs(self, async_test_db_session):
-        """
-        arrange: Create one log for today (Israel) and one for yesterday.
-        act:     Call get_todays_logs_serialized.
-        assert:  Only today's log is returned, with Israel-local timestamp.
-        """
-        session = async_test_db_session
-        # Noon today-in-Israel, safe vs. DST edges and date boundaries
-        today_israel = datetime.now(USER_TIMEZONE).replace(
-            hour=12, minute=0, second=0, microsecond=0
-        )
-        yesterday_israel = today_israel - timedelta(days=1)
-
-        await create_log_entry(
-            session=session,
-            user_id=TEST_USER_A,
-            food_id=SEED_FOOD_ID,
-            amount_g=100.0,
-            calories=100.0,
-            protein=10.0,
-            carbs=10.0,
-            fat=5.0,
-            timestamp=today_israel.astimezone(timezone.utc),
-            original_text="today meal",
-        )
-        await create_log_entry(
-            session=session,
-            user_id=TEST_USER_A,
-            food_id=SEED_FOOD_ID,
-            amount_g=200.0,
-            calories=200.0,
-            protein=20.0,
-            carbs=20.0,
-            fat=10.0,
-            timestamp=yesterday_israel.astimezone(timezone.utc),
-            original_text="yesterday meal",
-        )
-
-        result = await get_todays_logs_serialized(session, TEST_USER_A)
-
-        assert len(result) == 1
-        assert result[0]["original_text"] == "today meal"
-        ts = result[0]["timestamp"]
-        assert ts is not None
-        # Israel ISO — IDT (+03:00) or IST (+02:00) depending on DST
-        assert ts.endswith(("+03:00", "+02:00"))
-
-    async def test_scopes_by_user_id(self, async_test_db_session):
-        """
-        arrange: Both TEST_USER_A and TEST_USER_B log today.
-        act:     Call get_todays_logs_serialized for each.
-        assert:  Each gets only their own log.
-        """
-        session = async_test_db_session
-        today_noon_utc = datetime.now(USER_TIMEZONE).replace(
-            hour=12, minute=0, second=0, microsecond=0
-        ).astimezone(timezone.utc)
-
-        await create_log_entry(
-            session=session,
-            user_id=TEST_USER_A,
-            food_id=SEED_FOOD_ID,
-            amount_g=100.0,
-            calories=100.0,
-            protein=10.0,
-            carbs=10.0,
-            fat=5.0,
-            timestamp=today_noon_utc,
-            original_text="user A meal",
-        )
-        await create_log_entry(
-            session=session,
-            user_id=TEST_USER_B,
-            food_id=SEED_FOOD_ID,
-            amount_g=200.0,
-            calories=200.0,
-            protein=20.0,
-            carbs=20.0,
-            fat=10.0,
-            timestamp=today_noon_utc,
-            original_text="user B meal",
-        )
-
-        result_a = await get_todays_logs_serialized(session, TEST_USER_A)
-        result_b = await get_todays_logs_serialized(session, TEST_USER_B)
-
-        assert len(result_a) == 1
-        assert result_a[0]["original_text"] == "user A meal"
-        assert len(result_b) == 1
-        assert result_b[0]["original_text"] == "user B meal"
-
-
 # ---------------------------------------------------------------------------
 # Plan 3d: enriched query with coach_food_mappings LEFT JOIN
 # ---------------------------------------------------------------------------
@@ -609,7 +502,7 @@ class TestEnrichedQuery:
     ):
         """
         arrange: log against the seeded food (has coach mapping).
-        act:     get_todays_logs_serialized.
+        act:     get_logs_by_date_with_mappings + _serialize_log.
         assert:  serialized dict contains category/tag/serving_amount_g keys.
         """
         session = async_test_db_session
@@ -629,7 +522,10 @@ class TestEnrichedQuery:
             original_text="seeded today meal",
         )
 
-        result = await get_todays_logs_serialized(session, TEST_USER_A)
+        rows = await get_logs_by_date_with_mappings(
+            session, TEST_USER_A, today_israel.date()
+        )
+        result = [_serialize_log(log, mapping) for log, mapping in rows]
         assert len(result) == 1
         entry = result[0]
         assert "category" in entry
@@ -642,7 +538,7 @@ class TestEnrichedQuery:
     ):
         """
         arrange: log with food_id=None (no mapping possible).
-        act:     get_todays_logs_serialized.
+        act:     get_logs_by_date_with_mappings + _serialize_log.
         assert:  serialized dict does NOT contain category/tag/serving_amount_g keys.
         """
         session = async_test_db_session
@@ -662,10 +558,156 @@ class TestEnrichedQuery:
             original_text="unlinked today meal",
         )
 
-        result = await get_todays_logs_serialized(session, TEST_USER_A)
+        rows = await get_logs_by_date_with_mappings(
+            session, TEST_USER_A, today_israel.date()
+        )
+        result = [_serialize_log(log, mapping) for log, mapping in rows]
         assert len(result) == 1
         entry = result[0]
         # Optional-fields contract: absent, not None.
         assert "category" not in entry
         assert "tag" not in entry
         assert "serving_amount_g" not in entry
+
+
+# ---------------------------------------------------------------------------
+# Range version of the enriched-query helper (added for query_food_logs migration)
+# ---------------------------------------------------------------------------
+
+class TestGetLogsByDateRangeWithMappings:
+    """Verify get_logs_by_date_range_with_mappings — mirror of the single-date
+    helper, but covering an inclusive range. Same coach-join semantics.
+    """
+
+    async def test_log_with_mapping_returns_populated_tuple(
+        self, async_test_db_session
+    ):
+        """SEED_FOOD_ID has a coach mapping in conftest — within-range log
+        carries the mapping in its tuple.
+        """
+        session = async_test_db_session
+        now = datetime.now(timezone.utc)
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID,
+            amount_g=100.0,
+            calories=165.0,
+            protein=31.0,
+            carbs=0.0,
+            fat=3.6,
+            timestamp=now,
+            original_text="seeded range log",
+        )
+
+        start = (now - timedelta(days=2)).date()
+        end = (now + timedelta(days=1)).date()
+        rows = await get_logs_by_date_range_with_mappings(
+            session, TEST_USER_A, start, end
+        )
+
+        assert len(rows) == 1
+        log, mapping = rows[0]
+        assert log.original_text == "seeded range log"
+        assert mapping is not None
+        assert mapping.coach_id == DEFAULT_COACH_ID
+        assert isinstance(mapping.category, str) and mapping.category
+
+    async def test_log_with_no_mapping_returns_none_mapping(
+        self, async_test_db_session
+    ):
+        """A log with food_id=NULL yields (log, None) — LEFT JOIN preserves it."""
+        session = async_test_db_session
+        now = datetime.now(timezone.utc)
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=None,
+            amount_g=50.0,
+            calories=75.0,
+            protein=2.0,
+            carbs=10.0,
+            fat=3.0,
+            timestamp=now,
+            original_text="orphan range log",
+        )
+
+        rows = await get_logs_by_date_range_with_mappings(
+            session, TEST_USER_A, now.date(), now.date()
+        )
+
+        target = next(
+            (r for r in rows if r[0].original_text == "orphan range log"), None
+        )
+        assert target is not None
+        log, mapping = target
+        assert log.food_id is None
+        assert mapping is None
+
+    async def test_range_inclusive_on_both_ends(self, async_test_db_session):
+        """A log at exactly start_date and another at exactly end_date are both included."""
+        session = async_test_db_session
+        # Use Israel-noon to avoid date-boundary edge cases (Bug 1)
+        anchor = datetime.now(USER_TIMEZONE).replace(
+            hour=12, minute=0, second=0, microsecond=0
+        )
+        day_minus_1 = anchor - timedelta(days=1)
+        day_plus_1 = anchor + timedelta(days=1)
+
+        for ts, label in [(day_minus_1, "yesterday"), (anchor, "today"), (day_plus_1, "tomorrow")]:
+            await create_log_entry(
+                session=session,
+                user_id=TEST_USER_A,
+                food_id=SEED_FOOD_ID,
+                amount_g=100.0,
+                calories=100.0,
+                protein=10.0,
+                carbs=10.0,
+                fat=5.0,
+                timestamp=ts.astimezone(timezone.utc),
+                original_text=label,
+            )
+
+        rows = await get_logs_by_date_range_with_mappings(
+            session, TEST_USER_A, day_minus_1.date(), day_plus_1.date()
+        )
+
+        labels = sorted(log.original_text for log, _ in rows)
+        assert labels == ["today", "tomorrow", "yesterday"]
+
+    async def test_user_scoping(self, async_test_db_session):
+        """User A's range query never returns User B's logs."""
+        session = async_test_db_session
+        now = datetime.now(timezone.utc)
+
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_A,
+            food_id=SEED_FOOD_ID,
+            amount_g=100.0, calories=100.0, protein=10.0, carbs=10.0, fat=5.0,
+            timestamp=now, original_text="user A log",
+        )
+        await create_log_entry(
+            session=session,
+            user_id=TEST_USER_B,
+            food_id=SEED_FOOD_ID,
+            amount_g=200.0, calories=200.0, protein=20.0, carbs=20.0, fat=10.0,
+            timestamp=now, original_text="user B log",
+        )
+
+        a_rows = await get_logs_by_date_range_with_mappings(
+            session, TEST_USER_A, now.date(), now.date()
+        )
+        b_rows = await get_logs_by_date_range_with_mappings(
+            session, TEST_USER_B, now.date(), now.date()
+        )
+
+        # TEST_USER_A is the dev user and may have pre-existing real logs on
+        # today's date — assert scoping via set membership (the test data each
+        # user sees is theirs, never the other user's), not via exclusivity.
+        a_originals = {log.original_text for log, _ in a_rows}
+        b_originals = {log.original_text for log, _ in b_rows}
+        assert "user A log" in a_originals
+        assert "user A log" not in b_originals
+        assert "user B log" in b_originals
+        assert "user B log" not in a_originals

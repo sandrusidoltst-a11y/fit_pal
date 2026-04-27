@@ -11,6 +11,21 @@ User-specific data (`user_id`, `user_profile`) flows through the graph via LangG
 - **Separation of concerns** — user identity is not part of `AgentState` (which is for data that transforms between nodes). Context is constant for the entire run
 - **Tools are framework-free** — tools accept `user_id: str`, not `RunnableConfig` or `ToolRuntime`. This makes them callable from tests, scripts, or any other context without LangGraph dependency
 
+## What Belongs in Context vs State
+
+`runtime.context` is **request-scoped and immutable from inside the graph**. Nodes read it; they cannot write to it. Anything placed there is fixed at request entry by the gateway and cannot be refreshed by mid-graph work.
+
+This makes context the right home for **stable, ambient per-request facts**:
+
+- `user_id` — never changes mid-request, used by every node that touches DB
+- `user_profile` — slowly-changing, fetched once per session by the gateway, no node mutates it during a request
+
+It makes context the **wrong home for graph-internal mutable data** — fields whose source rows can be written by a node during the same request. The clearest example: `daily_log_today`. Because `commit_node` writes new `daily_logs` rows mid-request, any context-frozen snapshot becomes stale before `response_node` (or any future post-commit consumer) reads it.
+
+**Rule**: if a field's source data can be mutated by a node in the same request, it belongs in `AgentState`, populated by a loader node — not in `ContextSchema`. See `docs/adr/0002-daily-log-loader-node-into-state.md` for the full reasoning, including why simply moving it to state without a loader (with state's cross-turn persistence) is also wrong.
+
+This is why `daily_log_today` lives in state and is fetched by a `load_daily_context` node at graph entry and after every DB-mutating node, while `user_id` and `user_profile` continue to flow through `ContextSchema`.
+
 ## Flow
 
 ```

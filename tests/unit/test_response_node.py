@@ -29,6 +29,7 @@ def _make_state(**overrides):
         "search_results": [],
         "selected_food_id": None,
         "processing_results": [],
+        "daily_log_today": [],
     }
     state.update(overrides)
     return state
@@ -644,10 +645,9 @@ class TestResponseNode:
         runtime.context = ContextSchema(
             user_id=TEST_USER_A,
             user_profile=DEFAULT_DEV_PROFILE.copy(),
-            daily_log_today=logs,
         )
 
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(last_action="CHITCHAT", daily_log_today=logs)
         await response_node(state, runtime)
 
         call_args = mock_llm.ainvoke.call_args[0][0]
@@ -667,7 +667,7 @@ class TestResponseNode:
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
     async def test_daily_log_empty_section_shown_when_log_empty(self, mock_get_llm):
-        """System message should explicitly state nothing logged when context.daily_log_today is empty."""
+        """System message should explicitly state nothing logged when state.daily_log_today is empty."""
         mock_llm = MagicMock()
         mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="ok"))
         mock_get_llm.return_value = mock_llm
@@ -676,10 +676,9 @@ class TestResponseNode:
         runtime.context = ContextSchema(
             user_id=TEST_USER_A,
             user_profile=DEFAULT_DEV_PROFILE.copy(),
-            daily_log_today=[],
         )
 
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(last_action="CHITCHAT", daily_log_today=[])
         await response_node(state, runtime)
 
         call_args = mock_llm.ainvoke.call_args[0][0]

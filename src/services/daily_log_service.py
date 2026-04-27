@@ -17,7 +17,7 @@ from langchain_core.tools import tool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import DEFAULT_COACH_ID, USER_TIMEZONE, serialize_timestamp
+from src.config import DEFAULT_COACH_ID, serialize_timestamp
 from src.database import get_async_db_session
 from src.models import CoachFoodMapping, DailyLog
 
@@ -159,6 +159,38 @@ async def get_logs_by_date_with_mappings(
     return [(r[0], r[1]) for r in rows]
 
 
+async def get_logs_by_date_range_with_mappings(
+    session: AsyncSession,
+    user_id: str,
+    start_date: date,
+    end_date: date,
+    coach_id: uuid_mod.UUID = DEFAULT_COACH_ID,
+) -> List[Tuple[DailyLog, Optional[CoachFoodMapping]]]:
+    """Range version of ``get_logs_by_date_with_mappings`` — see that fn for shape.
+
+    Returns ``(DailyLog, Optional[CoachFoodMapping])`` tuples for every log in
+    ``[start_date, end_date]`` (inclusive), LEFT-joined with the given coach's
+    food mappings. Mapping is ``None`` when the food has no mapping for that
+    coach or when ``food_id`` is ``NULL`` (CASCADE SET NULL survivor).
+    """
+    stmt = (
+        select(DailyLog, CoachFoodMapping)
+        .outerjoin(
+            CoachFoodMapping,
+            (CoachFoodMapping.food_id == DailyLog.food_id)
+            & (CoachFoodMapping.coach_id == coach_id),
+        )
+        .where(
+            DailyLog.user_id == uuid_mod.UUID(user_id),
+            func.date(DailyLog.timestamp) >= start_date,
+            func.date(DailyLog.timestamp) <= end_date,
+        )
+        .order_by(DailyLog.timestamp)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [(r[0], r[1]) for r in rows]
+
+
 async def get_logs_by_date_range(
     session: AsyncSession, user_id: str, start_date: date, end_date: date
 ) -> List[DailyLog]:
@@ -225,24 +257,6 @@ def _serialize_log(
     return serialized
 
 
-async def get_todays_logs_serialized(
-    session: AsyncSession, user_id: str
-) -> list[dict]:
-    """Return today's logs for a user (Israel local day), serialized for context injection.
-
-    Encapsulates the 'today in Israel' date computation + serialization in one place
-    so the bot gateway doesn't need to touch ORM objects or the private serializer.
-
-    KNOWN LIMITATION: `get_logs_by_date` uses `func.date(timestamp) == target_date`
-    which evaluates in the DB session's timezone (UTC on Supabase). Logs made
-    00:00-03:00 Israel local time fall on the previous UTC date and are missed.
-    Follow-up tracked in brain/TASKS.md (Bug 1 from bot UX audit 2026-04-17).
-    """
-    today = datetime.now(USER_TIMEZONE).date()
-    rows = await get_logs_by_date_with_mappings(session, user_id, today)
-    return [_serialize_log(log, mapping) for log, mapping in rows]
-
-
 @tool
 async def log_food_entry(
     food_id: Optional[str],
@@ -276,13 +290,21 @@ async def log_food_entry(
 
 @tool
 async def query_food_logs(target_date: str, end_date: str = "", user_id: str = "") -> list[dict]:
-    """Query food log entries by date or date range. Dates should be ISO format (YYYY-MM-DD)."""
+    """Query food log entries by date or date range. Dates should be ISO format (YYYY-MM-DD).
+
+    Each returned dict carries the standard log fields plus coach-method
+    metadata (``category``, ``tag``, ``serving_amount_g``) when the food has
+    a mapping for the default coach. Logs whose food has no coach mapping
+    omit those fields (legacy shape).
+    """
     parsed_date = date.fromisoformat(target_date)
     async with get_async_db_session() as session:
         if end_date:
             parsed_end = date.fromisoformat(end_date)
-            logs = await get_logs_by_date_range(session, user_id, parsed_date, parsed_end)
+            rows = await get_logs_by_date_range_with_mappings(
+                session, user_id, parsed_date, parsed_end
+            )
         else:
-            logs = await get_logs_by_date(session, user_id, parsed_date)
-        logger.debug("Queried food logs", user_id=user_id, date=target_date, results=len(logs))
-        return [_serialize_log(log) for log in logs]
+            rows = await get_logs_by_date_with_mappings(session, user_id, parsed_date)
+        logger.debug("Queried food logs", user_id=user_id, date=target_date, results=len(rows))
+        return [_serialize_log(log, mapping) for log, mapping in rows]

@@ -5,6 +5,7 @@ from src.agents.nodes.commit_node import commit_node
 from src.agents.nodes.confirmation_node import confirmation_node
 from src.agents.nodes.food_search_node import food_search_node
 from src.agents.nodes.input_node import input_parser_node
+from src.agents.nodes.load_daily_context_node import load_daily_context
 from src.agents.nodes.response_node import response_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.agents.nodes.personal_stats_node import personal_stats_node
@@ -26,14 +27,14 @@ async def define_graph(**kwargs):
             return "stats_lookup"
         elif action == "LOG_PERSONAL_STATS":
             return "personal_stats"
-        return "response"
+        return "load_daily_context"
 
     def route_after_selection(state: AgentState):
         """Route to calculate_macros for both DB matches and off-menu estimation."""
         action = state.get("last_action")
         if action in ["SELECTED", "NO_MATCH"]:
             return "calculate_macros"
-        return "response"
+        return "load_daily_context"
 
     def route_after_calculate_macros(state: AgentState):
         """Loop back if more items pending, else show batch for confirmation."""
@@ -49,6 +50,7 @@ async def define_graph(**kwargs):
     workflow.add_node("commit", commit_node)
     workflow.add_node("personal_stats", personal_stats_node)
     workflow.add_node("stats_lookup", stats_lookup_node)
+    workflow.add_node("load_daily_context", load_daily_context)
     workflow.add_node("response", response_node)
 
     workflow.set_entry_point("input_parser")
@@ -60,7 +62,7 @@ async def define_graph(**kwargs):
             "food_search": "food_search",
             "stats_lookup": "stats_lookup",
             "personal_stats": "personal_stats",
-            "response": "response",
+            "load_daily_context": "load_daily_context",
         },
     )
 
@@ -71,7 +73,7 @@ async def define_graph(**kwargs):
         route_after_selection,
         {
             "calculate_macros": "calculate_macros",
-            "response": "response",
+            "load_daily_context": "load_daily_context",
         },
     )
 
@@ -85,11 +87,12 @@ async def define_graph(**kwargs):
     )
 
     # confirmation → uses Command return (dynamic routing, no conditional edges needed)
-    # commit → response (always)
-    workflow.add_edge("commit", "response")
-
-    workflow.add_edge("personal_stats", "response")
-    workflow.add_edge("stats_lookup", "response")
+    # All paths to response go through load_daily_context first — single freshness rule.
+    # See docs/adr/0002-daily-log-loader-node-into-state.md.
+    workflow.add_edge("commit", "load_daily_context")
+    workflow.add_edge("personal_stats", "load_daily_context")
+    workflow.add_edge("stats_lookup", "load_daily_context")
+    workflow.add_edge("load_daily_context", "response")
     workflow.add_edge("response", END)
 
     return workflow.compile(checkpointer=checkpointer)

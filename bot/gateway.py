@@ -28,7 +28,6 @@ from aiohttp import web  # noqa: E402
 from bot.supabase_admin import get_or_create_user  # noqa: E402
 from src.database import get_async_db_session  # noqa: E402
 from src.i18n import MESSAGES  # noqa: E402
-from src.services.daily_log_service import get_todays_logs_serialized  # noqa: E402
 from src.services.user_profile_service import create_user_profile, get_user_profile  # noqa: E402
 
 logger = structlog.get_logger(__name__)
@@ -95,7 +94,6 @@ async def _call_langgraph(
     input: dict | None = None,
     command: dict | None = None,
     user_profile: dict | None = None,
-    daily_log_today: list[dict] | None = None,
 ) -> dict:
     """Call LangGraph runs/wait endpoint and return the result."""
     body: dict = {
@@ -104,9 +102,6 @@ async def _call_langgraph(
     }
     if user_profile:
         body["context"]["user_profile"] = user_profile
-    if daily_log_today is not None:
-        # Explicit None check — empty list is a meaningful value (nothing logged today)
-        body["context"]["daily_log_today"] = daily_log_today
     if input is not None:
         body["input"] = input
     if command is not None:
@@ -223,16 +218,6 @@ async def _load_user_profile(user_id: str) -> dict | None:
         return await get_user_profile(session, user_id)
 
 
-async def _load_todays_log(user_id: str) -> list[dict]:
-    """Fetch today's food log for the user, fresh every call.
-
-    Unlike user_profile, this is NOT cached on the session — the log changes
-    on every food commit, and stale cache would silently mis-coach the user.
-    """
-    async with get_async_db_session() as session:
-        return await get_todays_logs_serialized(session, user_id)
-
-
 async def _handle_onboarding(message: Message, session: dict) -> bool:
     """Process onboarding step. Returns True if still onboarding."""
     step = session.get("onboarding_step")
@@ -320,9 +305,6 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
     if "user_profile" not in session or session["user_profile"] is None:
         session["user_profile"] = await _load_user_profile(user_id)
 
-    # Fetch today's log fresh every message — NOT cached (changes on every commit)
-    todays_log = await _load_todays_log(user_id)
-
     logger.info("User message", chat_id=chat_id, text=message.text)
 
     try:
@@ -332,7 +314,6 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
                 thread_id, user_id,
                 command={"resume": message.text},
                 user_profile=session.get("user_profile"),
-                daily_log_today=todays_log,
             )
         else:
             result = await _call_langgraph(
@@ -340,7 +321,6 @@ async def _handle_authenticated_message(message: Message, session: dict) -> None
                 user_id,
                 input={"messages": [{"role": "human", "content": message.text}]},
                 user_profile=session.get("user_profile"),
-                daily_log_today=todays_log,
             )
 
         # Check if the graph is now interrupted (HITL)
