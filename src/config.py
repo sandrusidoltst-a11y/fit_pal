@@ -43,6 +43,10 @@ else:
 
 logger.info("Database backend resolved", backend="asyncpg (Supabase)" if _supabase_url else "sqlite (local)")
 
+# NOTE: The default below only applies locally. Production reads LLM_MODEL_NAME
+# from Railway env vars on the `langgraph-server` service — changing the default
+# here does NOT affect prod. To change the prod model, update LLM_MODEL_NAME in
+# the Railway dashboard (or `railway variables --set LLM_MODEL_NAME=...`).
 GLOBAL_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 GLOBAL_MODEL = os.getenv("LLM_MODEL_NAME", "gpt-5.4-nano")
 
