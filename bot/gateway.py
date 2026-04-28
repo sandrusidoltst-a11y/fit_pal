@@ -46,6 +46,14 @@ SESSION_TIMEOUT = timedelta(minutes=30)
 
 ONBOARDING_ORDER = ["name", "height", "age", "gender"]
 
+GENDER_ALIASES = {
+    "male": "male", "m": "male", "man": "male", "men": "male",
+    "גבר": "male", "זכר": "male",
+    "female": "female", "f": "female", "woman": "female", "women": "female",
+    "אישה": "female", "אשה": "female", "נקבה": "female",
+    "other": "other", "אחר": "other",
+}
+
 
 def _onboarding_question(step: str) -> str:
     """Look up the localized prompt for a given onboarding step."""
@@ -230,7 +238,7 @@ async def _handle_onboarding(message: Message, session: dict) -> bool:
         session["onboarding_data"]["name"] = text
     elif step == "height":
         try:
-            session["onboarding_data"]["height_cm"] = float(text)
+            session["onboarding_data"]["height_cm"] = float(text.replace(",", "."))
         except ValueError:
             await message.answer(MESSAGES["onboarding_invalid_height"])
             return True
@@ -241,10 +249,11 @@ async def _handle_onboarding(message: Message, session: dict) -> bool:
             await message.answer(MESSAGES["onboarding_invalid_age"])
             return True
     elif step == "gender":
-        if text.lower() not in ("male", "female", "other"):
+        normalized = text.lower().strip()
+        if normalized not in GENDER_ALIASES:
             await message.answer(MESSAGES["onboarding_invalid_gender"])
             return True
-        session["onboarding_data"]["gender"] = text.lower()
+        session["onboarding_data"]["gender"] = GENDER_ALIASES[normalized]
 
     # Advance to next step
     current_idx = ONBOARDING_ORDER.index(step)
