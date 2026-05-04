@@ -133,6 +133,7 @@ EXAMPLES: list[dict] = [
         "consumed_at": "RELATIVE",
         "start_date": None,
         "end_date": None,
+        "category": "temporal",
     },
     # --- LOG_FOOD: With specific date ---
     {
@@ -143,6 +144,94 @@ EXAMPLES: list[dict] = [
         "consumed_at": "YESTERDAY_NOON",
         "start_date": None,
         "end_date": None,
+        "category": "temporal",
+    },
+    # ==========================================================================
+    # Temporal handling — past-day LOG_FOOD framing variants (audit 2026-04-30)
+    # Bug repro: "תוסיף לאתמול" (add to yesterday) produced action=LOG_FOOD with
+    # start_date/end_date=yesterday and consumed_at=null. Schema confusion —
+    # *_date are query-range fields, consumed_at is the write timestamp.
+    # Trace: 019dd286 (Dolev, 2026-04-28).
+    # ==========================================================================
+    # --- T1: Bug repro — "add to yesterday" with multiple items ---
+    {
+        "question": "תוסיף לאתמול עוד פיתה ושתי פרוסות גבינה",
+        "action": "LOG_FOOD",
+        "items": [
+            {"food_name": "פיתה", "count": 1, "unit": "piece"},
+            {"food_name": "גבינה צהובה", "count": 2, "unit": "slice"},
+        ],
+        "item_count": 2,
+        "consumed_at": "YESTERDAY_NOON",
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
+    },
+    # --- T2: "add to yesterday" — explicit grams to keep counts deterministic ---
+    {
+        "question": "תוסיף לאתמול 100 גרם פסטרמה",
+        "action": "LOG_FOOD",
+        "items": [{"food_name": "פסטרמה", "count": 100, "unit": "g"}],
+        "item_count": 1,
+        "consumed_at": "YESTERDAY_NOON",
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
+    },
+    # --- T3: "register on yesterday" — different verb, same intent ---
+    {
+        "question": "תרשום על אתמול 200 גרם אורז",
+        "action": "LOG_FOOD",
+        "items": [{"food_name": "אורז", "count": 200, "unit": "g"}],
+        "item_count": 1,
+        "consumed_at": "YESTERDAY_NOON",
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
+    },
+    # --- T4: "I forgot to log yesterday" — past-tense reframe ---
+    {
+        "question": "שכחתי לרשום אתמול 200 גרם חזה עוף",
+        "action": "LOG_FOOD",
+        "items": [{"food_name": "חזה עוף", "count": 200, "unit": "g"}],
+        "item_count": 1,
+        "consumed_at": "YESTERDAY_NOON",
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
+    },
+    # --- T5: Temporal-first phrasing ---
+    {
+        "question": "אתמול בערב אכלתי 150 גרם אורז",
+        "action": "LOG_FOOD",
+        "items": [{"food_name": "אורז", "count": 150, "unit": "g"}],
+        "item_count": 1,
+        "consumed_at": "YESTERDAY_NOON",
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
+    },
+    # --- T6: Control — past-day question (NOT a write) → CHITCHAT or QUERY ---
+    {
+        "question": "אפשר להוסיף משהו על אתמול?",
+        "action": "CHITCHAT",
+        "items": [],
+        "item_count": 0,
+        "consumed_at": None,
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
+    },
+    # --- T7: Explicit time + yesterday — should set consumed_at to yesterday@21:00 ---
+    {
+        "question": "אכלתי אתמול בשעה 21:00 שתי לחמניות",
+        "action": "LOG_FOOD",
+        "items": [{"food_name": "לחמנייה", "count": 2, "unit": "piece"}],
+        "item_count": 1,
+        "consumed_at": "YESTERDAY",
+        "start_date": None,
+        "end_date": None,
+        "category": "temporal",
     },
     # --- QUERY_FOOD_INFO: produces items (same extraction as LOG_FOOD) ---
     {
@@ -183,6 +272,7 @@ EXAMPLES: list[dict] = [
         "consumed_at": None,
         "start_date": "RELATIVE_3_DAYS_AGO",
         "end_date": "TODAY",
+        "category": "temporal",
     },
     # --- CHITCHAT ---
     {
@@ -203,6 +293,7 @@ EXAMPLES: list[dict] = [
         "consumed_at": None,
         "start_date": "RELATIVE_7_DAYS_AGO",
         "end_date": "TODAY",
+        "category": "temporal",
     },
     # --- QUERY_DAILY_STATS: Specific macro question over range ---
     {
@@ -213,6 +304,7 @@ EXAMPLES: list[dict] = [
         "consumed_at": None,
         "start_date": "RELATIVE_7_DAYS_AGO",
         "end_date": "TODAY",
+        "category": "temporal",
     },
     # ==========================================================================
     # Hebrew quantifier stress (audit 2026-04-17, Fix #7)
@@ -452,6 +544,29 @@ def _dates_equivalent(expected: str | None, actual: str | None) -> bool:
     return False
 
 
+def no_query_dates_on_log_food(outputs: dict, reference_outputs: dict) -> bool:
+    """When parser predicts LOG_FOOD, start_date/end_date must be null.
+
+    Catches the schema confusion seen in trace 019dd286 (2026-04-28): "תוסיף
+    לאתמול ..." was parsed as LOG_FOOD with start_date/end_date=yesterday and
+    consumed_at=null — the model populated query-range fields on a write intent.
+    """
+    if outputs.get("action") != "LOG_FOOD":
+        return True
+    return outputs.get("start_date") is None and outputs.get("end_date") is None
+
+
+def no_consumed_at_on_query(outputs: dict, reference_outputs: dict) -> bool:
+    """When parser predicts QUERY_DAILY_STATS, consumed_at must be null.
+
+    Mirror of `no_query_dates_on_log_food` — guards against the reverse leak
+    where a query-range field (consumed_at is for writes) gets populated.
+    """
+    if outputs.get("action") != "QUERY_DAILY_STATS":
+        return True
+    return outputs.get("consumed_at") is None
+
+
 def correct_dates(outputs: dict, reference_outputs: dict) -> bool:
     """Check if date/time extraction matches expected values."""
     expected_consumed = _resolve_date_sentinel(reference_outputs.get("consumed_at"))
@@ -634,6 +749,8 @@ async def main() -> None:
             correct_item_count,
             correct_serving,
             correct_dates,
+            no_query_dates_on_log_food,
+            no_consumed_at_on_query,
             food_name_quality,
         ],
         experiment_prefix=prefix,
