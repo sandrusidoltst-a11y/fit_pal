@@ -48,7 +48,7 @@ The agent is **not a ReAct loop**. It's a deterministic graph with typed transit
 
 ---
 
-## What I'd Love Your Feedback On
+## Things I Wanted to Highlight
 
 > [!TIP]
 > ### 1. Agent Architecture &nbsp;→&nbsp; [`01-agent-architecture.md`](01-agent-architecture.md)
