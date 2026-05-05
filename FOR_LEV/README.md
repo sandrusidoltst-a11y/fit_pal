@@ -53,11 +53,12 @@ The agent is **not a ReAct loop**. It's a deterministic graph with typed transit
 > [!TIP]
 > ### 1. Agent Architecture &nbsp;→&nbsp; [`01-agent-architecture.md`](01-agent-architecture.md)
 > The AI-engineering decisions, not the tech stack:
-> - Deterministic graph vs. ReAct
-> - Structured output at every LLM call (Pydantic everywhere)
-> - HITL as a first-class graph primitive (not a UI hack)
-> - Runtime context vs. state — what travels per-message vs. per-turn
-> - Evals per node, not just end-to-end
+> - Deterministic graph vs. ReAct — chosen for latency, cost, and predictability
+> - Structured output at every LLM boundary (Pydantic + `with_structured_output`)
+> - DB-authoritative macros — the LLM doesn't get to invent calories
+> - HITL right before the DB write — guards against both LLM and human mistakes
+> - Targeted evals on the input parser node — Hebrew + English, with LLM-as-judge for fuzzy fields
+> - Observability via LangSmith — every conversation is a trace, debugged through a custom Claude Code skill
 
 > [!TIP]
 > ### 2. Working with Claude Code &nbsp;→&nbsp; [`02-working-with-claude-code.md`](02-working-with-claude-code.md)
