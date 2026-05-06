@@ -96,3 +96,13 @@ Tasks, PRs, plan docs, other ADRs.
 - **Detail**: [full record](0003-daily-log-loader-before-response.md)
 - **Conversation**: [[brain/conversations_beckups/2026-04-25_daily-log-loader-node-into-state]] *(to be backed up — same conversation as ADR-0002)*
 - **Related**: ADR-0002 (superseded); `docs/plans/daily-log-loader-before-response.md`; `docs/patterns/runtime-context.md`; `src/agents/nutritionist.py`; `src/agents/nodes/load_daily_context_node.py`; `src/agents/nodes/response_node.py`; LangSmith thread `73ed31fb-8391-4c97-a05f-a4b672c6fcd5`
+
+### ADR-0004: Schema-to-state translation owned by the structured-output node
+
+- **Status**: Accepted (2026-05-06) · revisit on drift incident or when a second node starts producing the same schema
+- **Area**: state, llm
+- **One-liner**: The node that calls `with_structured_output(SomeSchema)` is the sole translator from that schema into LangGraph state; Pydantic models live at the LLM I/O boundary and `TypedDict` sub-states live in `AgentState`, with no central translator helper.
+- **Trade-off**: Apparent duplication between schema variants and sub-state TypedDicts (2-3 fields per pair) and discipline-only drift prevention, in exchange for friction-free LangGraph checkpointing, plain-dict reader semantics across the graph, and independent evolution of the schema and state layers.
+- **Detail**: [full record](0004-schema-to-state-translation-ownership.md)
+- **Conversation**: [[brain/conversations_beckups/2026-05-06_schema-to-state-translation-ownership]] *(to be backed up)*
+- **Related**: `docs/plans/discriminated-action-state-refactor.md`; `docs/patterns/state-schemas.md`; `docs/patterns/llm-config.md`; `src/schemas/input_schema.py`; `src/agents/state.py`; `src/agents/nodes/input_node.py`; `src/agents/nodes/personal_stats_node.py`

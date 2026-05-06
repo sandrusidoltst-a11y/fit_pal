@@ -46,10 +46,9 @@ def basic_state():
     return {
         "messages": [],
         "pending_food_items": [],
-        "daily_log_report": [],
-        "consumed_at": None,
-        "start_date": None,
-        "end_date": None,
+        "query_logs": [],
+        "log_food": {},
+        "query_stats": {},
         "last_action": "",
         "search_results": [],
         "selected_food_id": None,
@@ -151,14 +150,6 @@ def mock_calculate_macros():
 def mock_log_food_entry():
     """Mock log_food_entry tool on commit_node."""
     with patch("src.agents.nodes.commit_node.log_food_entry") as mock:
-        mock.ainvoke = AsyncMock()
-        yield mock
-
-
-@pytest.fixture
-def mock_query_food_logs_for_commit():
-    """Mock query_food_logs tool on commit_node."""
-    with patch("src.agents.nodes.commit_node.query_food_logs") as mock:
         mock.ainvoke = AsyncMock()
         yield mock
 

@@ -65,7 +65,7 @@ fit_pal/
 │   │   ├── print_trace.py         # LangSmith thread trace viewer (by thread_id)
 │   │   └── set_plan.py            # Coach CLI: upload nutrition plan per user
 │   ├── schemas/
-│   │   ├── input_schema.py        # FoodIntakeEvent schema
+│   │   ├── input_schema.py        # UserIntent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
 │   │   ├── estimation_schema.py   # MacroEstimation (LLM off-menu output)
 │   │   ├── confirmation_schema.py # ConfirmationResponse + ItemEdit (HITL parsing)

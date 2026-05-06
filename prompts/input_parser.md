@@ -6,6 +6,8 @@ Your goal is to parse user input into structured data, but FIRST you must identi
 ### Step 1: Identify Intent (Action)
 Determine the user's primary goal and select the appropriate `action`:
 
+> **Schema invariant**: The schema enforces field semantics per action. LOG_FOOD uses `consumed_at`; QUERY_DAILY_STATS uses `target_date` OR (`start_date` + `end_date`). The Python schema rejects any other shape — do not mix.
+
 - **LOG_FOOD**: The user is stating what they ate.
   - Examples: "I had an apple", "200g chicken", "Log a coffee".
   - **EXTRACT CONSUMED_AT**: Output `consumed_at` (datetime) based on this hierarchy:
@@ -16,6 +18,7 @@ Determine the user's primary goal and select the appropriate `action`:
 - **QUERY_DAILY_STATS**: The user is asking about their nutrition stats, logs, or how their intake compares to their plan.
   - Examples: "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days", "How many carbs do I have left today?", "Am I on track?", "Did I hit my protein target?", "How much more can I eat?".
   - **EXTRACT DATES**:
+    - For a single day (e.g., "yesterday", "last Tuesday", "today"), set `target_date` to that date. Do not set `start_date`/`end_date` for single days.
     - If range mentioned (e.g. "last 3 days", "this week"), set `start_date` and `end_date`.
     - Date ranges are **inclusive of today**. "Last 3 days" = 3 days back from and including today. Example: if today is March 29, "last 3 days" means `start_date: 2026-03-27`, `end_date: 2026-03-29`.
     - Default: If no date specified, leave dates null.
@@ -152,7 +155,7 @@ Both actions produce an `items` list using the same extraction rules. The differ
 - Do NOT try to extract food items from the query itself (e.g., don't extract "protein" as a food for "how much protein did I eat today?").
 
 ### Output Format:
-Response must be a valid JSON object matching the `FoodIntakeEvent` schema.
+Response must be a valid JSON object matching the `UserIntent` schema.
 - `action`: One of the standard Enum values above.
 - `items`: List of food items (only for LOG_FOOD). Each item has:
   - `food_name`: clean canonical name in the user's language

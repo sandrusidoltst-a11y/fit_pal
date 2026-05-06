@@ -13,7 +13,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from langchain_core.messages import HumanMessage
 
 from src.agents.nodes.input_node import _current_time_str, input_parser_node
-from src.schemas.input_schema import ActionType, FoodIntakeEvent, SingleFoodItem
+from src.schemas.input_schema import (
+    ActionType,
+    ChitchatEvent,
+    LogFoodEvent,
+    QueryFoodInfoEvent,
+    QueryStatsEvent,
+    SingleFoodItem,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +58,7 @@ class TestInputParserLogFood:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(
+            mock_structured.ainvoke = AsyncMock(return_value=LogFoodEvent(
                 action=ActionType.LOG_FOOD,
                 items=[SingleFoodItem(food_name="Chicken breast", count=200.0, unit="g", original_text="200g of chicken breast")]
             ))
@@ -77,7 +84,7 @@ class TestInputParserLogFood:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(
+            mock_structured.ainvoke = AsyncMock(return_value=LogFoodEvent(
                 action=ActionType.LOG_FOOD,
                 items=[SingleFoodItem(food_name="Rice", count=185.0, unit="g", original_text="a cup of rice")]
             ))
@@ -106,7 +113,7 @@ class TestInputParserLogFood:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(
+            mock_structured.ainvoke = AsyncMock(return_value=LogFoodEvent(
                 action=ActionType.LOG_FOOD,
                 items=[
                     SingleFoodItem(food_name="Pasta", count=150.0, unit="g", original_text="pasta"),
@@ -141,7 +148,7 @@ class TestInputParserOtherActions:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(action=ActionType.CHITCHAT, items=[]))
+            mock_structured.ainvoke = AsyncMock(return_value=ChitchatEvent(action=ActionType.CHITCHAT))
 
             basic_state["messages"] = [HumanMessage(content="Hello, how are you?")]
             result = await input_parser_node(basic_state)
@@ -160,7 +167,7 @@ class TestInputParserOtherActions:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(action=ActionType.CHITCHAT, items=[]))
+            mock_structured.ainvoke = AsyncMock(return_value=ChitchatEvent(action=ActionType.CHITCHAT))
 
             basic_state["messages"] = [HumanMessage(content="asdfasdf")]
             result = await input_parser_node(basic_state)
@@ -178,7 +185,7 @@ class TestInputParserOtherActions:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(action=ActionType.QUERY_DAILY_STATS, items=[]))
+            mock_structured.ainvoke = AsyncMock(return_value=QueryStatsEvent(action=ActionType.QUERY_DAILY_STATS))
 
             basic_state["messages"] = [HumanMessage(content="How much protein have I eaten today?")]
             result = await input_parser_node(basic_state)
@@ -197,7 +204,7 @@ class TestInputParserOtherActions:
             mock_get_llm.return_value = mock_llm
             mock_structured = MagicMock()
             mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=FoodIntakeEvent(action=ActionType.QUERY_FOOD_INFO, items=[]))
+            mock_structured.ainvoke = AsyncMock(return_value=QueryFoodInfoEvent(action=ActionType.QUERY_FOOD_INFO))
 
             basic_state["messages"] = [HumanMessage(content="How many calories in an apple?")]
             result = await input_parser_node(basic_state)

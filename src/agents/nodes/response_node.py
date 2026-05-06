@@ -159,27 +159,37 @@ def _build_context(state: AgentState) -> str:
     last_action = state.get("last_action", "")
     context: dict = {"last_action": last_action}
 
-    consumed_at = state.get("consumed_at")
-    if consumed_at:
-        context["consumed_at"] = (
-            consumed_at.isoformat()
-            if isinstance(consumed_at, datetime)
-            else str(consumed_at)
-        )
+    if last_action in ("LOG_FOOD", "LOGGED", "FAILED", "NO_MATCH", "SELECTED", "CONFIRMED", "REJECTED"):
+        # Food logging flow — include per-item processing results and the
+        # consumed_at the user gave (for "logged at..." phrasing).
+        log_food = state.get("log_food", {})
+        consumed_at = log_food.get("consumed_at")
+        if consumed_at:
+            context["consumed_at"] = (
+                consumed_at.isoformat()
+                if isinstance(consumed_at, datetime)
+                else str(consumed_at)
+            )
 
-    if last_action in ("LOGGED", "FAILED", "NO_MATCH", "SELECTED", "CONFIRMED", "REJECTED"):
-        # Food logging flow — include per-item processing results
         processing_results = state.get("processing_results", [])
         context["processing_results"] = processing_results
 
     elif last_action == "QUERY_DAILY_STATS":
         # Stats query flow — include raw daily log report
-        daily_log_report = state.get("daily_log_report", [])
-        context["daily_log_report"] = daily_log_report
+        query_logs = state.get("query_logs", [])
+        context["query_logs"] = query_logs
 
-        # Include date range if present
-        start_date = state.get("start_date")
-        end_date = state.get("end_date")
+        # Include the date hints the user gave (single day or range).
+        query_stats = state.get("query_stats", {})
+        target_date = query_stats.get("target_date")
+        start_date = query_stats.get("start_date")
+        end_date = query_stats.get("end_date")
+        if target_date:
+            context["target_date"] = (
+                target_date.isoformat()
+                if isinstance(target_date, date)
+                else str(target_date)
+            )
         if start_date:
             context["start_date"] = (
                 start_date.isoformat()
@@ -191,7 +201,7 @@ def _build_context(state: AgentState) -> str:
                 end_date.isoformat() if isinstance(end_date, date) else str(end_date)
             )
 
-    # For CHITCHAT or other actions, context stays minimal (just last_action + consumed_at)
+    # For CHITCHAT or other actions, context stays minimal (just last_action).
 
     return json.dumps(context, indent=2, default=_serialize_date)
 

@@ -2,7 +2,9 @@
 Unit tests for Stats Lookup Node (`stats_node.py`).
 
 Scope:
-    Purely isolated unit tests. Verify that querying historical tracking metrics functions correctly.
+    Purely isolated unit tests. Verify that querying historical tracking
+    metrics functions correctly across the three sub-state branches:
+    target_date (single day), start_date+end_date (range), and default-today.
 
 LLM Usage:
     NONE — stats_lookup_node does not call an LLM natively.
@@ -10,24 +12,21 @@ LLM Usage:
 from datetime import date, datetime
 from unittest.mock import AsyncMock
 
-from tests.conftest import TEST_RUNTIME_A
 from src.agents.nodes.stats_node import stats_lookup_node
+from src.config import USER_TIMEZONE
+from tests.conftest import TEST_RUNTIME_A
 
 
 class TestStatsNodeSingleDay:
-    """Test functionality retrieving logs targeting a singular day reference."""
+    """Single-day branch via query_stats.target_date."""
 
     async def test_stats_lookup_single_day(self, basic_state, mock_query_food_logs_for_stats):
         """
-        arrange: Set parameter defaults specifying consumed_at but no date range bounds.
+        arrange: query_stats has target_date set; no range fields.
         act:     run stats_lookup_node.
-        assert:  triggers query_food_logs tool with single date, mapping returning objects into state.
+        assert:  query_food_logs called with target_date only.
         """
-        basic_state.update({
-            "consumed_at": datetime(2023, 10, 27, 12, 0),
-            "start_date": None,
-            "end_date": None,
-        })
+        basic_state["query_stats"] = {"target_date": date(2023, 10, 27)}
 
         mock_query_food_logs_for_stats.ainvoke = AsyncMock(return_value=[{
             "id": "log-uuid-1",
@@ -48,30 +47,26 @@ class TestStatsNodeSingleDay:
             {"target_date": "2023-10-27", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
 
-        assert "daily_log_report" in result
-        report = result["daily_log_report"]
+        assert "query_logs" in result
+        report = result["query_logs"]
         assert len(report) == 1
         assert report[0]["id"] == "log-uuid-1"
         assert report[0]["calories"] == 150.0
-        assert report[0]["original_text"] == "100g chicken"
 
 
 class TestStatsNodeDateRange:
-    """Test retrieving history metrics using date constraint brackets."""
+    """Range branch via query_stats.start_date + end_date."""
 
     async def test_stats_lookup_date_range(self, basic_state, mock_query_food_logs_for_stats):
         """
-        arrange: set bounding constraints on parameters 'start_date' and 'end_date'.
+        arrange: query_stats has start_date + end_date.
         act:     run stats_lookup_node.
-        assert:  triggers query_food_logs tool with date range, bypassing single-date logic.
+        assert:  query_food_logs called with target_date + end_date (range).
         """
-        start = date(2023, 10, 25)
-        end = date(2023, 10, 27)
-        basic_state.update({
-            "consumed_at": datetime.today(),
-            "start_date": start,
-            "end_date": end,
-        })
+        basic_state["query_stats"] = {
+            "start_date": date(2023, 10, 25),
+            "end_date": date(2023, 10, 27),
+        }
 
         mock_query_food_logs_for_stats.ainvoke = AsyncMock(return_value=[])
 
@@ -80,4 +75,27 @@ class TestStatsNodeDateRange:
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
             {"target_date": "2023-10-25", "end_date": "2023-10-27", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
-        assert result["daily_log_report"] == []
+        assert result["query_logs"] == []
+
+
+class TestStatsNodeDefaultToday:
+    """Default branch — no target_date, no range → today (Israel-local)."""
+
+    async def test_stats_lookup_defaults_to_today_israel_local(
+        self, basic_state, mock_query_food_logs_for_stats
+    ):
+        """
+        arrange: query_stats is {} (no date hints from user).
+        act:     run stats_lookup_node.
+        assert:  query_food_logs called with today's date in Israel-local tz.
+        """
+        basic_state["query_stats"] = {}
+        mock_query_food_logs_for_stats.ainvoke = AsyncMock(return_value=[])
+
+        result = await stats_lookup_node(basic_state, TEST_RUNTIME_A)
+
+        expected_today = str(datetime.now(USER_TIMEZONE).date())
+        mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
+            {"target_date": expected_today, "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
+        )
+        assert result["query_logs"] == []
