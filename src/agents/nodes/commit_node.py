@@ -5,7 +5,7 @@ from langgraph.runtime import Runtime
 
 from src.agents.state import AgentState
 from src.context import ContextSchema
-from src.services.daily_log_service import log_food_entry, query_food_logs
+from src.services.daily_log_service import log_food_entry
 from src.services.food_service import create_food_item
 
 logger = structlog.get_logger(__name__)
@@ -25,8 +25,9 @@ async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dic
 
     logger.info("Committing confirmed batch", items=len(batch))
 
-    # Prepare timestamp
-    consumed_at = state.get("consumed_at")
+    # Prepare timestamp — read from per-action sub-state
+    log_food = state.get("log_food", {})
+    consumed_at = log_food.get("consumed_at")
     now = datetime.now(timezone.utc)
 
     if consumed_at:
@@ -92,18 +93,11 @@ async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dic
             }
         )
 
-    # Fetch updated daily report
-    updated_report = []
-    if consumed_at:
-        updated_report = await query_food_logs.ainvoke(
-            {"target_date": str(consumed_at.date()), "user_id": user_id},
-        )
-
+    # daily_log_report is no longer re-fetched here — stats_lookup_node is
+    # the sole writer. Next-turn QUERY paths re-query through stats_lookup
+    # anyway, so the side-channel write was dead weight.
     return {
         "pending_confirmations": [],
-        "daily_log_report": updated_report
-        if updated_report
-        else state.get("daily_log_report", []),
         "last_action": "LOGGED",
         "processing_results": processing_results,
     }

@@ -86,6 +86,25 @@ class ProcessingResult(PendingFoodItem):
     name_he: Optional[str]
 
 
+class LogFoodSubState(TypedDict, total=False):
+    """Per-action sub-state — meaningful when last_action is LOG_FOOD/CONFIRMED/LOGGED."""
+
+    consumed_at: Optional[datetime]
+    meal_type: Optional[str]
+
+
+class QueryStatsSubState(TypedDict, total=False):
+    """Per-action sub-state — meaningful when last_action is QUERY_DAILY_STATS.
+
+    target_date and (start_date, end_date) are mutually exclusive — enforced
+    by QueryStatsEvent's model_validator at the LLM-output boundary.
+    """
+
+    target_date: Optional[date]
+    start_date: Optional[date]
+    end_date: Optional[date]
+
+
 class MacroResult(TypedDict):
     """Calculated macros for a single food item, pending user confirmation.
 
@@ -145,8 +164,9 @@ class AgentState(TypedDict):
         pending_food_items: Food items extracted from user input, pending processing.
         daily_log_report: List of raw logs queried from DB (replaces aggregated totals).
         current_date: The active date for logging or single-day query.
-        start_date: Start date for range query context (inclusive).
-        end_date: End date for range query context (inclusive).
+        log_food: Per-action sub-state for LOG_FOOD (consumed_at, meal_type).
+        query_stats: Per-action sub-state for QUERY_DAILY_STATS
+            (target_date | start_date+end_date).
         last_action: The last action type determined by input parser.
         search_results: Food search results for agent selection node.
         selected_food_id: Selected food ID from agent selection node.
@@ -159,12 +179,11 @@ class AgentState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
     daily_log_report: List[QueriedLog]
-    consumed_at: Optional[datetime]
-    start_date: Optional[date]
-    end_date: Optional[date]
     last_action: GraphAction
     search_results: List[SearchResult]
     selected_food_id: Optional[str]
     processing_results: List["ProcessingResult"]
     pending_confirmations: List["MacroResult"]
+    log_food: LogFoodSubState
+    query_stats: QueryStatsSubState
     daily_log_today: List[dict]

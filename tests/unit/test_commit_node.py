@@ -74,7 +74,7 @@ class TestCommitNodeSuccess:
     """Test successful batch commit flows."""
 
     async def test_commit_batch_success(
-        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit
+        self, basic_state, mock_log_food_entry
     ):
         """
         arrange: set pending_confirmations with two items and mock tools.
@@ -82,11 +82,10 @@ class TestCommitNodeSuccess:
         assert:  log_food_entry called for each item, processing_results populated.
         """
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
-        mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
             "pending_confirmations": [CHICKEN, RICE],
-            "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
+            "log_food": {"consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)},
         })
 
         result = await commit_node(basic_state, TEST_RUNTIME_A)
@@ -100,7 +99,7 @@ class TestCommitNodeSuccess:
         assert result["processing_results"][0]["name_he"] == "עוף"
 
     async def test_commit_estimated_item_creates_food_item(
-        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit, mock_create_food_item
+        self, basic_state, mock_log_food_entry, mock_create_food_item
     ):
         """
         arrange: set pending_confirmations with estimated item (food_id=None).
@@ -112,11 +111,10 @@ class TestCommitNodeSuccess:
             return_value={"id": "food-uuid-99", "name_en": "pizza", "name_he": None, "mapping_created": False}
         )
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
-        mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
             "pending_confirmations": [PIZZA],
-            "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
+            "log_food": {"consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)},
         })
 
         result = await commit_node(basic_state, TEST_RUNTIME_A)
@@ -135,7 +133,7 @@ class TestCommitNodeSuccess:
         assert result["processing_results"][0]["source"] == "estimated"
 
     async def test_db_item_skips_food_item_creation(
-        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit, mock_create_food_item
+        self, basic_state, mock_log_food_entry, mock_create_food_item
     ):
         """
         arrange: set pending_confirmations with database item (food_id set).
@@ -143,11 +141,10 @@ class TestCommitNodeSuccess:
         assert:  create_food_item NOT called, log_food_entry uses existing food_id.
         """
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
-        mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
             "pending_confirmations": [CHICKEN],
-            "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
+            "log_food": {"consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)},
         })
 
         await commit_node(basic_state, TEST_RUNTIME_A)
@@ -157,7 +154,7 @@ class TestCommitNodeSuccess:
         assert log_args["food_id"] == "food-uuid-1"
 
     async def test_mixed_batch(
-        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit, mock_create_food_item
+        self, basic_state, mock_log_food_entry, mock_create_food_item
     ):
         """
         arrange: one DB item + one estimated item.
@@ -168,11 +165,10 @@ class TestCommitNodeSuccess:
             return_value={"id": "food-uuid-99", "name_en": "pizza", "name_he": None, "mapping_created": False}
         )
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
-        mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
             "pending_confirmations": [CHICKEN, PIZZA],
-            "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
+            "log_food": {"consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)},
         })
 
         result = await commit_node(basic_state, TEST_RUNTIME_A)
@@ -182,7 +178,7 @@ class TestCommitNodeSuccess:
         assert len(result["processing_results"]) == 2
 
     async def test_clears_pending_confirmations(
-        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit
+        self, basic_state, mock_log_food_entry
     ):
         """
         arrange: set pending_confirmations with one item.
@@ -190,11 +186,10 @@ class TestCommitNodeSuccess:
         assert:  pending_confirmations is empty after commit.
         """
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
-        mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         basic_state.update({
             "pending_confirmations": [CHICKEN],
-            "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
+            "log_food": {"consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)},
         })
 
         result = await commit_node(basic_state, TEST_RUNTIME_A)
@@ -202,7 +197,7 @@ class TestCommitNodeSuccess:
         assert result["pending_confirmations"] == []
 
     async def test_processing_results_accumulated(
-        self, basic_state, mock_log_food_entry, mock_query_food_logs_for_commit
+        self, basic_state, mock_log_food_entry
     ):
         """
         arrange: set existing processing_results in state.
@@ -210,7 +205,6 @@ class TestCommitNodeSuccess:
         assert:  new results appended to existing ones.
         """
         mock_log_food_entry.ainvoke = AsyncMock(return_value={"id": "log-uuid-1", "status": "logged"})
-        mock_query_food_logs_for_commit.ainvoke = AsyncMock(return_value=[])
 
         existing = {
             "food_name": "prev",
@@ -226,7 +220,7 @@ class TestCommitNodeSuccess:
         basic_state.update({
             "pending_confirmations": [CHICKEN],
             "processing_results": [existing],
-            "consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc),
+            "log_food": {"consumed_at": datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)},
         })
 
         result = await commit_node(basic_state, TEST_RUNTIME_A)

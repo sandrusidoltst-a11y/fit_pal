@@ -22,9 +22,8 @@ def _make_state(**overrides):
     state = {
         "messages": [HumanMessage(content="I ate 200g chicken")],
         "pending_food_items": [],
-        "consumed_at": datetime(2026, 2, 20, 12, 0),
-        "start_date": None,
-        "end_date": None,
+        "log_food": {"consumed_at": datetime(2026, 2, 20, 12, 0)},
+        "query_stats": {},
         "last_action": "LOGGED",
         "search_results": [],
         "selected_food_id": None,
@@ -63,6 +62,8 @@ class TestBuildContext:
         assert parsed["last_action"] == "LOGGED"
         assert len(parsed["processing_results"]) == 1
         assert parsed["processing_results"][0]["status"] == "LOGGED"
+        # consumed_at injects on LOG-family actions (gated, no longer unconditional).
+        assert parsed["consumed_at"] == "2026-02-20T12:00:00"
         assert "daily_log_report" not in parsed
 
     def test_failed_action_includes_processing_results(self):
@@ -116,8 +117,10 @@ class TestBuildContext:
         state = _make_state(
             last_action="QUERY_DAILY_STATS",
             daily_log_report=logs,
-            start_date=date(2026, 2, 18),
-            end_date=date(2026, 2, 20),
+            query_stats={
+                "start_date": date(2026, 2, 18),
+                "end_date": date(2026, 2, 20),
+            },
         )
 
         ctx = _build_context(state)
@@ -131,7 +134,7 @@ class TestBuildContext:
         assert "processing_results" not in parsed
 
     def test_response_chitchat(self):
-        """CHITCHAT action should only include last_action and consumed_at."""
+        """CHITCHAT action should produce a minimal context — no date or logging fields."""
         state = _make_state(last_action="CHITCHAT")
 
         ctx = _build_context(state)
@@ -139,7 +142,8 @@ class TestBuildContext:
         parsed = json.loads(ctx)
 
         assert parsed["last_action"] == "CHITCHAT"
-        assert "consumed_at" in parsed
+        # Action-gated: consumed_at only injects on LOG-family actions.
+        assert "consumed_at" not in parsed
         assert "processing_results" not in parsed
         assert "daily_log_report" not in parsed
 

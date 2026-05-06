@@ -441,16 +441,23 @@ def experiment_prefix() -> str:
 
 
 async def run_input_parser(inputs: dict) -> dict:
-    """Run input_parser_node and return structured outputs for evaluation."""
+    """Run input_parser_node and return structured outputs for evaluation.
+
+    Post-discriminated-action-state-refactor: dates live in per-action
+    sub-states (``log_food`` and ``query_stats``), not flat fields.
+    """
     state = {"messages": [HumanMessage(content=inputs["question"])]}
     result = await input_parser_node(state)
+    log_food = result.get("log_food") or {}
+    query_stats = result.get("query_stats") or {}
     return {
         "action": result["last_action"],
         "items": result["pending_food_items"],
         "item_count": len(result["pending_food_items"]),
-        "consumed_at": str(result["consumed_at"]) if result.get("consumed_at") else None,
-        "start_date": str(result["start_date"]) if result.get("start_date") else None,
-        "end_date": str(result["end_date"]) if result.get("end_date") else None,
+        "consumed_at": str(log_food["consumed_at"]) if log_food.get("consumed_at") else None,
+        "target_date": str(query_stats["target_date"]) if query_stats.get("target_date") else None,
+        "start_date": str(query_stats["start_date"]) if query_stats.get("start_date") else None,
+        "end_date": str(query_stats["end_date"]) if query_stats.get("end_date") else None,
     }
 
 
@@ -553,7 +560,11 @@ def no_query_dates_on_log_food(outputs: dict, reference_outputs: dict) -> bool:
     """
     if outputs.get("action") != "LOG_FOOD":
         return True
-    return outputs.get("start_date") is None and outputs.get("end_date") is None
+    return (
+        outputs.get("start_date") is None
+        and outputs.get("end_date") is None
+        and outputs.get("target_date") is None
+    )
 
 
 def no_consumed_at_on_query(outputs: dict, reference_outputs: dict) -> bool:
@@ -592,6 +603,11 @@ def correct_dates(outputs: dict, reference_outputs: dict) -> bool:
     expected_end = _resolve_date_sentinel(reference_outputs.get("end_date"))
     actual_end = outputs.get("end_date")
     if not _dates_equivalent(expected_end, actual_end):
+        return False
+
+    expected_target = _resolve_date_sentinel(reference_outputs.get("target_date"))
+    actual_target = outputs.get("target_date")
+    if not _dates_equivalent(expected_target, actual_target):
         return False
 
     return True
