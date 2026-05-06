@@ -163,7 +163,7 @@ fit_pal/
 │   ├── tools/
 │   │   └── food_lookup.py   # Async search_food / calculate_food_macros / create_food_item tools
 │   ├── schemas/             # Pydantic models
-│   │   ├── input_schema.py        # FoodIntakeEvent schema
+│   │   ├── input_schema.py        # UserIntent schema
 │   │   ├── selection_schema.py    # FoodSelectionResult schema
 │   │   ├── estimation_schema.py   # MacroEstimation (off-menu)
 │   │   └── confirmation_schema.py # ConfirmationResponse + ItemEdit
@@ -281,7 +281,7 @@ All user-scoped tables reference `auth.users(id)`:
 
 ### Phase 1: MVP Logic Foundations
 - ✅ Setup LangGraph environment and base development structure.
-- ✅ Implementation of `FoodIntakeEvent` Pydantic models for extraction.
+- ✅ Implementation of `UserIntent` Pydantic models for extraction.
 - ✅ Create `search_food` and `calculate_food_macros` tools.
 - ✅ Implement **Daily Log Persistence** with service layer pattern:
   - ✅ Create `DailyLog` SQLAlchemy model with full schema
@@ -324,7 +324,7 @@ All user-scoped tables reference `auth.users(id)`:
   - ✅ Restore node → tool boundary: all nodes call tools via `await tool.ainvoke()`, zero direct DB access in nodes
   - ✅ Service functions kept unchanged (accept session param for DI/testability); `@tool` wrappers create their own sessions and delegate
 - ✅ **Relative Time & Past Logging** (Completed 2026-02-24):
-  - ✅ Update `FoodIntakeEvent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
+  - ✅ Update `UserIntent` parsing to detect dates and times ("yesterday", "last night") rather than defaulting all inputs to the `current_date`, allowing users to log past meals accurately.
 - ✅ **The "Off-Menu" Problem (Fallback Logic)** (Completed 2026-03-07):
   - ✅ LLM estimation via `MacroEstimation` structured output when DB returns NO_MATCH
   - ✅ Estimated foods persisted as `FoodItem` rows with `source="estimated"` at commit time (back-calculated per-100g values)

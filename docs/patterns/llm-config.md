@@ -24,7 +24,7 @@ There is exactly one exception to the structured-output rule: `response_node`. I
 
 - **Provider-agnostic by design.** `init_chat_model` is LangChain's universal initializer — it accepts a `model_provider` string and routes to the correct concrete class. We currently run on OpenAI, but the architecture is set up so that swapping to Anthropic, Google, Mistral, or a local model is a config change, not a refactor. This is not theoretical — the eval notebooks already exercise different models for the judge LLM.
 
-- **`.with_structured_output()` makes Pydantic the contract between LLM and code.** Instead of "the LLM returns a JSON string and we hope it parses", the contract is "the LLM returns an instance of `FoodIntakeEvent` or it raises". The Pydantic model is the schema definition, the validation layer, the IDE autocomplete source, and the LangSmith trace shape — all from one declaration. There's no second source of truth for "what fields does the LLM return".
+- **`.with_structured_output()` makes Pydantic the contract between LLM and code.** Instead of "the LLM returns a JSON string and we hope it parses", the contract is "the LLM returns an instance of `UserIntent` or it raises". The Pydantic model is the schema definition, the validation layer, the IDE autocomplete source, and the LangSmith trace shape — all from one declaration. There's no second source of truth for "what fields does the LLM return".
 
 - **Field access stays pythonic.** `result.action.value` and `result.items[0].food_name` are unambiguous — they fail loudly at access time if the schema drifts, the IDE knows the types, and refactor tooling (rename a field) updates every callsite. None of that works with `result["action"]` or `json.loads(text)["action"]`.
 
@@ -106,9 +106,9 @@ This is the second half of the pattern, and the more important half in day-to-da
 
 ```python
 llm = get_llm_for_node("input_node")
-structured_llm = llm.with_structured_output(FoodIntakeEvent)
+structured_llm = llm.with_structured_output(UserIntent)
 result = await structured_llm.ainvoke(messages)
-# result is now a FoodIntakeEvent instance — access fields as attributes
+# result is now a UserIntent instance — access fields as attributes
 ```
 
 `.with_structured_output(Schema)` is a LangChain method that takes a Pydantic v2 model class and returns a wrapped LLM whose `.ainvoke(...)` is guaranteed to return an instance of that model (or raise). Under the hood, LangChain converts the Pydantic schema into a JSON schema, attaches it to the LLM call as a tool/function definition, and parses the LLM's response back into an instance of the model. From the node's perspective, none of that machinery is visible — you pass `messages`, you get back a typed object.
@@ -117,7 +117,7 @@ Every schema lives in `src/schemas/`, one file per node:
 
 | Schema file | Pydantic class | Used by | Purpose |
 |---|---|---|---|
-| `input_schema.py` | `FoodIntakeEvent` | `input_node` | Parses raw user message into action + items + dates |
+| `input_schema.py` | `UserIntent` | `input_node` | Parses raw user message into action + items + dates |
 | `selection_schema.py` | `FoodSelectionResult` | `selection_node` | Picks the best matching food from search results |
 | `estimation_schema.py` | `MacroEstimation` | `calculate_macros_node` (off-menu path) | LLM-estimated calories/protein/carbs/fat |
 | `confirmation_schema.py` | `ConfirmationResponse` | `confirmation_node` | Parses HITL confirm/reject/edit response |
@@ -128,7 +128,7 @@ Real example from [src/agents/nodes/input_node.py:23-50](../../src/agents/nodes/
 ```python
 async def input_parser_node(state: AgentState):
     llm = get_llm_for_node("input_node")
-    structured_llm = llm.with_structured_output(FoodIntakeEvent)
+    structured_llm = llm.with_structured_output(UserIntent)
 
     last_message = state["messages"][-1]
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

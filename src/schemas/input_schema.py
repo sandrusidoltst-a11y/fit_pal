@@ -93,7 +93,7 @@ _EventUnion = Union[
 ]
 
 
-class FoodIntakeEvent(BaseModel):
+class UserIntent(BaseModel):
     """Top-level wrapper for the per-action union.
 
     OpenAI's strict structured-output requires the top-level schema to be

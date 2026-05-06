@@ -84,7 +84,7 @@ def test_input_parser_log_food(self, basic_state):
     assert:  last_action is LOG_FOOD and pending_food_items is populated.
     """
     mock_llm = MagicMock()
-    mock_llm.invoke.return_value = FoodIntakeEvent(
+    mock_llm.invoke.return_value = UserIntent(
         action="LOG_FOOD",
         food_items=[SingleFoodItem(food_name="chicken", amount=200.0, unit="g", original_text="200g chicken")],
     )

@@ -155,7 +155,7 @@ Both actions produce an `items` list using the same extraction rules. The differ
 - Do NOT try to extract food items from the query itself (e.g., don't extract "protein" as a food for "how much protein did I eat today?").
 
 ### Output Format:
-Response must be a valid JSON object matching the `FoodIntakeEvent` schema.
+Response must be a valid JSON object matching the `UserIntent` schema.
 - `action`: One of the standard Enum values above.
 - `items`: List of food items (only for LOG_FOOD). Each item has:
   - `food_name`: clean canonical name in the user's language

@@ -8,11 +8,11 @@ from src.agents.state import AgentState, LogFoodSubState, QueryStatsSubState
 from src.config import BASE_DIR, USER_TIMEZONE, get_llm_for_node
 from src.schemas.input_schema import (
     ChitchatEvent,
-    FoodIntakeEvent,
     LogFoodEvent,
     LogPersonalStatsEvent,
     QueryFoodInfoEvent,
     QueryStatsEvent,
+    UserIntent,
 )
 
 logger = structlog.get_logger(__name__)
@@ -43,7 +43,7 @@ async def input_parser_node(state: AgentState):
     Node to parse user input into structured food intake data.
     """
     llm = get_llm_for_node("input_node")
-    structured_llm = llm.with_structured_output(FoodIntakeEvent)
+    structured_llm = llm.with_structured_output(UserIntent)
 
     # Get the last message from the user
     last_message = state["messages"][-1]
@@ -60,7 +60,7 @@ async def input_parser_node(state: AgentState):
 
     # Invoke LLM — discriminated union wrapped in `event`; unwrap to variant.
     # `hasattr(..., "action")` distinguishes a bare variant (mocked in unit
-    # tests) from the FoodIntakeEvent wrapper (returned by the real LLM).
+    # tests) from the UserIntent wrapper (returned by the real LLM).
     parsed = await structured_llm.ainvoke(messages)
     result = parsed if hasattr(parsed, "action") else parsed.event
 
