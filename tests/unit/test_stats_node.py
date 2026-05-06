@@ -47,8 +47,8 @@ class TestStatsNodeSingleDay:
             {"target_date": "2023-10-27", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
 
-        assert "daily_log_report" in result
-        report = result["daily_log_report"]
+        assert "query_logs" in result
+        report = result["query_logs"]
         assert len(report) == 1
         assert report[0]["id"] == "log-uuid-1"
         assert report[0]["calories"] == 150.0
@@ -75,7 +75,7 @@ class TestStatsNodeDateRange:
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
             {"target_date": "2023-10-25", "end_date": "2023-10-27", "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
-        assert result["daily_log_report"] == []
+        assert result["query_logs"] == []
 
 
 class TestStatsNodeDefaultToday:
@@ -98,4 +98,4 @@ class TestStatsNodeDefaultToday:
         mock_query_food_logs_for_stats.ainvoke.assert_called_once_with(
             {"target_date": expected_today, "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
-        assert result["daily_log_report"] == []
+        assert result["query_logs"] == []

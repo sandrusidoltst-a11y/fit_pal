@@ -46,7 +46,7 @@ def basic_state():
     return {
         "messages": [],
         "pending_food_items": [],
-        "daily_log_report": [],
+        "query_logs": [],
         "log_food": {},
         "query_stats": {},
         "last_action": "",

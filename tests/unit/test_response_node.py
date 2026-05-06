@@ -64,7 +64,7 @@ class TestBuildContext:
         assert parsed["processing_results"][0]["status"] == "LOGGED"
         # consumed_at injects on LOG-family actions (gated, no longer unconditional).
         assert parsed["consumed_at"] == "2026-02-20T12:00:00"
-        assert "daily_log_report" not in parsed
+        assert "query_logs" not in parsed
 
     def test_failed_action_includes_processing_results(self):
         """FAILED action should also include processing_results."""
@@ -98,8 +98,8 @@ class TestBuildContext:
         assert parsed["last_action"] == "NO_MATCH"
         assert "processing_results" in parsed
 
-    def test_query_stats_includes_daily_log_report(self):
-        """QUERY_DAILY_STATS should include daily_log_report, not processing_results."""
+    def test_query_stats_includes_query_logs(self):
+        """QUERY_DAILY_STATS should include query_logs, not processing_results."""
         logs = [
             {
                 "id": "log-uuid-1",
@@ -116,7 +116,7 @@ class TestBuildContext:
         ]
         state = _make_state(
             last_action="QUERY_DAILY_STATS",
-            daily_log_report=logs,
+            query_logs=logs,
             query_stats={
                 "start_date": date(2026, 2, 18),
                 "end_date": date(2026, 2, 20),
@@ -128,7 +128,7 @@ class TestBuildContext:
         parsed = json.loads(ctx)
 
         assert parsed["last_action"] == "QUERY_DAILY_STATS"
-        assert len(parsed["daily_log_report"]) == 1
+        assert len(parsed["query_logs"]) == 1
         assert parsed["start_date"] == "2026-02-18"
         assert parsed["end_date"] == "2026-02-20"
         assert "processing_results" not in parsed
@@ -145,7 +145,7 @@ class TestBuildContext:
         # Action-gated: consumed_at only injects on LOG-family actions.
         assert "consumed_at" not in parsed
         assert "processing_results" not in parsed
-        assert "daily_log_report" not in parsed
+        assert "query_logs" not in parsed
 
     def test_empty_last_action(self):
         """Empty/missing last_action should produce minimal context."""
@@ -437,7 +437,7 @@ class TestResponseNode:
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")
     async def test_stats_context_invokes_llm(self, mock_get_llm):
-        """Node should invoke LLM with daily_log_report context for QUERY_DAILY_STATS."""
+        """Node should invoke LLM with query_logs context for QUERY_DAILY_STATS."""
         mock_llm = MagicMock()
         mock_ai_msg = AIMessage(content="Today you consumed 1800kcal total.")
         mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
@@ -459,7 +459,7 @@ class TestResponseNode:
         ]
         state = _make_state(
             last_action="QUERY_DAILY_STATS",
-            daily_log_report=logs,
+            query_logs=logs,
             messages=[HumanMessage(content="What did I eat today?")],
         )
 
@@ -473,7 +473,7 @@ class TestResponseNode:
         # a naive whole-prompt "not in" check to false-positive.
         system_content = call_args[0].content
         context_json = system_content.split("Context JSON:", 1)[1]
-        assert "daily_log_report" in context_json
+        assert "query_logs" in context_json
         assert "processing_results" not in context_json
 
     @patch("src.agents.nodes.response_node.get_llm_for_node")

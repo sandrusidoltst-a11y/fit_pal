@@ -41,4 +41,4 @@ async def stats_lookup_node(state: AgentState, runtime: Runtime[ContextSchema]) 
             {"target_date": str(today), "user_id": user_id}
         )
 
-    return {"daily_log_report": report}
+    return {"query_logs": report}

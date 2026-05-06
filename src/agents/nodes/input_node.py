@@ -96,7 +96,7 @@ async def input_parser_node(state: AgentState):
         # Turn-entry clears — these fields are turn-local but were previously
         # cleared only by their consumers, leaving residue when consumers
         # didn't run. Resetting here makes the turn-boundary explicit.
-        "daily_log_report": [],
+        "query_logs": [],
         "pending_confirmations": [],
         "search_results": [],
         "selected_food_id": None,

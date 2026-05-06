@@ -176,8 +176,8 @@ def _build_context(state: AgentState) -> str:
 
     elif last_action == "QUERY_DAILY_STATS":
         # Stats query flow — include raw daily log report
-        daily_log_report = state.get("daily_log_report", [])
-        context["daily_log_report"] = daily_log_report
+        query_logs = state.get("query_logs", [])
+        context["query_logs"] = query_logs
 
         # Include the date hints the user gave (single day or range).
         query_stats = state.get("query_stats", {})

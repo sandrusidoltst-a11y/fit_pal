@@ -162,7 +162,7 @@ class AgentState(TypedDict):
     Attributes:
         messages: Conversation history (HumanMessages + AIMessages).
         pending_food_items: Food items extracted from user input, pending processing.
-        daily_log_report: List of raw logs queried from DB (replaces aggregated totals).
+        query_logs: Logs returned by `stats_lookup_node` for a QUERY_DAILY_STATS turn (single-day or range).
         current_date: The active date for logging or single-day query.
         log_food: Per-action sub-state for LOG_FOOD (consumed_at, meal_type).
         query_stats: Per-action sub-state for QUERY_DAILY_STATS
@@ -178,7 +178,7 @@ class AgentState(TypedDict):
 
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
-    daily_log_report: List[QueriedLog]
+    query_logs: List[QueriedLog]
     last_action: GraphAction
     search_results: List[SearchResult]
     selected_food_id: Optional[str]

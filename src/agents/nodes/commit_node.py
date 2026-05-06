@@ -93,7 +93,7 @@ async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dic
             }
         )
 
-    # daily_log_report is no longer re-fetched here — stats_lookup_node is
+    # query_logs is no longer re-fetched here — stats_lookup_node is
     # the sole writer. Next-turn QUERY paths re-query through stats_lookup
     # anyway, so the side-channel write was dead weight.
     return {
