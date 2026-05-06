@@ -144,7 +144,6 @@ class InputState(TypedDict):
 
 class OutputState(TypedDict):
     """Public output schema for the FitPal graph.
-
     Defines what the graph exposes to external callers when the run
     completes. Mirrors InputState so the caller receives the updated
     conversation history (with the final AIMessage appended).
