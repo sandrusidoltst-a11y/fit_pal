@@ -16,12 +16,25 @@ Determine the user's primary goal and select the appropriate `action`:
     3. Specific Date (e.g. "yesterday") -> Use that date at 12:00:00.
     4. No Time mentioned -> Leave null.
 - **QUERY_DAILY_STATS**: The user is asking about their nutrition stats, logs, or how their intake compares to their plan.
-  - Examples: "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days", "How many carbs do I have left today?", "Am I on track?", "Did I hit my protein target?", "How much more can I eat?".
+  - Examples (English): "How much protein have I eaten?", "Calories left?", "What did I eat yesterday?", "Stats for last 3 days", "How many carbs do I have left today?", "Am I on track?", "Did I hit my protein target?", "How much more can I eat?".
+  - Examples (Hebrew): "מה אכלתי היום", "מה אכלתי אתמול", "מה אכלתי השבוע", "מה אכלתי החודש", "כמה חלבון אכלתי", "אני בקצב?", "כמה פחמימות נשארו לי".
   - **EXTRACT DATES**:
-    - For a single day (e.g., "yesterday", "last Tuesday", "today"), set `target_date` to that date. Do not set `start_date`/`end_date` for single days.
-    - If range mentioned (e.g. "last 3 days", "this week"), set `start_date` and `end_date`.
-    - Date ranges are **inclusive of today**. "Last 3 days" = 3 days back from and including today. Example: if today is March 29, "last 3 days" means `start_date: 2026-03-27`, `end_date: 2026-03-29`.
-    - Default: If no date specified, leave dates null.
+    - For a single day, set `target_date` to that date. Single-day phrases:
+      - English: "today", "yesterday", "last Tuesday", a specific date.
+      - Hebrew: `"היום"` → target_date = today, `"אתמול"` → target_date = today-1, specific weekdays (`"ביום שני"`, `"בשבת"`).
+      - Do NOT set `start_date`/`end_date` for single days.
+    - If a multi-day range is mentioned, set `start_date` AND `end_date` (leave `target_date` null). Range phrases:
+      - English: "last 3 days", "this week", "this month", "past week".
+      - Hebrew: `"השבוע"` / `"השבוע הזה"` / `"השבוע הנוכחי"` → this week (Sunday → today, Israel-local). `"השבוע האחרון"` / `"השבוע שעבר"` → last 7 days inclusive of today (today-6 → today). `"החודש"` / `"החודש הזה"` → this month (1st of current month → today). `"החודש האחרון"` / `"החודש שעבר"` → last 30 days inclusive of today (today-29 → today). `"3 ימים אחרונים"` → last 3 days (today-2 → today).
+    - Date ranges are **inclusive of today**. Example: if today is March 29, "last 3 days" / `"3 ימים אחרונים"` means `start_date: 2026-03-27`, `end_date: 2026-03-29`. Same for `"השבוע האחרון"` → `start_date: 2026-03-23`, `end_date: 2026-03-29`.
+    - Default: If no date or range is specified, leave all three (`target_date`, `start_date`, `end_date`) null.
+    - **Worked examples** (today = 2026-05-08, a Thursday):
+      - User: `"מה אכלתי השבוע"` → action=QUERY_DAILY_STATS, **`start_date: 2026-05-04`** (Sunday, week start), **`end_date: 2026-05-08`** (today), `target_date: null`. The word `"השבוע"` IS a range qualifier — never leave dates null when a range word is present.
+      - User: `"מה אכלתי אתמול"` → action=QUERY_DAILY_STATS, `target_date: 2026-05-07`, dates null.
+      - User: `"מה אכלתי היום"` → action=QUERY_DAILY_STATS, `target_date: 2026-05-08`, range dates null.
+      - User: `"מה אכלתי החודש"` → action=QUERY_DAILY_STATS, **`start_date: 2026-05-01`**, **`end_date: 2026-05-08`**, `target_date: null`.
+      - User: `"כמה חלבון אכלתי"` (no date) → action=QUERY_DAILY_STATS, all three null.
+    - **Critical**: any range word (`"השבוע"`, `"החודש"`, `"השבוע האחרון"`, `"החודש האחרון"`, English equivalents) MUST produce `start_date` + `end_date`. Returning all-null on a range query is a bug; the downstream node has no way to query the right rows.
 - **LOG_PERSONAL_STATS**: The user is reporting a body measurement (weight, body fat).
   - Examples: "I weigh 74kg", "My weight is 74 kilos", "Body fat is 15%", "שוקל 74", "אחוז שומן 15"
   - Do NOT confuse with food logging — this is about the user's body, not food.

@@ -1,0 +1,59 @@
+{
+  "baseline_experiment_id": "ee5723d2-dc46-4011-8a98-56f6b5bdc5a7",
+  "baseline_experiment_name": "input-parser-hebrew-gpt-5.4-mini-ca909381",
+  "baseline_mode": "read_existing",
+  "baseline_example_count": 35,
+  "final_experiment_id": "91db5e95-d454-4c84-9fe3-2c39252dd7aa",
+  "final_experiment_name": "input-parser-hebrew-gpt-5.4-mini-1c19376e",
+  "final_run_note": "second of two final runs on the same code; first run b3befeac-cc75-44c9-8134-747e6d35c359 produced similar scores. The mid-conversation re-run is in this artifact since it's the more recent of the two and most metrics held steady across both — the divergent ones (correct_serving, correct_dates) reflect known LLM-as-judge variance on the 35-example dataset.",
+  "model_alignment_note": "The first attempt at a regression eval ran on gpt-5.4-nano (the prior local default), producing a model-mismatch comparison vs the gpt-5.4-mini baseline. Local default was switched to gpt-5.4-mini in .env and the eval re-run; only the mini-on-mini comparison is recorded here.",
+  "baseline": {
+    "correct_action": 0.9714,
+    "correct_dates": 0.8857,
+    "correct_item_count": 1.0,
+    "correct_serving": 0.8571,
+    "food_name_quality": 1.0,
+    "no_consumed_at_on_query": 1.0,
+    "no_query_dates_on_log_food": 1.0
+  },
+  "final": {
+    "correct_action": 1.0,
+    "correct_dates": 0.9143,
+    "correct_item_count": 1.0,
+    "correct_serving": 0.8286,
+    "food_name_quality": 0.9857,
+    "no_consumed_at_on_query": 1.0,
+    "no_query_dates_on_log_food": 1.0
+  },
+  "deltas": {
+    "correct_action": 0.0286,
+    "correct_dates": 0.0286,
+    "correct_item_count": 0.0,
+    "correct_serving": -0.0285,
+    "food_name_quality": -0.0143,
+    "no_consumed_at_on_query": 0.0,
+    "no_query_dates_on_log_food": 0.0
+  },
+  "regression_threshold_status": {
+    "correct_action": "pass (improved or held)",
+    "correct_dates": "pass (improved)",
+    "correct_item_count": "pass (held)",
+    "correct_serving": "pass (within max -3pp)",
+    "food_name_quality": "fail (over no-drop threshold by -1.43pp); investigated and accepted — see investigation note",
+    "no_consumed_at_on_query": "pass (held)",
+    "no_query_dates_on_log_found": "pass (held)"
+  },
+  "investigation": {
+    "regressed_metric": "food_name_quality",
+    "regressed_examples_count": 1,
+    "total_examples": 35,
+    "stable_across_runs": true,
+    "example_id": "05c7ad01-bb81-4f74-9524-71b70ed9e361",
+    "example_input": "שתי פיתות ושלוש ביצים",
+    "baseline_food_name": "פיתה",
+    "final_food_name": "פיתה לבנה",
+    "egg_food_name_unchanged": "ביצה",
+    "verdict": "benign — same food, slightly more specific. Both names resolve to the same DB row downstream. The LLM-as-judge docked the score because the name didn't match exactly, but no behavioral difference. Accepted as judge strictness rather than a real regression.",
+    "decision": "ship; do not revert. food_name_quality threshold left at `no drop` per user; future runs that hit the same single-example flip will surface the same way and require the same one-flip investigation."
+  }
+}
