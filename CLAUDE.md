@@ -88,6 +88,7 @@ fit_pal/
 │   ├── integration/               # Real Supabase DB tests (service layer, models, tool scoping)
 │   ├── graph_api/                 # Graph compilation + E2E flow tests via langgraph-sdk
 │   │   └── logs/                  # Server logs + error tracebacks (gitignored)
+│   ├── ux-loop/                   # live-ux-loop skill output — per-loop folders with inputs/ + runs/run<N>-<tag>/ artifacts
 │   └── conftest.py                # Pytest shared fixtures
 ├── notebooks/
 │   ├── evaluate_lookup.ipynb      # Analysis notebook
@@ -253,4 +254,7 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 | [.claude/skills/refine-dump/SKILL.md](.claude/skills/refine-dump/SKILL.md) | Skill | Refine raw brain dump notes into structured Obsidian notes | When processing daily brain dump notes |
 | [.claude/skills/build-cut-plan/SKILL.md](.claude/skills/build-cut-plan/SKILL.md) | Skill | Build a personalized CUT (fat-loss) nutrition plan via conversational intake; outputs Hebrew or English markdown plan | When user asks to "build a cut plan" / "תפריט קאט" |
 | [.claude/skills/build-bulk-plan/SKILL.md](.claude/skills/build-bulk-plan/SKILL.md) | Skill | Build a personalized CLEAN BULK (lean muscle) nutrition plan via conversational intake; outputs Hebrew or English markdown plan | When user asks to "build a bulk plan" / "תפריט מסה" |
+| [.claude/skills/live-ux-loop/SKILL.md](.claude/skills/live-ux-loop/SKILL.md) | Skill | Dogfood the bot end-to-end as a real user against the live LangGraph dev server; eval bookends + trace + DB verification + bug routing (prompts fixed in-loop, code bugs handed off as records). Mode B authors `scenarios.md`/`expectations.md` per loop. | When iterating on bot UX, validating prompt changes against scripted scenarios, or authoring scenario/expectations files for a future UX-loop session |
+| [.claude/skills/adr/SKILL.md](.claude/skills/adr/SKILL.md) | Skill | Create a new Architecture Decision Record in `docs/adr/` from recent conversation context | After an architectural conversation when the decision should be captured durably |
+| [.claude/skills/prime/SKILL.md](.claude/skills/prime/SKILL.md) | Skill | Load and understand project context | At the start of a new session, when switching tasks, or when user says "prime yourself" |
 | [docs/orphaned-langgraph-server.md](docs/orphaned-langgraph-server.md) | Documentation | Guide for finding/killing zombie langgraph dev processes on Windows | When `langgraph dev` fails with "port 2024 already in use" |
