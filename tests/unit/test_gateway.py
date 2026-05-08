@@ -290,3 +290,95 @@ class TestHITLFlow:
         await gw.handle_message(mock_message)
 
         assert gw.user_sessions[12345]["interrupted"] is False
+
+
+class TestFormatInterruptValue:
+    """Tests for the HITL interrupt-value -> user-text formatter."""
+
+    def _base_payload(self, consumed_at_iso: str | None = None) -> dict:
+        payload = {
+            "question": "Confirm:",
+            "items": [
+                {
+                    "description": "chicken — 200g",
+                    "calories": 330,
+                    "protein": 62,
+                    "carbs": 0,
+                    "fat": 7.2,
+                    "servings": None,
+                    "category": None,
+                }
+            ],
+            "totals": {"calories": 330, "protein": 62, "carbs": 0, "fat": 7.2},
+        }
+        if consumed_at_iso is not None:
+            payload["consumed_at"] = consumed_at_iso
+        return payload
+
+    def test_omits_date_line_when_consumed_at_missing(self):
+        """
+        arrange: payload without consumed_at field (back-compat).
+        act:     format interrupt value.
+        assert:  no '📅' in output.
+        """
+        out = gw._format_interrupt_value(self._base_payload())
+        assert "📅" not in out
+
+    def test_omits_date_line_when_consumed_at_none(self):
+        """
+        arrange: payload with consumed_at explicitly None.
+        act:     format interrupt value.
+        assert:  no '📅' in output.
+        """
+        out = gw._format_interrupt_value(self._base_payload(consumed_at_iso=None))
+        assert "📅" not in out
+
+    def test_renders_today_label(self):
+        """
+        arrange: consumed_at = today in Israel local.
+        act:     format interrupt value.
+        assert:  output contains the localized today label.
+        """
+        from datetime import datetime
+        from src.config import USER_TIMEZONE
+
+        today_iso = datetime.now(USER_TIMEZONE).date().isoformat()
+        out = gw._format_interrupt_value(self._base_payload(today_iso))
+
+        assert gw.MESSAGES["confirmation_date_today"] in out
+        assert "📅" in out
+
+    def test_renders_yesterday_label(self):
+        """
+        arrange: consumed_at = yesterday in Israel local.
+        act:     format interrupt value.
+        assert:  output contains the localized yesterday label.
+        """
+        from datetime import datetime, timedelta
+        from src.config import USER_TIMEZONE
+
+        yday = (datetime.now(USER_TIMEZONE).date() - timedelta(days=1)).isoformat()
+        out = gw._format_interrupt_value(self._base_payload(yday))
+
+        assert gw.MESSAGES["confirmation_date_yesterday"] in out
+
+    def test_renders_short_date_for_older(self):
+        """
+        arrange: consumed_at = a fixed older date.
+        act:     format interrupt value.
+        assert:  output contains a D.M / M/D rendering of the date.
+        """
+        out = gw._format_interrupt_value(self._base_payload("2026-01-15"))
+
+        # Either '15.1' (he) or '1/15' (en) depending on BOT_LANGUAGE; check both.
+        assert ("15.1" in out) or ("1/15" in out)
+        assert "📅" in out
+
+    def test_malformed_date_skips_line_without_crash(self):
+        """
+        arrange: consumed_at is a non-ISO string.
+        act:     format interrupt value.
+        assert:  no '📅' in output, no exception raised.
+        """
+        out = gw._format_interrupt_value(self._base_payload("not-a-date"))
+        assert "📅" not in out

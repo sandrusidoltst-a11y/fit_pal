@@ -45,3 +45,9 @@ confirmation_category_label_fat: "fat"
 confirmation_category_label_free: "free"
 confirmation_category_label_free_calories: "free-calorie"
 confirmation_category_label_forbidden_main: "low-GI"
+
+# --- HITL date label (bot-rendered when consumed_at is set) ---
+confirmation_date_for: "📅 for {date_label}"
+confirmation_date_today: "today"
+confirmation_date_yesterday: "yesterday"
+confirmation_date_other: "{month}/{day}"

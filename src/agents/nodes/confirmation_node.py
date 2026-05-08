@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Literal
 
 import structlog
@@ -27,12 +28,21 @@ except FileNotFoundError:
     )
 
 
-def _format_batch_preview(items: list[MacroResult]) -> dict:
+def _format_batch_preview(
+    items: list[MacroResult],
+    consumed_at: datetime | str | None = None,
+) -> dict:
     """Build human-readable batch preview payload for interrupt.
 
     Renders the food name in the user's language (he if BOT_LANGUAGE=he).
     Includes servings + category info per item when available — the bot
     gateway renders them via the confirmation_serving_line i18n template.
+
+    `consumed_at` (when set) is surfaced as a top-level ISO date string so
+    the bot can render a date label and the user can verify the routing
+    target before confirming. Accepts both `datetime` (fresh state) and
+    `str` (LangGraph state round-trip) — see response_node.py:166-171 for
+    the same defensive pattern.
     """
     lang = os.environ.get("BOT_LANGUAGE", "en").lower()
     formatted_items = []
@@ -66,9 +76,18 @@ def _format_batch_preview(items: list[MacroResult]) -> dict:
         "fat": round(sum(it["fat"] for it in items), 1),
     }
 
+    consumed_at_iso: str | None = None
+    if consumed_at is not None:
+        if isinstance(consumed_at, datetime):
+            consumed_at_iso = consumed_at.date().isoformat()
+        else:
+            # Already serialized (LangGraph state round-trip) — take date portion.
+            consumed_at_iso = str(consumed_at)[:10]
+
     return {
         "question": MESSAGES["confirmation_question"],
         "items": formatted_items,
+        "consumed_at": consumed_at_iso,
         "totals": totals,
     }
 
@@ -90,7 +109,8 @@ async def confirmation_node(
         logger.warning("Confirmation node called with empty batch, skipping to response")
         return Command(goto="load_daily_context")
 
-    preview = _format_batch_preview(batch)
+    consumed_at = state.get("log_food", {}).get("consumed_at")
+    preview = _format_batch_preview(batch, consumed_at)
 
     while True:
         user_response = interrupt(preview)
@@ -139,8 +159,8 @@ async def confirmation_node(
         elif decision.action == "edit":
             # Apply edits to batch
             batch = await _apply_edits(batch, decision.edits or [])
-            # Re-build preview with updated batch
-            preview = _format_batch_preview(batch)
+            # Re-build preview with updated batch (date unchanged across edits)
+            preview = _format_batch_preview(batch, consumed_at)
             # Loop continues → interrupt again with updated preview
 
 

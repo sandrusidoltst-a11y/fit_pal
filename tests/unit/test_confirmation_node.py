@@ -136,6 +136,42 @@ class TestFormatBatchPreview:
         assert preview["totals"]["calories"] == 1080
         assert preview["totals"]["protein"] == 92
 
+    def test_consumed_at_default_none(self):
+        """
+        arrange: sample batch, no consumed_at passed (default).
+        act:     format batch preview.
+        assert:  payload has 'consumed_at' key set to None.
+        """
+        preview = _format_batch_preview(SAMPLE_BATCH)
+
+        assert "consumed_at" in preview
+        assert preview["consumed_at"] is None
+
+    def test_consumed_at_datetime_serializes_to_iso_date(self):
+        """
+        arrange: sample batch + a datetime for consumed_at.
+        act:     format batch preview with the datetime.
+        assert:  payload's consumed_at is the ISO date string (date portion only).
+        """
+        from datetime import datetime, timezone
+
+        ts = datetime(2026, 5, 7, 12, 0, 0, tzinfo=timezone.utc)
+        preview = _format_batch_preview(SAMPLE_BATCH, consumed_at=ts)
+
+        assert preview["consumed_at"] == "2026-05-07"
+
+    def test_consumed_at_pre_serialized_string_passes_through(self):
+        """
+        arrange: consumed_at arriving as an ISO string (LangGraph state round-trip).
+        act:     format batch preview with the string.
+        assert:  payload's consumed_at is the date portion of the string.
+        """
+        preview = _format_batch_preview(
+            SAMPLE_BATCH, consumed_at="2026-05-07T12:00:00+00:00"
+        )
+
+        assert preview["consumed_at"] == "2026-05-07"
+
 
 class TestConfirmationNodeConfirm:
     """Test the confirm flow."""

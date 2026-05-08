@@ -10,7 +10,7 @@ onboarding profile collection, message relay, and HITL interrupt/resume flow.
 import asyncio
 import hmac
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, TypedDict
 
 import httpx
@@ -26,6 +26,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web  # noqa: E402
 
 from bot.supabase_admin import get_or_create_user  # noqa: E402
+from src.config import USER_TIMEZONE  # noqa: E402
 from src.database import get_async_db_session  # noqa: E402
 from src.i18n import MESSAGES  # noqa: E402
 from src.services.user_profile_service import create_user_profile, get_user_profile  # noqa: E402
@@ -156,6 +157,36 @@ async def _get_interrupt_state(thread_id: str) -> tuple[bool, str | None]:
         return True, None
 
 
+def _format_date_label(iso_date: str) -> str | None:
+    """Format an ISO date string ('YYYY-MM-DD') as a localized label.
+
+    Returns 'today' / 'yesterday' / '{day}.{month}' (he) or '{month}/{day}' (en),
+    wrapped by the confirmation_date_for template. Returns None on parse failure
+    so the caller can skip rendering rather than crash.
+
+    Compares against today in Israel local (USER_TIMEZONE), computed per-call so
+    long-lived bot processes don't serve stale labels after midnight.
+    """
+    try:
+        target = date.fromisoformat(iso_date)
+    except (TypeError, ValueError):
+        return None
+
+    today_local = datetime.now(USER_TIMEZONE).date()
+    delta_days = (today_local - target).days
+
+    if delta_days == 0:
+        label = MESSAGES["confirmation_date_today"]
+    elif delta_days == 1:
+        label = MESSAGES["confirmation_date_yesterday"]
+    else:
+        label = MESSAGES["confirmation_date_other"].format(
+            day=target.day, month=target.month
+        )
+
+    return MESSAGES["confirmation_date_for"].format(date_label=label)
+
+
 def _format_interrupt_value(value: dict) -> str:
     """Format an interrupt value dict into a user-friendly Telegram message."""
     sections: list[str] = []
@@ -163,6 +194,12 @@ def _format_interrupt_value(value: dict) -> str:
     question = value.get("question", "")
     if question:
         sections.append(question)
+
+    consumed_at_iso = value.get("consumed_at")
+    if consumed_at_iso:
+        date_line = _format_date_label(consumed_at_iso)
+        if date_line:
+            sections.append(date_line)
 
     item_blocks: list[str] = []
     for item in value.get("items", []):
