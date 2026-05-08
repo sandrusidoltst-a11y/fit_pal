@@ -261,6 +261,48 @@ class TestCalculateMacrosDBPath:
         assert result["pending_food_items"][0]["food_name"] == "rice"
 
 
+def _estimate_return(
+    *,
+    name_en="Pizza",
+    name_he="פיצה",
+    amount_g_estimated=200.0,
+    calories=540.0,
+    protein=22.0,
+    carbs=60.0,
+    fat=22.0,
+    category=None,
+    tag=None,
+    default_unit="slice",
+    default_unit_weight_g=100.0,
+):
+    """Build a MacroEstimation-shaped LLM mock return."""
+    m = MagicMock()
+    m.name_en = name_en
+    m.name_he = name_he
+    m.amount_g_estimated = amount_g_estimated
+    m.calories = calories
+    m.protein = protein
+    m.carbs = carbs
+    m.fat = fat
+    m.category = category
+    m.tag = tag
+    m.default_unit = default_unit
+    m.default_unit_weight_g = default_unit_weight_g
+    return m
+
+
+def _patch_estimation_llm(return_value):
+    """Patch get_llm_for_node so structured ainvoke returns the given mock."""
+    patcher = patch("src.agents.nodes.calculate_macros_node.get_llm_for_node")
+    mock_get_llm = patcher.start()
+    mock_llm = MagicMock()
+    mock_structured = MagicMock()
+    mock_structured.ainvoke = AsyncMock(return_value=return_value)
+    mock_llm.with_structured_output.return_value = mock_structured
+    mock_get_llm.return_value = mock_llm
+    return patcher, mock_structured
+
+
 class TestCalculateMacrosEstimationPath:
     """Tests for the LLM estimation path (selected_food_id is None)."""
 
@@ -278,26 +320,25 @@ class TestCalculateMacrosEstimationPath:
             "last_action": "NO_MATCH",
         })
 
-        mock_estimation = MagicMock()
-        mock_estimation.calories = 750.0
-        mock_estimation.protein = 30.0
-        mock_estimation.carbs = 85.0
-        mock_estimation.fat = 32.0
-        mock_estimation.name_en = "homemade pizza"
-        mock_estimation.name_he = None
-        mock_estimation.category = None
-        mock_estimation.tag = None
-        mock_estimation.default_unit = None
-        mock_estimation.default_unit_weight_g = None
-
-        with patch("src.agents.nodes.calculate_macros_node.get_llm_for_node") as mock_get_llm:
-            mock_llm = MagicMock()
-            mock_get_llm.return_value = mock_llm
-            mock_structured = MagicMock()
-            mock_llm.with_structured_output.return_value = mock_structured
-            mock_structured.ainvoke = AsyncMock(return_value=mock_estimation)
-
+        patcher, _ = _patch_estimation_llm(
+            _estimate_return(
+                name_en="homemade pizza",
+                name_he=None,
+                amount_g_estimated=300.0,
+                calories=750.0,
+                protein=30.0,
+                carbs=85.0,
+                fat=32.0,
+                category=None,
+                tag=None,
+                default_unit=None,
+                default_unit_weight_g=None,
+            )
+        )
+        try:
             result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
+        finally:
+            patcher.stop()
 
         assert len(result["pending_confirmations"]) == 1
         macro = result["pending_confirmations"][0]
@@ -306,6 +347,94 @@ class TestCalculateMacrosEstimationPath:
         assert macro["calories"] == 750.0
         assert macro["name_en"] == "homemade pizza"
         assert macro["category"] is None
+
+    async def test_estimation_grams_input_passes_count_through(self, basic_state):
+        """
+        arrange: pending_food_items=[{count:300, unit:"g", food_name:"pizza"}],
+                 selected_food_id=None; mock LLM returns amount_g_estimated=300.
+        act:     run calculate_macros_node.
+        assert:  resulting MacroResult has amount_g=300, original_count=300,
+                 original_unit="g".
+        """
+        basic_state.update({
+            "pending_food_items": [
+                {"food_name": "pizza", "count": 300.0, "unit": "g", "original_text": "300g pizza"}
+            ],
+            "selected_food_id": None,
+        })
+
+        patcher, _ = _patch_estimation_llm(_estimate_return(amount_g_estimated=300.0))
+        try:
+            result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
+        finally:
+            patcher.stop()
+
+        macro = result["pending_confirmations"][0]
+        assert macro["amount_g"] == 300.0
+        assert macro["original_count"] == 300.0
+        assert macro["original_unit"] == "g"
+
+    async def test_estimation_natural_unit_uses_llm_amount_g(self, basic_state):
+        """
+        arrange: pending_food_items=[{count:2, unit:"slice", food_name:"pizza"}];
+                 mock LLM returns amount_g_estimated=200, default_unit_weight_g=100,
+                 calories=540.
+        act:     run calculate_macros_node.
+        assert:  MacroResult.amount_g=200 (from LLM, not 2g),
+                 original_count=2, original_unit="slice", calories=540.
+        """
+        basic_state.update({
+            "pending_food_items": [
+                {"food_name": "pizza", "count": 2.0, "unit": "slice", "original_text": "2 slices pizza"}
+            ],
+            "selected_food_id": None,
+        })
+
+        patcher, _ = _patch_estimation_llm(
+            _estimate_return(
+                amount_g_estimated=200.0,
+                calories=540.0,
+                default_unit="slice",
+                default_unit_weight_g=100.0,
+            )
+        )
+        try:
+            result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
+        finally:
+            patcher.stop()
+
+        macro = result["pending_confirmations"][0]
+        assert macro["amount_g"] == 200.0
+        assert macro["original_count"] == 2.0
+        assert macro["original_unit"] == "slice"
+        assert macro["calories"] == 540.0
+
+    async def test_estimation_call_passes_count_and_unit_in_human_message(
+        self, basic_state
+    ):
+        """
+        arrange: pending_food_items=[{count:2, unit:"slice", food_name:"pizza"}].
+        act:     run calculate_macros_node, capture LLM invocation messages.
+        assert:  HumanMessage content contains "2 slice" and "pizza".
+        """
+        basic_state.update({
+            "pending_food_items": [
+                {"food_name": "pizza", "count": 2.0, "unit": "slice", "original_text": "2 slices pizza"}
+            ],
+            "selected_food_id": None,
+        })
+
+        patcher, mock_structured = _patch_estimation_llm(_estimate_return())
+        try:
+            await calculate_macros_node(basic_state, TEST_RUNTIME_A)
+        finally:
+            patcher.stop()
+
+        call_messages = mock_structured.ainvoke.call_args.args[0]
+        human_msg = next(m for m in call_messages if m.__class__.__name__ == "HumanMessage")
+        assert "2" in human_msg.content
+        assert "slice" in human_msg.content
+        assert "pizza" in human_msg.content
 
 
 class TestCalculateMacrosEdgeCases:

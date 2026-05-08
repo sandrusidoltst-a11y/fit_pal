@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field
 class MacroEstimation(BaseModel):
     """Structured output for LLM macro estimation of off-menu foods."""
 
+    amount_g_estimated: float = Field(
+        ...,
+        description=(
+            "The total gram amount you used to compute the macros below. "
+            "If the input unit was 'g', this equals the input count. "
+            "If the input unit was a natural unit (slice, piece, cup, etc.), "
+            "this MUST equal count × default_unit_weight_g (i.e., the gram total "
+            "for the user's stated quantity). Macros must be for THIS gram amount."
+        ),
+    )
     calories: float = Field(
         ..., description="Estimated calories (kcal) for the given amount in grams"
     )

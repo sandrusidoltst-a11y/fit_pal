@@ -70,6 +70,23 @@ class Messages(TypedDict):
     confirmation_date_today: str
     confirmation_date_yesterday: str
     confirmation_date_other: str
+    # HITL unit labels (bot-rendered in preview when original_unit != "g")
+    confirmation_unit_label_bottle_singular: str
+    confirmation_unit_label_bottle_plural: str
+    confirmation_unit_label_can_singular: str
+    confirmation_unit_label_can_plural: str
+    confirmation_unit_label_cup_singular: str
+    confirmation_unit_label_cup_plural: str
+    confirmation_unit_label_piece_singular: str
+    confirmation_unit_label_piece_plural: str
+    confirmation_unit_label_scoop_singular: str
+    confirmation_unit_label_scoop_plural: str
+    confirmation_unit_label_slice_singular: str
+    confirmation_unit_label_slice_plural: str
+    confirmation_unit_label_tbsp_singular: str
+    confirmation_unit_label_tbsp_plural: str
+    confirmation_unit_label_tsp_singular: str
+    confirmation_unit_label_tsp_plural: str
 
 
 # Derive the expected key set from the TypedDict so adding a new field

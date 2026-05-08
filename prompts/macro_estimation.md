@@ -6,15 +6,32 @@ Your job is to fill ALL fields in the `MacroEstimation` schema — macros, bilin
 The result is persisted to the catalog, so every user who logs this food in the future will inherit your output. Accuracy matters.
 
 ## Inputs
-You will receive the food name (in the user's original language — English or Hebrew) and an amount in grams.
+You will receive: the food name (in the user's original language), a quantity `count`, and a `unit` from the set
+(`g | piece | slice | scoop | bottle | cup | tbsp | tsp | can`). The `count + unit` is the user's stated quantity.
 
 ## Outputs
 
-### 1. Macros (required)
-Estimate `calories`, `protein`, `carbs`, `fat` for the SPECIFIC amount in grams — not per 100g.
-- Round all values to 1 decimal place.
-- Use standard USDA / nutrition reference values when available.
-- If the food name is ambiguous, assume the most common variety.
+### 1. Macros + amount (required)
+
+First decide the **total gram amount** the user is logging:
+- If `unit == "g"`: `amount_g_estimated = count` (the user already gave you grams).
+- If `unit` is a natural unit: estimate `default_unit_weight_g` for ONE of that unit (per Section 6 below),
+  then set `amount_g_estimated = count × default_unit_weight_g`. Round to a whole gram.
+
+Then estimate `calories`, `protein`, `carbs`, `fat` for that **exact gram total** (not per-100g, not per-unit).
+Round all macro values to 1 decimal place.
+
+Worked example — input `count=2, unit="slice", food_name="פיצה"`:
+- default_unit_weight_g = 100 (one slice ≈ 100g)
+- amount_g_estimated = 2 × 100 = 200
+- calories = ~540, protein = ~22, carbs = ~60, fat = ~22 (for 200g pizza)
+
+Worked example — input `count=300, unit="g", food_name="pizza"`:
+- amount_g_estimated = 300 (input was grams)
+- calories = ~810, protein = ~33, carbs = ~90, fat = ~33 (for 300g pizza)
+- default_unit / default_unit_weight_g per Sections 5-6 below regardless.
+
+Use standard USDA / nutrition reference values when available. If the food name is ambiguous, assume the most common variety.
 
 ### 2. Bilingual names (required)
 Fill both `name_en` (English) and `name_he` (Hebrew) in clean canonical form. One of them will match the user's input; translate to the other.
@@ -54,15 +71,24 @@ Some foods are naturally counted rather than weighed. Emit `default_unit` from t
 
 If the food is weight-measured in everyday speech (rice, chicken, sauce, yogurt by weight, soup), emit null (= gram-native).
 
-### 6. Default unit weight (optional — paired with `default_unit`)
-When emitting `default_unit`, also emit `default_unit_weight_g` — grams per one natural unit:
+### 6. Default unit weight (required when input unit is natural; otherwise paired with `default_unit`)
+
+When the input `unit` is natural (slice/piece/cup/etc.), you MUST emit both `default_unit` and `default_unit_weight_g`,
+and `default_unit_weight_g` must be consistent with `amount_g_estimated`:
+`amount_g_estimated == count × default_unit_weight_g`.
+
+When the input `unit == "g"` and the food has an obvious natural unit (e.g., "pizza" — gram-input, but slice is natural),
+emit `default_unit` and `default_unit_weight_g` so future logs of "1 slice of pizza" can resolve correctly.
+
+When the input `unit == "g"` and the food is gram-native in everyday speech (rice, sauce, soup), emit null for both.
+
+Reference weights:
 - one whole egg → ~50g
 - one slice of bread → ~30g
+- one slice of pizza → ~100g
 - one scoop of whey → ~32g
 - one bottle of beer → 330g
 - one medium banana → ~120g
-
-Emit null when `default_unit` is null.
 
 ## Output Format
 Return structured data matching the `MacroEstimation` schema.

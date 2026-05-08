@@ -7,11 +7,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langgraph.types import Command, interrupt
 
-from src.agents.state import AgentState, MacroResult
+from src.agents.state import AgentState, MacroResult, ProcessingResult
 from src.config import BASE_DIR, get_llm_for_node
 from src.context import ContextSchema
 from src.i18n import MESSAGES
-from src.schemas.confirmation_schema import ConfirmationResponse
+from src.schemas.confirmation_schema import ConfirmationResponse, ItemEdit
 from src.services.food_service import calculate_food_macros
 
 logger = structlog.get_logger(__name__)
@@ -26,6 +26,12 @@ except FileNotFoundError:
     _CONFIRMATION_PROMPT = (
         "Parse the user's response to a food logging confirmation prompt."
     )
+
+
+def _unit_label_key(unit: str, count: float) -> str:
+    """Pick the singular/plural i18n key for a natural-unit label."""
+    suffix = "singular" if count == 1 else "plural"
+    return f"confirmation_unit_label_{unit}_{suffix}"
 
 
 def _format_batch_preview(
@@ -55,10 +61,20 @@ def _format_batch_preview(
             if lang == "he" and item.get("name_he")
             else item["name_en"]
         )
+        if item["original_unit"] == "g":
+            description = f"{name} — {item['amount_g']}g{source_tag}"
+        else:
+            label = MESSAGES[
+                _unit_label_key(item["original_unit"], item["original_count"])
+            ]
+            description = (
+                f"{name} — {item['original_count']:g} {label} "
+                f"({item['amount_g']}g){source_tag}"
+            )
         formatted_items.append(
             {
                 "index": i,
-                "description": f"{name} — {item['amount_g']}g{source_tag}",
+                "description": description,
                 "calories": item["calories"],
                 "protein": item["protein"],
                 "carbs": item["carbs"],
@@ -111,6 +127,9 @@ async def confirmation_node(
 
     consumed_at = state.get("log_food", {}).get("consumed_at")
     preview = _format_batch_preview(batch, consumed_at)
+    # Accumulate edit-time FAILED results across the loop; merged into the
+    # final Command's update so they survive the LangGraph state merge.
+    accumulated_edit_errors: list[ProcessingResult] = []
 
     while True:
         user_response = interrupt(preview)
@@ -121,13 +140,15 @@ async def confirmation_node(
         logger.info("User confirmation", action=decision.action, items=len(batch))
 
         if decision.action == "confirm":
-            return Command(
-                goto="commit",
-                update={
-                    "pending_confirmations": batch,
-                    "last_action": "CONFIRMED",
-                },
-            )
+            update: dict = {
+                "pending_confirmations": batch,
+                "last_action": "CONFIRMED",
+            }
+            if accumulated_edit_errors:
+                update["processing_results"] = (
+                    state.get("processing_results", []) + accumulated_edit_errors
+                )
+            return Command(goto="commit", update=update)
 
         elif decision.action == "reject":
             # Build FAILED results for all items
@@ -152,13 +173,16 @@ async def confirmation_node(
                     "last_action": "REJECTED",
                     "pending_confirmations": [],
                     "processing_results": state.get("processing_results", [])
+                    + accumulated_edit_errors
                     + failed_results,
                 },
             )
 
         elif decision.action == "edit":
-            # Apply edits to batch
-            batch = await _apply_edits(batch, decision.edits or [])
+            # Apply edits to batch — collect any FAILED results for
+            # unit-mismatch / unconvertible edits.
+            batch, edit_errors = await _apply_edits(batch, decision.edits or [])
+            accumulated_edit_errors.extend(edit_errors)
             # Re-build preview with updated batch (date unchanged across edits)
             preview = _format_batch_preview(batch, consumed_at)
             # Loop continues → interrupt again with updated preview
@@ -170,7 +194,9 @@ async def _parse_confirmation(
     """Use LLM to parse user's natural language confirmation response."""
     # Build batch context and inject into prompt template
     batch_context = "\n".join(
-        f"[{i}] {item.get('name_he') or item['name_en']} — {item['amount_g']}g ({item['source']})"
+        f"[{i}] {item.get('name_he') or item['name_en']} — "
+        f"{item['original_count']:g} {item['original_unit']} "
+        f"({item['amount_g']}g, {item['source']})"
         for i, item in enumerate(batch)
     )
     system_prompt = _CONFIRMATION_PROMPT.replace("{batch_context}", batch_context)
@@ -186,10 +212,35 @@ async def _parse_confirmation(
     return await structured_llm.ainvoke(messages)
 
 
+def _surface_edit_error(
+    item: MacroResult,
+    edit: ItemEdit,
+    message: str,
+) -> ProcessingResult:
+    """Build a FAILED ProcessingResult for an edit we couldn't apply."""
+    return {
+        "food_name": item["name_en"],
+        "name_he": item.get("name_he"),
+        "count": edit.new_count or 0.0,
+        "unit": edit.new_unit or "g",
+        "original_text": item["original_text"],
+        "status": "FAILED",
+        "message": message,
+        "source": item.get("source"),
+    }
+
+
 async def _apply_edits(
-    batch: list[MacroResult], edits: list,
-) -> list[MacroResult]:
-    """Apply user edits to the batch. Recalculate macros for amount changes."""
+    batch: list[MacroResult], edits: list[ItemEdit],
+) -> tuple[list[MacroResult], list[ProcessingResult]]:
+    """Apply user edits to the batch. Recalculate macros for amount changes.
+
+    Returns (updated_batch, edit_errors). The caller is responsible for
+    appending edit_errors to state.processing_results — keeping this function
+    free of state mutation.
+    """
+    edit_errors: list[ProcessingResult] = []
+
     # Process removals in reverse order to preserve indices
     remove_indices = sorted(
         [e.item_index for e in edits if e.edit_type == "remove"],
@@ -202,33 +253,69 @@ async def _apply_edits(
 
     # Process amount changes
     for edit in edits:
-        if edit.edit_type == "change_amount" and edit.new_amount_g is not None:
-            if 0 <= edit.item_index < len(batch):
-                item = batch[edit.item_index]
-                old_amount = item["amount_g"]
-                new_amount = edit.new_amount_g
-                logger.info("User edit: changed amount", index=edit.item_index, old_g=old_amount, new_g=new_amount)
+        if edit.edit_type != "change_amount" or edit.new_count is None or edit.new_unit is None:
+            continue
+        if not (0 <= edit.item_index < len(batch)):
+            continue
 
-                if item["food_id"] is not None:
-                    # DB item — recalculate via tool. Edits are grams-only for now
-                    # (unit-aware edits are a Plan 3+ concern).
-                    macros = await calculate_food_macros.ainvoke(
-                        {"food_id": item["food_id"], "count": new_amount, "unit": "g"}
+        item = batch[edit.item_index]
+        old_amount = item["amount_g"]
+        logger.info(
+            "User edit: changed amount",
+            index=edit.item_index,
+            old_g=old_amount,
+            new_count=edit.new_count,
+            new_unit=edit.new_unit,
+        )
+
+        if item["food_id"] is not None:
+            # DB item — recalculate via tool with the new (count, unit).
+            macros = await calculate_food_macros.ainvoke(
+                {
+                    "food_id": item["food_id"],
+                    "count": edit.new_count,
+                    "unit": edit.new_unit,
+                }
+            )
+            if "error" not in macros:
+                item["amount_g"] = macros["amount_g"]
+                item["calories"] = macros["calories"]
+                item["protein"] = macros["protein"]
+                item["carbs"] = macros["carbs"]
+                item["fat"] = macros["fat"]
+                item["servings"] = macros.get("servings")
+                item["original_count"] = edit.new_count
+                item["original_unit"] = edit.new_unit
+            else:
+                edit_errors.append(_surface_edit_error(item, edit, macros["error"]))
+        else:
+            # Estimated item — convert (count, unit) to grams using the
+            # item's default_unit_weight_g; scale macros proportionally.
+            if edit.new_unit == "g":
+                new_grams = edit.new_count
+            elif (
+                edit.new_unit == item.get("default_unit")
+                and item.get("default_unit_weight_g")
+            ):
+                new_grams = edit.new_count * item["default_unit_weight_g"]
+            else:
+                edit_errors.append(
+                    _surface_edit_error(
+                        item,
+                        edit,
+                        f"Can only edit in grams or {item.get('default_unit')}",
                     )
-                    if "error" not in macros:
-                        item["amount_g"] = new_amount
-                        item["calories"] = macros["calories"]
-                        item["protein"] = macros["protein"]
-                        item["carbs"] = macros["carbs"]
-                        item["fat"] = macros["fat"]
-                else:
-                    # Estimated item — scale proportionally
-                    if old_amount > 0:
-                        ratio = new_amount / old_amount
-                        item["amount_g"] = new_amount
-                        item["calories"] = round(item["calories"] * ratio, 1)
-                        item["protein"] = round(item["protein"] * ratio, 1)
-                        item["carbs"] = round(item["carbs"] * ratio, 1)
-                        item["fat"] = round(item["fat"] * ratio, 1)
+                )
+                continue
 
-    return batch
+            if old_amount > 0:
+                ratio = new_grams / old_amount
+                item["amount_g"] = new_grams
+                item["calories"] = round(item["calories"] * ratio, 1)
+                item["protein"] = round(item["protein"] * ratio, 1)
+                item["carbs"] = round(item["carbs"] * ratio, 1)
+                item["fat"] = round(item["fat"] * ratio, 1)
+                item["original_count"] = edit.new_count
+                item["original_unit"] = edit.new_unit
+
+    return batch, edit_errors
