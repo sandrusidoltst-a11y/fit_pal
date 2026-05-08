@@ -65,6 +65,11 @@ class Messages(TypedDict):
     confirmation_category_label_free: str
     confirmation_category_label_free_calories: str
     confirmation_category_label_forbidden_main: str
+    # HITL date label (bot-rendered when consumed_at is set)
+    confirmation_date_for: str
+    confirmation_date_today: str
+    confirmation_date_yesterday: str
+    confirmation_date_other: str
 
 
 # Derive the expected key set from the TypedDict so adding a new field

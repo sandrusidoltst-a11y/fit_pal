@@ -49,3 +49,9 @@ confirmation_category_label_fat: "שומן"
 confirmation_category_label_free: "חופשי"
 confirmation_category_label_free_calories: "קלוריות חופשיות"
 confirmation_category_label_forbidden_main: "GI נמוך"
+
+# --- HITL date label (bot-rendered when consumed_at is set) ---
+confirmation_date_for: "📅 ל{date_label}"
+confirmation_date_today: "היום"
+confirmation_date_yesterday: "אתמול"
+confirmation_date_other: "{day}.{month}"
