@@ -38,6 +38,8 @@ SAMPLE_BATCH = [
         "default_unit_weight_g": None,
         "original_text": "200g chicken",
         "food_id": "food-uuid-1",
+        "original_count": 200,
+        "original_unit": "g",
     },
     {
         "name_en": "pizza",
@@ -52,10 +54,12 @@ SAMPLE_BATCH = [
         "tag": None,
         "serving_amount_g": None,
         "servings": None,
-        "default_unit": None,
-        "default_unit_weight_g": None,
+        "default_unit": "slice",
+        "default_unit_weight_g": 100.0,
         "original_text": "3 slices of pizza",
         "food_id": None,
+        "original_count": 3,
+        "original_unit": "slice",
     },
 ]
 
@@ -160,6 +164,62 @@ class TestFormatBatchPreview:
 
         assert preview["consumed_at"] == "2026-05-07"
 
+    def test_grams_renders_as_xg(self, monkeypatch):
+        """
+        arrange: SAMPLE_BATCH item with original_unit="g".
+        act:     format batch preview in EN.
+        assert:  description is "{name} — {amount_g}g" (no unit label).
+        """
+        monkeypatch.setenv("BOT_LANGUAGE", "en")
+        preview = _format_batch_preview(SAMPLE_BATCH)
+        desc = preview["items"][0]["description"]
+        assert "200" in desc
+        assert "g" in desc
+        assert "slice" not in desc
+        assert "piece" not in desc
+
+    def test_natural_unit_renders_with_label_and_grams(self):
+        """
+        arrange: batch with item original_count=2, original_unit="slice".
+        act:     format batch preview.
+        assert:  description contains "2 <plural slice label>" and "(50".
+        """
+        plural = MESSAGES["confirmation_unit_label_slice_plural"]
+        batch = [
+            {
+                **SAMPLE_BATCH[0],
+                "amount_g": 50,
+                "original_count": 2,
+                "original_unit": "slice",
+            }
+        ]
+        preview = _format_batch_preview(batch)
+        desc = preview["items"][0]["description"]
+        assert f"2 {plural}" in desc
+        assert "(50" in desc
+
+    def test_natural_unit_singular_form_for_count_one(self):
+        """
+        arrange: batch with item original_count=1, original_unit="slice".
+        act:     format batch preview.
+        assert:  description contains "1 <singular slice label>" — singular form.
+        """
+        singular = MESSAGES["confirmation_unit_label_slice_singular"]
+        plural = MESSAGES["confirmation_unit_label_slice_plural"]
+        batch = [
+            {
+                **SAMPLE_BATCH[0],
+                "amount_g": 25,
+                "original_count": 1,
+                "original_unit": "slice",
+            }
+        ]
+        preview = _format_batch_preview(batch)
+        desc = preview["items"][0]["description"]
+        assert f"1 {singular}" in desc
+        if singular != plural:
+            assert f"1 {plural}" not in desc
+
     def test_consumed_at_pre_serialized_string_passes_through(self):
         """
         arrange: consumed_at arriving as an ISO string (LangGraph state round-trip).
@@ -246,6 +306,8 @@ class TestConfirmationNodeEdit:
                 "default_unit_weight_g": None,
                 "original_text": "200g chicken",
                 "food_id": "food-uuid-1",
+                "original_count": 200,
+                "original_unit": "g",
             },
         ]
 
@@ -260,7 +322,7 @@ class TestConfirmationNodeEdit:
 
         edit_response = ConfirmationResponse(
             action="edit",
-            edits=[ItemEdit(item_index=0, edit_type="change_amount", new_amount_g=150.0)]
+            edits=[ItemEdit(item_index=0, edit_type="change_amount", new_count=150.0, new_unit="g")]
         )
         confirm_response = ConfirmationResponse(action="confirm")
 
@@ -302,6 +364,184 @@ class TestConfirmationNodeEdit:
         mock_calc.ainvoke.assert_called_once_with(
             {"food_id": "food-uuid-1", "count": 150.0, "unit": "g"}
         )
+
+    async def test_edit_natural_unit_db_item(self, basic_state):
+        """
+        arrange: state with batch holding a DB item (slice-capable); user edits to 3 slices.
+        act:     run confirmation_node, mock interrupt then confirm.
+        assert:  calculate_food_macros tool called with (count=3, unit="slice");
+                 item's amount_g, original_count, original_unit reflect the edit.
+        """
+        basic_state["pending_confirmations"] = [
+            {
+                "name_en": "cheese",
+                "name_he": "גבינה",
+                "amount_g": 50,
+                "calories": 175,
+                "protein": 12,
+                "carbs": 1,
+                "fat": 14,
+                "source": "database",
+                "category": "protein",
+                "tag": "fatty",
+                "serving_amount_g": 25.0,
+                "servings": 2.0,
+                "default_unit": "slice",
+                "default_unit_weight_g": 25.0,
+                "original_text": "2 slices of cheese",
+                "food_id": "food-uuid-cheese",
+                "original_count": 2,
+                "original_unit": "slice",
+            },
+        ]
+
+        responses = iter([
+            ConfirmationResponse(
+                action="edit",
+                edits=[ItemEdit(item_index=0, edit_type="change_amount", new_count=3, new_unit="slice")],
+            ),
+            ConfirmationResponse(action="confirm"),
+        ])
+
+        async def mock_parse(text, batch):
+            return next(responses)
+
+        with patch("src.agents.nodes.confirmation_node.interrupt", side_effect=lambda p: "ok"), \
+             patch("src.agents.nodes.confirmation_node._parse_confirmation", side_effect=mock_parse), \
+             patch("src.agents.nodes.confirmation_node.calculate_food_macros") as mock_calc:
+            mock_calc.ainvoke = AsyncMock(return_value={
+                "name_en": "Cheese",
+                "name_he": "גבינה",
+                "amount_g": 75.0,
+                "calories": 262.5,
+                "protein": 18.0,
+                "carbs": 1.5,
+                "fat": 21.0,
+                "source": "database",
+                "category": "protein",
+                "tag": "fatty",
+                "serving_amount_g": 25.0,
+                "servings": 3.0,
+            })
+
+            result = await confirmation_node(basic_state, TEST_RUNTIME_A)
+
+        mock_calc.ainvoke.assert_called_once_with(
+            {"food_id": "food-uuid-cheese", "count": 3, "unit": "slice"}
+        )
+        assert isinstance(result, Command)
+        item = result.update["pending_confirmations"][0]
+        assert item["amount_g"] == 75.0
+        assert item["original_count"] == 3
+        assert item["original_unit"] == "slice"
+
+    async def test_edit_estimated_unit_conversion(self, basic_state):
+        """
+        arrange: estimated item with default_unit="slice", default_unit_weight_g=100;
+                 amount_g=200, calories=540 (i.e. 2 slices baseline);
+                 user edits "make it 3 slices".
+        act:     run confirmation_node, then confirm.
+        assert:  amount_g = 300; macros scaled proportionally (×1.5);
+                 original_count=3, original_unit="slice".
+        """
+        basic_state["pending_confirmations"] = [
+            {
+                "name_en": "pizza",
+                "name_he": None,
+                "amount_g": 200,
+                "calories": 540,
+                "protein": 22,
+                "carbs": 60,
+                "fat": 22,
+                "source": "estimated",
+                "category": None,
+                "tag": None,
+                "serving_amount_g": None,
+                "servings": None,
+                "default_unit": "slice",
+                "default_unit_weight_g": 100.0,
+                "original_text": "2 slices pizza",
+                "food_id": None,
+                "original_count": 2,
+                "original_unit": "slice",
+            },
+        ]
+
+        responses = iter([
+            ConfirmationResponse(
+                action="edit",
+                edits=[ItemEdit(item_index=0, edit_type="change_amount", new_count=3, new_unit="slice")],
+            ),
+            ConfirmationResponse(action="confirm"),
+        ])
+
+        async def mock_parse(text, batch):
+            return next(responses)
+
+        with patch("src.agents.nodes.confirmation_node.interrupt", side_effect=lambda p: "ok"), \
+             patch("src.agents.nodes.confirmation_node._parse_confirmation", side_effect=mock_parse):
+            result = await confirmation_node(basic_state, TEST_RUNTIME_A)
+
+        item = result.update["pending_confirmations"][0]
+        assert item["amount_g"] == 300.0
+        assert item["calories"] == 810.0
+        assert item["original_count"] == 3
+        assert item["original_unit"] == "slice"
+
+    async def test_edit_estimated_unit_mismatch_surfaces_error(self, basic_state):
+        """
+        arrange: estimated item with default_unit="slice"; user edits "make it 1 cup".
+        act:     run confirmation_node; first decision is the bad edit, second confirms.
+        assert:  item is unchanged; processing_results contains a FAILED entry.
+        """
+        basic_state["pending_confirmations"] = [
+            {
+                "name_en": "pizza",
+                "name_he": None,
+                "amount_g": 200,
+                "calories": 540,
+                "protein": 22,
+                "carbs": 60,
+                "fat": 22,
+                "source": "estimated",
+                "category": None,
+                "tag": None,
+                "serving_amount_g": None,
+                "servings": None,
+                "default_unit": "slice",
+                "default_unit_weight_g": 100.0,
+                "original_text": "2 slices pizza",
+                "food_id": None,
+                "original_count": 2,
+                "original_unit": "slice",
+            },
+        ]
+
+        responses = iter([
+            ConfirmationResponse(
+                action="edit",
+                edits=[ItemEdit(item_index=0, edit_type="change_amount", new_count=1, new_unit="cup")],
+            ),
+            ConfirmationResponse(action="confirm"),
+        ])
+
+        async def mock_parse(text, batch):
+            return next(responses)
+
+        with patch("src.agents.nodes.confirmation_node.interrupt", side_effect=lambda p: "ok"), \
+             patch("src.agents.nodes.confirmation_node._parse_confirmation", side_effect=mock_parse):
+            result = await confirmation_node(basic_state, TEST_RUNTIME_A)
+
+        # Item unchanged
+        item = result.update["pending_confirmations"][0]
+        assert item["amount_g"] == 200
+        assert item["original_unit"] == "slice"
+        # Error surfaced
+        assert "processing_results" in result.update
+        failed = result.update["processing_results"]
+        assert len(failed) == 1
+        assert failed[0]["status"] == "FAILED"
+        assert "slice" in failed[0]["message"] or "grams" in failed[0]["message"]
 
 
 class TestConfirmationNodeEdgeCases:

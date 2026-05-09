@@ -85,14 +85,19 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
             "default_unit_weight_g": macros.get("default_unit_weight_g"),
             "original_text": current_item.get("original_text", ""),
             "food_id": selected_food_id,
+            "original_count": count,
+            "original_unit": unit,
         }
     else:
-        # Estimation path — use LLM. No food row yet; treat count as grams
-        # (Plan 3 estimation prompt may teach the LLM to emit default_unit/weight).
-        amount_g = count
-        logger.info("Estimating macros via LLM", food=food_name, amount_g=amount_g)
+        # Estimation path — pass the user's (count, unit) through to the LLM,
+        # which is responsible for computing amount_g_estimated and macros for
+        # that exact total. Fixes the previous bug where unit was collapsed
+        # to grams and "2 slices" got estimated as 2 grams.
+        logger.info(
+            "Estimating macros via LLM", food=food_name, count=count, unit=unit
+        )
         macro_result = await _estimate_macros(
-            food_name, amount_g, current_item.get("original_text", "")
+            food_name, count, unit, current_item.get("original_text", "")
         )
 
     # Accumulate into pending_confirmations
@@ -111,15 +116,22 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
 
 
 async def _estimate_macros(
-    food_name: str, amount_g: float, original_text: str
+    food_name: str, count: float, unit: str, original_text: str
 ) -> MacroResult:
-    """Use LLM to estimate macros for an off-menu food item."""
+    """Use LLM to estimate macros for an off-menu food item.
+
+    Passes the user's stated (count, unit) through to the LLM so it can
+    estimate macros for the correct gram total. The LLM emits
+    ``amount_g_estimated`` directly — we use it as ``MacroResult.amount_g``.
+    """
     llm = get_llm_for_node("estimation_node")
     structured_llm = llm.with_structured_output(MacroEstimation)
 
     messages = [
         SystemMessage(content=_ESTIMATION_PROMPT),
-        HumanMessage(content=f"Estimate macros for: {food_name}, amount: {amount_g}g"),
+        HumanMessage(
+            content=f"Estimate macros for: {food_name}, quantity: {count} {unit}"
+        ),
     ]
 
     result = await structured_llm.ainvoke(messages)
@@ -127,7 +139,7 @@ async def _estimate_macros(
     return {
         "name_en": result.name_en,
         "name_he": result.name_he,
-        "amount_g": amount_g,
+        "amount_g": result.amount_g_estimated,
         "calories": round(result.calories, 1),
         "protein": round(result.protein, 1),
         "carbs": round(result.carbs, 1),
@@ -141,4 +153,6 @@ async def _estimate_macros(
         "default_unit_weight_g": result.default_unit_weight_g,
         "original_text": original_text,
         "food_id": None,
+        "original_count": count,
+        "original_unit": unit,
     }

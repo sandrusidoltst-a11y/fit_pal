@@ -128,6 +128,8 @@ class MacroResult(TypedDict):
     default_unit_weight_g: Optional[float]
     original_text: str
     food_id: Optional[str]
+    original_count: float
+    original_unit: str
 
 
 class InputState(TypedDict):
