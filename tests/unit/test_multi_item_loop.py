@@ -28,8 +28,8 @@ def _macros_return(**overrides):
         "tag": None,
         "serving_amount_g": None,
         "servings": None,
-        "default_unit": "g",
-        "default_unit_weight_g": None,
+        "unit_weights": {},
+        "unit_synonyms": {},
     }
     base.update(overrides)
     return base

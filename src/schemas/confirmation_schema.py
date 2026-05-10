@@ -19,14 +19,20 @@ class ItemEdit(BaseModel):
             "For grams, new_unit must be 'g'."
         ),
     )
-    new_unit: Optional[
-        Literal["g", "piece", "slice", "scoop", "bottle", "cup", "tbsp", "tsp", "can"]
-    ] = Field(
+    new_unit: Optional[str] = Field(
         None,
         description=(
-            "Unit for new_count (only for change_amount). 'g' for grams; "
-            "natural units otherwise. If the user gave only a count without a unit, "
-            "inherit from the item's original_unit shown in the batch context."
+            "Unit for new_count, verbatim from user input (only for change_amount). "
+            "'g' for grams; any natural unit otherwise. No fixed enum. "
+            "If the user gave only a count without a unit, inherit from the item's "
+            "original_unit shown in the batch context."
+        ),
+    )
+    new_amount_g: Optional[float] = Field(
+        None,
+        description=(
+            "Required when new_unit != 'g'. Your best estimate of the TOTAL gram "
+            "weight for the user's edited quantity. Acts as the resolver's safety net."
         ),
     )
 

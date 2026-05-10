@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -46,9 +47,16 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
     food_name = current_item.get("food_name", "")
 
     if selected_food_id:
-        # DB path — tool handles fetch + unit resolution + macro compute
+        # DB path — tool handles fetch + unit resolution + macro compute.
+        # Pass through the parser's amount_g as the resolver's safety-net so
+        # uncurated units don't silently fall back to count-as-grams.
         macros = await calculate_food_macros.ainvoke(
-            {"food_id": selected_food_id, "count": count, "unit": unit}
+            {
+                "food_id": selected_food_id,
+                "count": count,
+                "unit": unit,
+                "llm_estimated_amount_g": current_item.get("amount_g"),
+            }
         )
         if "error" in macros:
             logger.warning(
@@ -81,23 +89,25 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
             "tag": macros.get("tag"),
             "serving_amount_g": macros.get("serving_amount_g"),
             "servings": macros.get("servings"),
-            "default_unit": macros.get("default_unit"),
-            "default_unit_weight_g": macros.get("default_unit_weight_g"),
+            "amount_g_estimated": current_item.get("amount_g"),
             "original_text": current_item.get("original_text", ""),
             "food_id": selected_food_id,
             "original_count": count,
             "original_unit": unit,
         }
     else:
-        # Estimation path — pass the user's (count, unit) through to the LLM,
-        # which is responsible for computing amount_g_estimated and macros for
-        # that exact total. Fixes the previous bug where unit was collapsed
-        # to grams and "2 slices" got estimated as 2 grams.
+        # Estimation path — the input parser already computed amount_g for
+        # natural-unit inputs. The estimator only fills macros for that
+        # exact gram total.
         logger.info(
             "Estimating macros via LLM", food=food_name, count=count, unit=unit
         )
         macro_result = await _estimate_macros(
-            food_name, count, unit, current_item.get("original_text", "")
+            food_name=food_name,
+            count=count,
+            unit=unit,
+            amount_g=current_item.get("amount_g"),
+            original_text=current_item.get("original_text", ""),
         )
 
     # Accumulate into pending_confirmations
@@ -116,21 +126,39 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
 
 
 async def _estimate_macros(
-    food_name: str, count: float, unit: str, original_text: str
+    food_name: str,
+    count: float,
+    unit: str,
+    amount_g: Optional[float],
+    original_text: str,
 ) -> MacroResult:
     """Use LLM to estimate macros for an off-menu food item.
 
-    Passes the user's stated (count, unit) through to the LLM so it can
-    estimate macros for the correct gram total. The LLM emits
-    ``amount_g_estimated`` directly — we use it as ``MacroResult.amount_g``.
+    Consumes the gram total computed by the input parser (``amount_g``).
+    When the parser failed to emit one for a natural unit, fall back to
+    treating ``count`` as grams and log a warning — same last-resort
+    behaviour as ``resolve_amount_g``.
     """
+    if amount_g is not None:
+        resolved_amount_g = amount_g
+    else:
+        if unit != "g":
+            logger.warning(
+                "_estimate_macros: parser missing amount_g, using count as grams",
+                food=food_name, unit=unit, count=count,
+            )
+        resolved_amount_g = count
+
     llm = get_llm_for_node("estimation_node")
     structured_llm = llm.with_structured_output(MacroEstimation)
 
     messages = [
         SystemMessage(content=_ESTIMATION_PROMPT),
         HumanMessage(
-            content=f"Estimate macros for: {food_name}, quantity: {count} {unit}"
+            content=(
+                f"Estimate macros for: {food_name}, "
+                f"quantity: {count} {unit} (= {resolved_amount_g}g)"
+            )
         ),
     ]
 
@@ -139,7 +167,7 @@ async def _estimate_macros(
     return {
         "name_en": result.name_en,
         "name_he": result.name_he,
-        "amount_g": result.amount_g_estimated,
+        "amount_g": resolved_amount_g,
         "calories": round(result.calories, 1),
         "protein": round(result.protein, 1),
         "carbs": round(result.carbs, 1),
@@ -149,8 +177,7 @@ async def _estimate_macros(
         "tag": result.tag,
         "serving_amount_g": None,
         "servings": None,
-        "default_unit": result.default_unit,
-        "default_unit_weight_g": result.default_unit_weight_g,
+        "amount_g_estimated": amount_g,
         "original_text": original_text,
         "food_id": None,
         "original_count": count,

@@ -65,8 +65,7 @@ async def test_commit_uses_log_food_consumed_at_when_set(async_test_db_session):
                 "tag": "lean",
                 "serving_amount_g": 100.0,
                 "servings": 1.0,
-                "default_unit": "g",
-                "default_unit_weight_g": None,
+                "amount_g_estimated": None,
                 "original_text": "100g chicken yesterday",
                 "food_id": SEED_FOOD_ID,
             }

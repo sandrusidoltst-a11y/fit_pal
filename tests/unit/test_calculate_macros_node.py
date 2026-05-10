@@ -27,8 +27,8 @@ def _macros_return(
     tag="lean",
     serving_amount_g=100.0,
     servings=2.0,
-    default_unit="g",
-    default_unit_weight_g=None,
+    unit_weights=None,
+    unit_synonyms=None,
 ):
     """Build a calculate_food_macros tool return-value dict."""
     return {
@@ -45,8 +45,8 @@ def _macros_return(
         "tag": tag,
         "serving_amount_g": serving_amount_g,
         "servings": servings,
-        "default_unit": default_unit,
-        "default_unit_weight_g": default_unit_weight_g,
+        "unit_weights": unit_weights if unit_weights is not None else {},
+        "unit_synonyms": unit_synonyms if unit_synonyms is not None else {},
     }
 
 
@@ -88,6 +88,7 @@ class TestCalculateMacrosDBPath:
                 "food_id": "00000000-0000-0000-0000-000000000001",
                 "count": 200.0,
                 "unit": "g",
+                "llm_estimated_amount_g": None,
             }
         )
 
@@ -150,7 +151,13 @@ class TestCalculateMacrosDBPath:
 
         basic_state.update({
             "pending_food_items": [
-                {"food_name": "egg", "count": 2.0, "unit": "piece", "original_text": "2 eggs"}
+                {
+                    "food_name": "egg",
+                    "count": 2.0,
+                    "unit": "piece",
+                    "amount_g": 100.0,
+                    "original_text": "2 eggs",
+                }
             ],
             "selected_food_id": "00000000-0000-0000-0000-000000000001",
         })
@@ -162,6 +169,7 @@ class TestCalculateMacrosDBPath:
                 "food_id": "00000000-0000-0000-0000-000000000001",
                 "count": 2.0,
                 "unit": "piece",
+                "llm_estimated_amount_g": 100.0,
             }
         )
 
@@ -184,8 +192,7 @@ class TestCalculateMacrosDBPath:
             "tag": None,
             "serving_amount_g": 100.0,
             "servings": 2.0,
-            "default_unit": "g",
-            "default_unit_weight_g": None,
+            "amount_g_estimated": None,
             "original_text": "200g rice",
             "food_id": "food-uuid-2",
         }
@@ -265,29 +272,27 @@ def _estimate_return(
     *,
     name_en="Pizza",
     name_he="פיצה",
-    amount_g_estimated=200.0,
     calories=540.0,
     protein=22.0,
     carbs=60.0,
     fat=22.0,
     category=None,
     tag=None,
-    default_unit="slice",
-    default_unit_weight_g=100.0,
 ):
-    """Build a MacroEstimation-shaped LLM mock return."""
+    """Build a MacroEstimation-shaped LLM mock return.
+
+    The LLM no longer emits weight-related fields — gram total comes from the
+    parser via PendingFoodItem.amount_g.
+    """
     m = MagicMock()
     m.name_en = name_en
     m.name_he = name_he
-    m.amount_g_estimated = amount_g_estimated
     m.calories = calories
     m.protein = protein
     m.carbs = carbs
     m.fat = fat
     m.category = category
     m.tag = tag
-    m.default_unit = default_unit
-    m.default_unit_weight_g = default_unit_weight_g
     return m
 
 
@@ -324,15 +329,12 @@ class TestCalculateMacrosEstimationPath:
             _estimate_return(
                 name_en="homemade pizza",
                 name_he=None,
-                amount_g_estimated=300.0,
                 calories=750.0,
                 protein=30.0,
                 carbs=85.0,
                 fat=32.0,
                 category=None,
                 tag=None,
-                default_unit=None,
-                default_unit_weight_g=None,
             )
         )
         try:
@@ -350,20 +352,26 @@ class TestCalculateMacrosEstimationPath:
 
     async def test_estimation_grams_input_passes_count_through(self, basic_state):
         """
-        arrange: pending_food_items=[{count:300, unit:"g", food_name:"pizza"}],
-                 selected_food_id=None; mock LLM returns amount_g_estimated=300.
+        arrange: pending_food_items=[{count:300, unit:"g", food_name:"pizza", amount_g:null}],
+                 selected_food_id=None.
         act:     run calculate_macros_node.
-        assert:  resulting MacroResult has amount_g=300, original_count=300,
-                 original_unit="g".
+        assert:  resulting MacroResult has amount_g=300 (parser count, gram-native),
+                 original_count=300, original_unit="g", amount_g_estimated=null.
         """
         basic_state.update({
             "pending_food_items": [
-                {"food_name": "pizza", "count": 300.0, "unit": "g", "original_text": "300g pizza"}
+                {
+                    "food_name": "pizza",
+                    "count": 300.0,
+                    "unit": "g",
+                    "amount_g": None,
+                    "original_text": "300g pizza",
+                }
             ],
             "selected_food_id": None,
         })
 
-        patcher, _ = _patch_estimation_llm(_estimate_return(amount_g_estimated=300.0))
+        patcher, _ = _patch_estimation_llm(_estimate_return())
         try:
             result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
         finally:
@@ -373,31 +381,30 @@ class TestCalculateMacrosEstimationPath:
         assert macro["amount_g"] == 300.0
         assert macro["original_count"] == 300.0
         assert macro["original_unit"] == "g"
+        assert macro["amount_g_estimated"] is None
 
-    async def test_estimation_natural_unit_uses_llm_amount_g(self, basic_state):
+    async def test_estimation_natural_unit_uses_parser_amount_g(self, basic_state):
         """
-        arrange: pending_food_items=[{count:2, unit:"slice", food_name:"pizza"}];
-                 mock LLM returns amount_g_estimated=200, default_unit_weight_g=100,
-                 calories=540.
+        arrange: pending_food_items=[{count:2, unit:"slice", food_name:"pizza", amount_g:200}].
         act:     run calculate_macros_node.
-        assert:  MacroResult.amount_g=200 (from LLM, not 2g),
-                 original_count=2, original_unit="slice", calories=540.
+        assert:  MacroResult.amount_g=200 (from parser, not 2g),
+                 original_count=2, original_unit="slice",
+                 amount_g_estimated=200, calories=540.
         """
         basic_state.update({
             "pending_food_items": [
-                {"food_name": "pizza", "count": 2.0, "unit": "slice", "original_text": "2 slices pizza"}
+                {
+                    "food_name": "pizza",
+                    "count": 2.0,
+                    "unit": "slice",
+                    "amount_g": 200.0,
+                    "original_text": "2 slices pizza",
+                }
             ],
             "selected_food_id": None,
         })
 
-        patcher, _ = _patch_estimation_llm(
-            _estimate_return(
-                amount_g_estimated=200.0,
-                calories=540.0,
-                default_unit="slice",
-                default_unit_weight_g=100.0,
-            )
-        )
+        patcher, _ = _patch_estimation_llm(_estimate_return(calories=540.0))
         try:
             result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
         finally:
@@ -407,6 +414,7 @@ class TestCalculateMacrosEstimationPath:
         assert macro["amount_g"] == 200.0
         assert macro["original_count"] == 2.0
         assert macro["original_unit"] == "slice"
+        assert macro["amount_g_estimated"] == 200.0
         assert macro["calories"] == 540.0
 
     async def test_estimation_call_passes_count_and_unit_in_human_message(

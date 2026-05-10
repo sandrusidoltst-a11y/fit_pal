@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Uuid, String, Float, Integer, DateTime, Text, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
 
 
@@ -20,8 +21,8 @@ class FoodItem(Base):
     protein: Mapped[Optional[float]] = mapped_column(Float)
     fat: Mapped[Optional[float]] = mapped_column(Float)
     carbs: Mapped[Optional[float]] = mapped_column(Float)
-    default_unit: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    default_unit_weight_g: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    unit_weights: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    unit_synonyms: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     source: Mapped[str] = mapped_column(String, nullable=False, server_default="database")
     user_id: Mapped[Optional[uuid_mod.UUID]] = mapped_column(Uuid, nullable=True, index=True)
 

@@ -98,8 +98,8 @@ async def async_test_db_session():
             protein=31.0,
             fat=3.6,
             carbs=0.0,
-            default_unit="g",
-            default_unit_weight_g=None,
+            unit_weights={},
+            unit_synonyms={},
             source="database",
             user_id=None,  # shared database food
         )
