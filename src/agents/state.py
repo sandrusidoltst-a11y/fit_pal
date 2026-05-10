@@ -15,6 +15,7 @@ class PendingFoodItem(TypedDict):
     food_name: str
     count: float
     unit: str
+    amount_g: Optional[float]
     original_text: str
 
 
@@ -124,8 +125,7 @@ class MacroResult(TypedDict):
     tag: Optional[str]
     serving_amount_g: Optional[float]
     servings: Optional[float]
-    default_unit: Optional[str]
-    default_unit_weight_g: Optional[float]
+    amount_g_estimated: Optional[float]   # parser's LLM estimate, carried for edit-side fallback
     original_text: str
     food_id: Optional[str]
     original_count: float

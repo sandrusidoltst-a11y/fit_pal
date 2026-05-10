@@ -4,18 +4,13 @@ from pydantic import BaseModel, Field
 
 
 class MacroEstimation(BaseModel):
-    """Structured output for LLM macro estimation of off-menu foods."""
+    """Structured output for LLM macro estimation of off-menu foods.
 
-    amount_g_estimated: float = Field(
-        ...,
-        description=(
-            "The total gram amount you used to compute the macros below. "
-            "If the input unit was 'g', this equals the input count. "
-            "If the input unit was a natural unit (slice, piece, cup, etc.), "
-            "this MUST equal count × default_unit_weight_g (i.e., the gram total "
-            "for the user's stated quantity). Macros must be for THIS gram amount."
-        ),
-    )
+    Weight is supplied by the input parser via SingleFoodItem.amount_g — this
+    schema only estimates per-amount macros plus bilingual names + coach
+    category/tag hints.
+    """
+
     calories: float = Field(
         ..., description="Estimated calories (kcal) for the given amount in grams"
     )
@@ -43,14 +38,4 @@ class MacroEstimation(BaseModel):
     tag: Optional[Literal["lean", "medium", "fatty"]] = Field(
         default=None,
         description="Optional protein tag. Null if not a protein or uncertain.",
-    )
-    default_unit: Optional[
-        Literal["g", "piece", "slice", "scoop", "bottle", "cup", "tbsp", "tsp", "can"]
-    ] = Field(
-        default=None,
-        description="The natural unit a user would say for this food (e.g., 'piece' for eggs).",
-    )
-    default_unit_weight_g: Optional[float] = Field(
-        default=None,
-        description="Grams per one natural unit (e.g., 50 for one egg).",
     )

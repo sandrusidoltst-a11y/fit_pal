@@ -34,8 +34,7 @@ SAMPLE_BATCH = [
         "tag": "lean",
         "serving_amount_g": 100.0,
         "servings": 2.0,
-        "default_unit": "g",
-        "default_unit_weight_g": None,
+        "amount_g_estimated": None,
         "original_text": "200g chicken",
         "food_id": "food-uuid-1",
         "original_count": 200,
@@ -54,8 +53,7 @@ SAMPLE_BATCH = [
         "tag": None,
         "serving_amount_g": None,
         "servings": None,
-        "default_unit": "slice",
-        "default_unit_weight_g": 100.0,
+        "amount_g_estimated": 300.0,
         "original_text": "3 slices of pizza",
         "food_id": None,
         "original_count": 3,
@@ -302,8 +300,7 @@ class TestConfirmationNodeEdit:
                 "tag": "lean",
                 "serving_amount_g": 100.0,
                 "servings": 2.0,
-                "default_unit": "g",
-                "default_unit_weight_g": None,
+                "amount_g_estimated": None,
                 "original_text": "200g chicken",
                 "food_id": "food-uuid-1",
                 "original_count": 200,
@@ -362,7 +359,12 @@ class TestConfirmationNodeEdit:
         assert result.update["pending_confirmations"][0]["amount_g"] == 150
         # Verify the edit called the tool with the new (count, unit) signature
         mock_calc.ainvoke.assert_called_once_with(
-            {"food_id": "food-uuid-1", "count": 150.0, "unit": "g"}
+            {
+                "food_id": "food-uuid-1",
+                "count": 150.0,
+                "unit": "g",
+                "llm_estimated_amount_g": None,
+            }
         )
 
     async def test_edit_natural_unit_db_item(self, basic_state):
@@ -386,8 +388,7 @@ class TestConfirmationNodeEdit:
                 "tag": "fatty",
                 "serving_amount_g": 25.0,
                 "servings": 2.0,
-                "default_unit": "slice",
-                "default_unit_weight_g": 25.0,
+                "amount_g_estimated": 50.0,
                 "original_text": "2 slices of cheese",
                 "food_id": "food-uuid-cheese",
                 "original_count": 2,
@@ -427,7 +428,12 @@ class TestConfirmationNodeEdit:
             result = await confirmation_node(basic_state, TEST_RUNTIME_A)
 
         mock_calc.ainvoke.assert_called_once_with(
-            {"food_id": "food-uuid-cheese", "count": 3, "unit": "slice"}
+            {
+                "food_id": "food-uuid-cheese",
+                "count": 3,
+                "unit": "slice",
+                "llm_estimated_amount_g": None,
+            }
         )
         assert isinstance(result, Command)
         item = result.update["pending_confirmations"][0]
@@ -437,9 +443,9 @@ class TestConfirmationNodeEdit:
 
     async def test_edit_estimated_unit_conversion(self, basic_state):
         """
-        arrange: estimated item with default_unit="slice", default_unit_weight_g=100;
-                 amount_g=200, calories=540 (i.e. 2 slices baseline);
-                 user edits "make it 3 slices".
+        arrange: estimated item with original_unit="slice", amount_g=200,
+                 calories=540 (i.e. 2 slices baseline of 100g each);
+                 user edits "make it 3 slices" (same unit → proportional scale).
         act:     run confirmation_node, then confirm.
         assert:  amount_g = 300; macros scaled proportionally (×1.5);
                  original_count=3, original_unit="slice".
@@ -458,8 +464,7 @@ class TestConfirmationNodeEdit:
                 "tag": None,
                 "serving_amount_g": None,
                 "servings": None,
-                "default_unit": "slice",
-                "default_unit_weight_g": 100.0,
+                "amount_g_estimated": 200.0,
                 "original_text": "2 slices pizza",
                 "food_id": None,
                 "original_count": 2,
@@ -490,9 +495,11 @@ class TestConfirmationNodeEdit:
 
     async def test_edit_estimated_unit_mismatch_surfaces_error(self, basic_state):
         """
-        arrange: estimated item with default_unit="slice"; user edits "make it 1 cup".
+        arrange: estimated item (original_unit="slice"); user edits "make it 1 cup"
+                 with no new_amount_g safety net from the parser.
         act:     run confirmation_node; first decision is the bad edit, second confirms.
-        assert:  item is unchanged; processing_results contains a FAILED entry.
+        assert:  item is unchanged; processing_results contains a FAILED entry
+                 from the resolver's last-resort branch.
         """
         basic_state["pending_confirmations"] = [
             {
@@ -508,8 +515,7 @@ class TestConfirmationNodeEdit:
                 "tag": None,
                 "serving_amount_g": None,
                 "servings": None,
-                "default_unit": "slice",
-                "default_unit_weight_g": 100.0,
+                "amount_g_estimated": 200.0,
                 "original_text": "2 slices pizza",
                 "food_id": None,
                 "original_count": 2,
@@ -541,7 +547,7 @@ class TestConfirmationNodeEdit:
         failed = result.update["processing_results"]
         assert len(failed) == 1
         assert failed[0]["status"] == "FAILED"
-        assert "slice" in failed[0]["message"] or "grams" in failed[0]["message"]
+        assert "Could not resolve" in failed[0]["message"]
 
 
 class TestConfirmationNodeEdgeCases:

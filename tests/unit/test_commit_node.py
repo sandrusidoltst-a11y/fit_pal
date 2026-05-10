@@ -30,8 +30,7 @@ def _macro(
     tag=None,
     serving_amount_g=None,
     servings=None,
-    default_unit="g",
-    default_unit_weight_g=None,
+    amount_g_estimated=None,
 ):
     """Build a MacroResult dict for commit_node fixtures."""
     return {
@@ -47,8 +46,7 @@ def _macro(
         "tag": tag,
         "serving_amount_g": serving_amount_g,
         "servings": servings,
-        "default_unit": default_unit,
-        "default_unit_weight_g": default_unit_weight_g,
+        "amount_g_estimated": amount_g_estimated,
         "original_text": original_text or f"{amount_g}g {name_en}",
         "food_id": food_id,
     }

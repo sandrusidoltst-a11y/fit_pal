@@ -19,11 +19,23 @@ class SingleFoodItem(BaseModel):
         ...,
         description="Numeric quantity in the given unit (e.g., 2 for '2 eggs', 200 for '200g chicken')",
     )
-    unit: Literal[
-        "g", "piece", "slice", "scoop", "bottle", "cup", "tbsp", "tsp", "can"
-    ] = Field(
+    unit: str = Field(
         default="g",
-        description="Unit of measurement. 'g' for grams; natural units otherwise.",
+        description=(
+            "Unit of measurement, verbatim from user input. 'g' for grams; "
+            "any natural unit otherwise (piece, slice, bowl, wedge, etc.). "
+            "No fixed enum — emit what the user said, in singular English form "
+            "when an obvious equivalent exists; otherwise the user's word."
+        ),
+    )
+    amount_g: Optional[float] = Field(
+        default=None,
+        description=(
+            "Required when unit != 'g'. Your best estimate of the TOTAL gram "
+            "weight for the user's stated quantity (count × per-unit weight). "
+            "Acts as the resolver's safety net when the food's curated "
+            "unit_weights doesn't contain this unit."
+        ),
     )
     original_text: str = Field(
         ..., description="The original text description of the food item"

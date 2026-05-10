@@ -64,9 +64,13 @@ def _format_batch_preview(
         if item["original_unit"] == "g":
             description = f"{name} — {item['amount_g']}g{source_tag}"
         else:
-            label = MESSAGES[
-                _unit_label_key(item["original_unit"], item["original_count"])
-            ]
+            # Defensive i18n lookup — natural units are now free-form, so the
+            # MESSAGES table won't always have a singular/plural label entry.
+            # Render the raw unit string as a graceful fallback.
+            label = MESSAGES.get(
+                _unit_label_key(item["original_unit"], item["original_count"]),
+                item["original_unit"],
+            )
             description = (
                 f"{name} — {item['original_count']:g} {label} "
                 f"({item['amount_g']}g){source_tag}"
@@ -269,12 +273,14 @@ async def _apply_edits(
         )
 
         if item["food_id"] is not None:
-            # DB item — recalculate via tool with the new (count, unit).
+            # DB item — recalculate via tool with the new (count, unit) and
+            # the parser's amount_g safety net for unknown units.
             macros = await calculate_food_macros.ainvoke(
                 {
                     "food_id": item["food_id"],
                     "count": edit.new_count,
                     "unit": edit.new_unit,
+                    "llm_estimated_amount_g": edit.new_amount_g,
                 }
             )
             if "error" not in macros:
@@ -289,21 +295,25 @@ async def _apply_edits(
             else:
                 edit_errors.append(_surface_edit_error(item, edit, macros["error"]))
         else:
-            # Estimated item — convert (count, unit) to grams using the
-            # item's default_unit_weight_g; scale macros proportionally.
+            # Estimated item — no FoodItem row to look up. Resolve new grams
+            # via the same chain: explicit grams → confirmation parser estimate
+            # → proportional scale from original (only when unit is unchanged).
             if edit.new_unit == "g":
                 new_grams = edit.new_count
+            elif edit.new_amount_g is not None:
+                new_grams = edit.new_amount_g
             elif (
-                edit.new_unit == item.get("default_unit")
-                and item.get("default_unit_weight_g")
+                edit.new_unit == item.get("original_unit")
+                and item["original_count"] > 0
             ):
-                new_grams = edit.new_count * item["default_unit_weight_g"]
+                # Same unit as original — scale proportionally from per-unit gram weight.
+                new_grams = (item["amount_g"] / item["original_count"]) * edit.new_count
             else:
                 edit_errors.append(
                     _surface_edit_error(
                         item,
                         edit,
-                        f"Can only edit in grams or {item.get('default_unit')}",
+                        "Could not resolve unit for estimated item",
                     )
                 )
                 continue

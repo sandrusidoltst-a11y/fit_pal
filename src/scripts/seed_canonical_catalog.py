@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import csv
+import json
 import os
 import sys
 
@@ -51,6 +52,23 @@ def _clean_str(value):
     return stripped if stripped else None
 
 
+def _to_json_dict(value, default: dict | None = None) -> dict:
+    """Parse a JSON-encoded dict from a CSV cell; empty/missing → default ({})."""
+    base: dict = {} if default is None else default
+    if value is None:
+        return dict(base)
+    text_value = value.strip() if isinstance(value, str) else value
+    if not text_value:
+        return dict(base)
+    try:
+        parsed = json.loads(text_value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in CSV cell: {value!r}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected JSON object, got {type(parsed).__name__}: {value!r}")
+    return parsed
+
+
 def parse_csv() -> list[dict]:
     """Parse the canonical food catalog CSV. Returns one dict per row."""
     items = []
@@ -63,8 +81,8 @@ def parse_csv() -> list[dict]:
                     "name_he": _clean_str(row["name_he"]),
                     "category": _clean_str(row["category"]),
                     "tag": _clean_str(row["tag"]),
-                    "default_unit": _clean_str(row["default_unit"]),
-                    "default_unit_weight_g": _to_float(row["default_unit_weight_g"]),
+                    "unit_weights": _to_json_dict(row.get("unit_weights")),
+                    "unit_synonyms": _to_json_dict(row.get("unit_synonyms")),
                     "serving_amount_g": _to_float(row["serving_amount_g"]),
                     "calories": _to_float(row["calories_per_100g"]),
                     "protein": _to_float(row["protein_per_100g"]),
@@ -107,11 +125,11 @@ def seed_supabase(items: list[dict]) -> tuple[int, int]:
                     """
                     INSERT INTO food_items (
                         name_en, name_he, calories, protein, fat, carbs,
-                        default_unit, default_unit_weight_g, source
+                        unit_weights, unit_synonyms, source
                     )
                     VALUES (
                         :name_en, :name_he, :calories, :protein, :fat, :carbs,
-                        :default_unit, :default_unit_weight_g, 'database'
+                        CAST(:unit_weights AS jsonb), CAST(:unit_synonyms AS jsonb), 'database'
                     )
                     RETURNING id
                     """
@@ -123,8 +141,8 @@ def seed_supabase(items: list[dict]) -> tuple[int, int]:
                     "protein": item["protein"],
                     "fat": item["fat"],
                     "carbs": item["carbs"],
-                    "default_unit": item["default_unit"],
-                    "default_unit_weight_g": item["default_unit_weight_g"],
+                    "unit_weights": json.dumps(item["unit_weights"], ensure_ascii=False),
+                    "unit_synonyms": json.dumps(item["unit_synonyms"], ensure_ascii=False),
                 },
             )
             food_id = food_result.scalar_one()

@@ -28,23 +28,47 @@ logger = structlog.get_logger(__name__)
 # Pure helpers — no DB, no I/O
 # ---------------------------------------------------------------------------
 
-def resolve_amount_g(food: FoodItem, unit: str, count: float) -> float:
-    """Convert a (unit, count) tuple to grams using the food's unit definition.
+def resolve_amount_g(
+    food: FoodItem,
+    unit: str,
+    count: float,
+    llm_estimated_amount_g: Optional[float] = None,
+) -> float:
+    """Convert (unit, count) to grams via the multi-unit resolver chain.
 
-    - unit == "g": count is already grams → return count
-    - food has no default_unit/weight: fall back to treating count as grams
-    - unit matches food.default_unit: return count * food.default_unit_weight_g
-    - unit mismatch: raise ValueError (caller handles as FAILED processing result)
+    Order:
+        1. unit == "g"            → count (grams passthrough)
+        2. unit in unit_weights   → count * unit_weights[unit]
+        3. unit in unit_synonyms  → count * unit_weights[unit_synonyms[unit]]
+        4. llm_estimated_amount_g → use as-is (parser estimate is already a total)
+        5. last-resort fallback   → count (logs warning; preserves prior behavior
+           rather than raising so the bot never crashes on unknown units)
     """
     if unit == "g":
         return count
-    if food.default_unit is None or food.default_unit_weight_g is None:
-        return count
-    if unit != food.default_unit:
-        raise ValueError(
-            f"Unit mismatch: user gave {unit!r}, food {food.name_en!r} expects {food.default_unit!r}"
+
+    weights = food.unit_weights or {}
+    if unit in weights:
+        return count * weights[unit]
+
+    synonyms = food.unit_synonyms or {}
+    if unit in synonyms:
+        canonical = synonyms[unit]
+        if canonical in weights:
+            return count * weights[canonical]
+        logger.warning(
+            "resolve_amount_g synonym points to missing key",
+            food=food.name_en, unit=unit, canonical=canonical,
         )
-    return count * food.default_unit_weight_g
+
+    if llm_estimated_amount_g is not None:
+        return llm_estimated_amount_g
+
+    logger.warning(
+        "resolve_amount_g last-resort fallback",
+        food=food.name_en, unit=unit, count=count,
+    )
+    return count
 
 
 def compute_servings(amount_g: float, serving_amount_g: Optional[float]) -> Optional[float]:
@@ -77,8 +101,8 @@ def compute_food_macros(
         "protein": round((food.protein or 0.0) * ratio, 2),
         "fat": round((food.fat or 0.0) * ratio, 2),
         "carbs": round((food.carbs or 0.0) * ratio, 2),
-        "default_unit": food.default_unit,
-        "default_unit_weight_g": food.default_unit_weight_g,
+        "unit_weights": food.unit_weights,
+        "unit_synonyms": food.unit_synonyms,
         "category": mapping.category if mapping else None,
         "tag": mapping.tag if mapping else None,
         "serving_amount_g": mapping.serving_amount_g if mapping else None,
@@ -185,8 +209,8 @@ async def create_food_item_record(
     carbs_per_100g: float,
     fat_per_100g: float,
     user_id: str,
-    default_unit: Optional[str] = None,
-    default_unit_weight_g: Optional[float] = None,
+    unit_weights: Optional[dict] = None,
+    unit_synonyms: Optional[dict] = None,
     category: Optional[str] = None,
     tag: Optional[str] = None,
     serving_amount_g: Optional[float] = None,
@@ -205,8 +229,8 @@ async def create_food_item_record(
         protein=protein_per_100g,
         fat=fat_per_100g,
         carbs=carbs_per_100g,
-        default_unit=default_unit,
-        default_unit_weight_g=default_unit_weight_g,
+        unit_weights=unit_weights or {},
+        unit_synonyms=unit_synonyms or {},
         source=source,
         user_id=uuid_mod.UUID(user_id) if user_id else None,
     )
@@ -243,7 +267,7 @@ def _serialize_food_candidate(
     """Convert (FoodItem, Optional[CoachFoodMapping]) tuple into a minimal
     JSON-safe candidate dict for selection_node.
 
-    Intentionally omits serving_amount_g / default_unit / default_unit_weight_g:
+    Intentionally omits serving_amount_g / unit_weights / unit_synonyms:
     selection doesn't use them, and calculate_food_macros fetches them fresh
     via get_food_by_id.
     """
@@ -282,17 +306,23 @@ async def search_food(query: str, user_id: str) -> list[dict]:
 
 
 @tool
-async def calculate_food_macros(food_id: str, count: float, unit: str = "g") -> dict:
+async def calculate_food_macros(
+    food_id: str,
+    count: float,
+    unit: str = "g",
+    llm_estimated_amount_g: Optional[float] = None,
+) -> dict:
     """Calculate nutritional values + coach mapping fields for a food item at a given (count, unit).
 
-    Resolves (count, unit) to grams internally via resolve_amount_g — unit="g"
-    always passes through; any other unit must match the food's configured
-    default_unit, otherwise returns ``{"error": "Unit mismatch: ..."}``.
+    Resolves (count, unit) to grams via the multi-unit resolver chain:
+    `unit_weights` direct hit → `unit_synonyms` redirect → caller-supplied
+    `llm_estimated_amount_g` safety net → last-resort fall-through. Never
+    raises on unknown units; downstream macros are always computed from
+    whatever gram amount the resolver produced.
 
     Returns a dict with: name_en, name_he, amount_g (resolved), calories, protein,
-    fat, carbs, source, category, tag, serving_amount_g, servings, default_unit,
-    default_unit_weight_g. Returns ``{"error": "..."}`` if food is not found or
-    unit resolution fails.
+    fat, carbs, source, category, tag, serving_amount_g, servings, unit_weights,
+    unit_synonyms. Returns ``{"error": "..."}`` only when the food id is missing.
     """
     async with get_async_db_session() as session:
         result = await get_food_by_id(session, food_id)
@@ -300,14 +330,7 @@ async def calculate_food_macros(food_id: str, count: float, unit: str = "g") -> 
             logger.warning("calculate_food_macros: food not found", food_id=food_id)
             return {"error": f"Food item with ID {food_id} not found"}
         food, mapping = result
-        try:
-            amount_g = resolve_amount_g(food, unit, count)
-        except ValueError as e:
-            logger.warning(
-                "calculate_food_macros: unit resolution failed",
-                food_id=food_id, food=food.name_en, unit=unit, count=count,
-            )
-            return {"error": str(e)}
+        amount_g = resolve_amount_g(food, unit, count, llm_estimated_amount_g)
         return compute_food_macros(food, mapping, amount_g)
 
 
@@ -320,8 +343,8 @@ async def create_food_item(
     fat_per_100g: float,
     user_id: str,
     name_he: Optional[str] = None,
-    default_unit: Optional[str] = None,
-    default_unit_weight_g: Optional[float] = None,
+    unit_weights: Optional[dict] = None,
+    unit_synonyms: Optional[dict] = None,
     category: Optional[str] = None,
     tag: Optional[str] = None,
     serving_amount_g: Optional[float] = None,
@@ -343,8 +366,8 @@ async def create_food_item(
             carbs_per_100g=carbs_per_100g,
             fat_per_100g=fat_per_100g,
             user_id=user_id,
-            default_unit=default_unit,
-            default_unit_weight_g=default_unit_weight_g,
+            unit_weights=unit_weights,
+            unit_synonyms=unit_synonyms,
             category=category,
             tag=tag,
             serving_amount_g=serving_amount_g,
