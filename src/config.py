@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -33,6 +33,42 @@ def serialize_timestamp(ts: datetime | None) -> str | None:
     if ts is None:
         return None
     return ts.astimezone(USER_TIMEZONE).isoformat()
+
+
+def day_bounds_utc(target_date: date, tz: ZoneInfo = USER_TIMEZONE) -> tuple[datetime, datetime]:
+    """Return [start_utc, end_utc) UTC bounds for ``target_date`` in ``tz``.
+
+    Midnight in ``tz`` is unambiguous on DST transition days, so this is safe
+    to call for any local date without DST hour-folding concerns.
+    """
+    start_local = datetime.combine(target_date, time.min, tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+
+
+def timestamp_in_local_day(column, target_date: date, tz: ZoneInfo = USER_TIMEZONE):
+    """SQLAlchemy predicate: ``column`` falls within the local-tz day for ``target_date``.
+
+    Use this instead of ``func.date(column) == target_date`` for any TIMESTAMPTZ
+    column whose intended day-bucketing is in user-local time. ``func.date`` on a
+    TIMESTAMPTZ extracts the date in the DB session timezone (UTC on Supabase),
+    which silently drops late-night-local entries from "today" queries.
+    """
+    start, end = day_bounds_utc(target_date, tz)
+    return (column >= start) & (column < end)
+
+
+def timestamp_in_local_day_range(
+    column, start_date: date, end_date: date, tz: ZoneInfo = USER_TIMEZONE
+):
+    """SQLAlchemy predicate: ``column`` falls within ``[start_date, end_date]`` inclusive in ``tz``.
+
+    The end bound is converted to the *next* day's UTC start, preserving the
+    inclusive-end semantics of the original ``func.date(...) <= end_date`` form.
+    """
+    start, _ = day_bounds_utc(start_date, tz)
+    _, end = day_bounds_utc(end_date, tz)
+    return (column >= start) & (column < end)
 
 
 _supabase_url = os.getenv("SUPABASE_DB_URL")
