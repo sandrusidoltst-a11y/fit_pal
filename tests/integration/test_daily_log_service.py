@@ -1,7 +1,7 @@
 """Unit tests for the daily_log_service async CRUD operations."""
 
 import uuid as uuid_mod
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 
@@ -711,3 +711,108 @@ class TestGetLogsByDateRangeWithMappings:
         assert "user A log" not in b_originals
         assert "user B log" in b_originals
         assert "user B log" not in a_originals
+
+
+# ---------------------------------------------------------------------------
+# Regression: UTC-midnight boundary
+#
+# A log saved at 01:30 Asia/Jerusalem is ~22:30 UTC on the *previous* day. The
+# old `func.date(timestamp) == target_date` predicate evaluated `date()` in the
+# DB session timezone (UTC on Supabase), so this entry would silently fall on
+# the previous UTC date and be excluded from "today's logs" queries. These
+# tests guard the helper-based fix (timestamp_in_local_day / _range).
+# ---------------------------------------------------------------------------
+
+async def test_get_logs_by_date_returns_post_midnight_israel_local(async_test_db_session):
+    """A log written at 01:30 Israel-local (≈22:30 UTC prev day) belongs to today."""
+    target_local_date = date(2026, 5, 10)
+    local_dt = datetime.combine(target_local_date, time(1, 30), tzinfo=USER_TIMEZONE)
+    utc_ts = local_dt.astimezone(timezone.utc)
+    # Sanity: the UTC date is the previous day — confirms the bug condition.
+    assert utc_ts.date() != target_local_date
+
+    await create_log_entry(
+        async_test_db_session,
+        user_id=TEST_USER_A,
+        food_id=SEED_FOOD_ID,
+        amount_g=100.0, calories=100.0, protein=10.0, carbs=10.0, fat=2.0,
+        timestamp=utc_ts,
+        meal_type="snack",
+        original_text="late-night Israel-local snack",
+    )
+
+    logs = await get_logs_by_date(async_test_db_session, TEST_USER_A, target_local_date)
+    originals = {log.original_text for log in logs}
+    assert "late-night Israel-local snack" in originals
+
+
+async def test_get_daily_totals_includes_post_midnight_israel_local(async_test_db_session):
+    """Totals on the Israel-local date must include a 22:30 UTC (prev-day) entry.
+
+    TEST_USER_B may carry pre-existing real logs on this date, so we assert the
+    delta after insert rather than an absolute total — what matters is that the
+    boundary entry is *counted*.
+    """
+    target_local_date = date(2026, 5, 10)
+    local_dt = datetime.combine(target_local_date, time(2, 0), tzinfo=USER_TIMEZONE)
+    utc_ts = local_dt.astimezone(timezone.utc)
+
+    before = await get_daily_totals(async_test_db_session, TEST_USER_B, target_local_date)
+
+    await create_log_entry(
+        async_test_db_session,
+        user_id=TEST_USER_B,
+        food_id=SEED_FOOD_ID,
+        amount_g=100.0, calories=250.0, protein=20.0, carbs=30.0, fat=5.0,
+        timestamp=utc_ts,
+        original_text="late-night totals entry",
+    )
+
+    after = await get_daily_totals(async_test_db_session, TEST_USER_B, target_local_date)
+    assert after["calories"] - before["calories"] == pytest.approx(250.0)
+    assert after["protein"] - before["protein"] == pytest.approx(20.0)
+
+
+async def test_get_logs_by_date_range_returns_post_midnight_israel_local(async_test_db_session):
+    """Single-day range query must also include the post-midnight Israel-local entry."""
+    target_local_date = date(2026, 5, 10)
+    local_dt = datetime.combine(target_local_date, time(1, 30), tzinfo=USER_TIMEZONE)
+    utc_ts = local_dt.astimezone(timezone.utc)
+
+    await create_log_entry(
+        async_test_db_session,
+        user_id=TEST_USER_B,
+        food_id=SEED_FOOD_ID,
+        amount_g=100.0, calories=100.0, protein=10.0, carbs=10.0, fat=2.0,
+        timestamp=utc_ts,
+        original_text="range boundary entry",
+    )
+
+    rows = await get_logs_by_date_range(
+        async_test_db_session, TEST_USER_B, target_local_date, target_local_date
+    )
+    originals = {log.original_text for log in rows}
+    assert "range boundary entry" in originals
+
+
+async def test_get_logs_by_date_with_mappings_returns_post_midnight_israel_local(async_test_db_session):
+    """Mappings join must also see the post-midnight Israel-local entry."""
+    target_local_date = date(2026, 5, 10)
+    local_dt = datetime.combine(target_local_date, time(2, 30), tzinfo=USER_TIMEZONE)
+    utc_ts = local_dt.astimezone(timezone.utc)
+
+    await create_log_entry(
+        async_test_db_session,
+        user_id=TEST_USER_B,
+        food_id=SEED_FOOD_ID,
+        amount_g=100.0, calories=120.0, protein=12.0, carbs=15.0, fat=3.0,
+        timestamp=utc_ts,
+        original_text="mappings boundary entry",
+    )
+
+    rows = await get_logs_by_date_with_mappings(
+        async_test_db_session, TEST_USER_B, target_local_date
+    )
+    originals = {log.original_text for log, _ in rows}
+    assert "mappings boundary entry" in originals
+

@@ -49,7 +49,8 @@ class DailyLog(Base):
     carbs: Mapped[float] = mapped_column(Float, nullable=False)
     fat: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # Temporal data
+    # Temporal data — filter by local-day via timestamp_in_local_day from src.config.
+    # Never use func.date(timestamp) == ...: it evaluates in the DB session timezone (UTC), not user-local.
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     meal_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 

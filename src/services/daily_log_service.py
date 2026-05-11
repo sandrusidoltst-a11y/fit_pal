@@ -17,7 +17,12 @@ from langchain_core.tools import tool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import DEFAULT_COACH_ID, serialize_timestamp
+from src.config import (
+    DEFAULT_COACH_ID,
+    serialize_timestamp,
+    timestamp_in_local_day,
+    timestamp_in_local_day_range,
+)
 from src.database import get_async_db_session
 from src.models import CoachFoodMapping, DailyLog
 
@@ -93,7 +98,7 @@ async def get_daily_totals(session: AsyncSession, user_id: str, target_date: dat
         func.coalesce(func.sum(DailyLog.fat), 0.0).label("fat"),
     ).where(
         DailyLog.user_id == uuid_mod.UUID(user_id),
-        func.date(DailyLog.timestamp) == target_date,
+        timestamp_in_local_day(DailyLog.timestamp, target_date),
     )
 
     result = (await session.execute(stmt)).one()
@@ -122,7 +127,7 @@ async def get_logs_by_date(session: AsyncSession, user_id: str, target_date: dat
         select(DailyLog)
         .where(
             DailyLog.user_id == uuid_mod.UUID(user_id),
-            func.date(DailyLog.timestamp) == target_date,
+            timestamp_in_local_day(DailyLog.timestamp, target_date),
         )
         .order_by(DailyLog.timestamp)
     )
@@ -151,7 +156,7 @@ async def get_logs_by_date_with_mappings(
         )
         .where(
             DailyLog.user_id == uuid_mod.UUID(user_id),
-            func.date(DailyLog.timestamp) == target_date,
+            timestamp_in_local_day(DailyLog.timestamp, target_date),
         )
         .order_by(DailyLog.timestamp)
     )
@@ -182,8 +187,7 @@ async def get_logs_by_date_range_with_mappings(
         )
         .where(
             DailyLog.user_id == uuid_mod.UUID(user_id),
-            func.date(DailyLog.timestamp) >= start_date,
-            func.date(DailyLog.timestamp) <= end_date,
+            timestamp_in_local_day_range(DailyLog.timestamp, start_date, end_date),
         )
         .order_by(DailyLog.timestamp)
     )
@@ -210,8 +214,7 @@ async def get_logs_by_date_range(
         select(DailyLog)
         .where(
             DailyLog.user_id == uuid_mod.UUID(user_id),
-            func.date(DailyLog.timestamp) >= start_date,
-            func.date(DailyLog.timestamp) <= end_date,
+            timestamp_in_local_day_range(DailyLog.timestamp, start_date, end_date),
         )
         .order_by(DailyLog.timestamp)
     )
