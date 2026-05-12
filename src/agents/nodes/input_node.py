@@ -12,7 +12,7 @@ from src.schemas.input_schema import (
     LogPersonalStatsEvent,
     QueryFoodInfoEvent,
     QueryStatsEvent,
-    UserIntent,
+    UserIntentEvent,
 )
 
 logger = structlog.get_logger(__name__)
@@ -43,7 +43,7 @@ async def input_parser_node(state: AgentState):
     Node to parse user input into structured food intake data.
     """
     llm = get_llm_for_node("input_node")
-    structured_llm = llm.with_structured_output(UserIntent)
+    structured_llm = llm.with_structured_output(UserIntentEvent)
 
     # Get the last message from the user
     last_message = state["messages"][-1]
@@ -60,7 +60,7 @@ async def input_parser_node(state: AgentState):
 
     # Invoke LLM — discriminated union wrapped in `event`; unwrap to variant.
     # `hasattr(..., "action")` distinguishes a bare variant (mocked in unit
-    # tests) from the UserIntent wrapper (returned by the real LLM).
+    # tests) from the UserIntentEvent wrapper (returned by the real LLM).
     parsed = await structured_llm.ainvoke(messages)
     result = parsed if hasattr(parsed, "action") else parsed.event
 
@@ -91,7 +91,9 @@ async def input_parser_node(state: AgentState):
 
     return {
         "pending_food_items": items,
-        "last_action": result.action.value,
+        "last_action": result.action.value,        # DEPRECATED — see ADR-0005
+        "user_intent": result.action.value,        # set once per turn
+        "pipeline_stage": "PENDING",               # reset at turn start
         "processing_results": [],
         # Turn-entry clears — these fields are turn-local but were previously
         # cleared only by their consumers, leaving residue when consumers

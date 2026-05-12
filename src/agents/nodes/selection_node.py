@@ -36,6 +36,7 @@ async def agent_selection_node(state: AgentState) -> dict:
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
+            "pipeline_stage": "NO_MATCH",
         }
 
     # Edge case: Single result - auto-select
@@ -43,6 +44,7 @@ async def agent_selection_node(state: AgentState) -> dict:
         return {
             "selected_food_id": search_results[0]["id"],
             "last_action": "SELECTED",
+            "pipeline_stage": "SELECTED",
         }
 
     # Multiple results - use LLM selection
@@ -79,6 +81,7 @@ async def agent_selection_node(state: AgentState) -> dict:
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
+            "pipeline_stage": "NO_MATCH",
         }
 
     if result.status == SelectionStatus.AMBIGUOUS:
@@ -86,9 +89,11 @@ async def agent_selection_node(state: AgentState) -> dict:
         return {
             "selected_food_id": None,
             "last_action": "NO_MATCH",
+            "pipeline_stage": "NO_MATCH",
         }
 
     return {
         "selected_food_id": result.food_id,
         "last_action": result.status.value,
+        "pipeline_stage": result.status.value,
     }

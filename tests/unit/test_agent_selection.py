@@ -32,6 +32,7 @@ class TestAgentSelectionAutoRouting:
 
         assert result["selected_food_id"] is None
         assert result["last_action"] == "NO_MATCH"
+        assert result["pipeline_stage"] == "NO_MATCH"
 
     async def test_selection_single_result(self, basic_state):
         """
@@ -48,6 +49,7 @@ class TestAgentSelectionAutoRouting:
 
         assert result["selected_food_id"] == "food-uuid-45"
         assert result["last_action"] == "SELECTED"
+        assert result["pipeline_stage"] == "SELECTED"
 
     async def test_selection_empty_pending_items(self, basic_state):
         """
@@ -91,6 +93,7 @@ class TestAgentSelectionLLMRouting:
 
         assert result["selected_food_id"] == "food-uuid-165"
         assert result["last_action"] == "SELECTED"
+        assert result["pipeline_stage"] == "SELECTED"
 
     async def test_selection_multiple_results_ambiguous(self, basic_state):
         """
@@ -116,4 +119,5 @@ class TestAgentSelectionLLMRouting:
             result = await agent_selection_node(basic_state)
 
         assert result["last_action"] == "NO_MATCH"
+        assert result["pipeline_stage"] == "NO_MATCH"
         assert result["selected_food_id"] is None

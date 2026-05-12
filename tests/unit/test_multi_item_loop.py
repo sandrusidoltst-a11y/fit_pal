@@ -57,6 +57,7 @@ class TestMultiItemLoopDraining:
         assert len(result["pending_food_items"]) == 1
         assert result["pending_food_items"][0]["food_name"] == "rice"
         assert result["last_action"] == "AWAITING_CONFIRMATION"
+        assert result["pipeline_stage"] == "AWAITING_CONFIRMATION"
         assert len(result["pending_confirmations"]) == 1
         assert result["pending_confirmations"][0]["name_en"] == "Test Food"
 
@@ -77,6 +78,7 @@ class TestMultiItemLoopDraining:
 
         assert len(result["pending_food_items"]) == 0
         assert result["last_action"] == "AWAITING_CONFIRMATION"
+        assert result["pipeline_stage"] == "AWAITING_CONFIRMATION"
         assert len(result["pending_confirmations"]) == 1
 
     async def test_sequential_item_accumulation(self, basic_state, mock_calculate_macros):
@@ -148,6 +150,8 @@ class TestMultiItemLoopEdgeCases:
             {"food_name": "broccoli", "count": 150.0, "unit": "g", "original_text": "150g broccoli"},
         ]
         basic_state["last_action"] = "LOG_FOOD"
+        basic_state["user_intent"] = "LOG_FOOD"
+        basic_state["pipeline_stage"] = "PENDING"
 
         assert len(basic_state["pending_food_items"]) == 3
         assert basic_state["pending_food_items"][0]["food_name"] == "chicken"

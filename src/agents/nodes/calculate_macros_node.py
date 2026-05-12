@@ -73,6 +73,7 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
                 "processing_results": state.get("processing_results", [])
                 + [result_item],
                 "last_action": "NO_MATCH",
+                "pipeline_stage": "NO_MATCH",
                 "selected_food_id": None,
             }
 
@@ -121,6 +122,7 @@ async def calculate_macros_node(state: AgentState, runtime: Runtime[ContextSchem
         "pending_food_items": remaining,
         "pending_confirmations": updated_confirmations,
         "last_action": "AWAITING_CONFIRMATION",
+        "pipeline_stage": "AWAITING_CONFIRMATION",
         "selected_food_id": None,
     }
 

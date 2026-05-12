@@ -92,6 +92,7 @@ class TestCommitNodeSuccess:
         assert len(result["processing_results"]) == 2
         assert all(r["status"] == "LOGGED" for r in result["processing_results"])
         assert result["last_action"] == "LOGGED"
+        assert result["pipeline_stage"] == "LOGGED"
         # food_name in ProcessingResult should carry the English name
         assert result["processing_results"][0]["food_name"] == "chicken"
         assert result["processing_results"][0]["name_he"] == "עוף"

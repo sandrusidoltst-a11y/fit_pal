@@ -50,6 +50,8 @@ def basic_state():
         "log_food": {},
         "query_stats": {},
         "last_action": "",
+        "user_intent": "",
+        "pipeline_stage": "",
         "search_results": [],
         "selected_food_id": None,
         "processing_results": [],

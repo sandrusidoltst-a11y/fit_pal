@@ -214,6 +214,84 @@ class TestQueryStatsPath:
         assert messages[-1]["content"].strip() != ""
 
 
+class TestQueryFoodInfoPath:
+    """QUERY_FOOD_INFO routes through food_search + agent_selection + calculate_macros
+    for DB-grounded macros, then SKIPS confirmation + commit and answers the question.
+
+    Regression test for TASKS.md Important #2 (silent-commit risk). The pre-refactor
+    behavior would have either (a) cancelled through three independent bugs to land
+    on the same surface response, or (b) silently committed a daily_log row on user
+    "yes" confirmation. Post-ADR-0005 routing the path is explicit: never commit.
+    """
+
+    async def test_query_food_info_does_not_commit(self, lg_client, thread):
+        """
+        arrange: User asks a nutrition question about a known DB food.
+        act:     Graph runs food_search → agent_selection → calculate_macros, then
+                 gates on user_intent == QUERY_FOOD_INFO and routes directly to
+                 load_daily_context → response.
+        assert:  (1) Graph does NOT pause at HITL interrupt.
+                 (2) daily_logs row count for this user is unchanged across the run.
+                 (3) Final assistant message is non-empty and references macros.
+        """
+        from sqlalchemy import func, select
+        from src.database import AsyncSessionLocal
+        from src.models import DailyLog
+
+        tn = "test_query_food_info_does_not_commit"
+        user_id = DEV_USER_CONTEXT["user_id"]
+
+        # Snapshot daily_logs count BEFORE the run. Uses a plain async session
+        # against the real DB (the langgraph dev server commits there); the
+        # transactional `async_test_db_session` fixture rolls back, so its
+        # state is invisible to the running server process.
+        async with AsyncSessionLocal() as session:
+            before_count = (
+                await session.execute(
+                    select(func.count()).select_from(DailyLog).where(DailyLog.user_id == user_id)
+                )
+            ).scalar_one()
+
+        result = await _run(
+            lg_client, thread,
+            input={"messages": [{"role": "human", "content": "How much protein is in 100g of chicken?"}]},
+            context=DEV_USER_CONTEXT,
+            test_name=tn,
+        )
+
+        # Assertion 1: no HITL interrupt — the user asked a question, not a log.
+        state = await lg_client.threads.get_state(thread)
+        assert not state.get("tasks"), (
+            f"Expected no HITL interrupt for QUERY_FOOD_INFO, but graph paused.\n"
+            f"Tasks: {state.get('tasks')}\n"
+            f"This is the silent-commit-risk bug — the routing gate is not working."
+        )
+
+        # Assertion 2: zero new daily_logs rows. THE regression test.
+        async with AsyncSessionLocal() as session:
+            after_count = (
+                await session.execute(
+                    select(func.count()).select_from(DailyLog).where(DailyLog.user_id == user_id)
+                )
+            ).scalar_one()
+        assert after_count == before_count, (
+            f"QUERY_FOOD_INFO silently committed a daily_log row.\n"
+            f"Before: {before_count}, After: {after_count}.\n"
+            f"This is the bug this PR exists to fix — see ADR-0005 + brain/planning/"
+            f"query-food-info-routing-latent-bug.md."
+        )
+
+        # Assertion 3: response shape — non-empty and grounded in macros.
+        messages = result.get("messages", [])
+        assert len(messages) >= 2
+        assert messages[-1]["content"].strip() != ""
+        response_text = messages[-1]["content"].lower()
+        # Coach should mention protein (the user asked about it) or include a number.
+        assert "protein" in response_text or any(c.isdigit() for c in response_text), (
+            f"Response doesn't reference macros: {messages[-1]['content']!r}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Food logging — confirm flow (2 turns: log -> confirm)
 # ---------------------------------------------------------------------------

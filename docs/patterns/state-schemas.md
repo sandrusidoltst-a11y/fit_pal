@@ -51,7 +51,9 @@ Superset of InputState/OutputState. All node-to-node data lives here:
 | `pending_confirmations` | `List[MacroResult]` | Batch of calculated macros awaiting HITL confirmation |
 | `processing_results` | `List[ProcessingResult]` | Final feedback (LOGGED/FAILED) per item |
 | `daily_log_report` | `List[QueriedLog]` | Raw logs from DB for stats/reporting |
-| `last_action` | `GraphAction` | Controls conditional routing between nodes |
+| `user_intent` | `UserIntent` | What the user originally asked for. Set once by `input_parser_node`; immutable for the turn. See ADR-0005. |
+| `pipeline_stage` | `PipelineStage` | Where the graph is in processing the user's intent. Overwritten freely by intermediate nodes; initialized to `PENDING` by the parser. See ADR-0005. |
+| `last_action` | `GraphAction` | **DEPRECATED** — conflates intent and stage. Kept for one release so paused HITL checkpoints resume safely. Removal tracked in TASKS.md. See ADR-0005. |
 | `consumed_at` | `Optional[datetime]` | Timestamp for food logging |
 | `start_date` / `end_date` | `Optional[date]` | Date range for stats queries |
 
@@ -96,7 +98,12 @@ All defined in `src/agents/state.py` as TypedDicts:
 - **`MacroResult`** — calculated macros pending confirmation (`food_name`, `amount_g`, `calories`, `protein`, `carbs`, `fat`, `source`, `food_id`)
 - **`ProcessingResult`** — extends PendingFoodItem with `status` (LOGGED/FAILED) and `message`
 - **`QueriedLog`** — raw daily log from DB for reporting
-- **`GraphAction`** — Literal union (`LOG_FOOD`, `QUERY_DAILY_STATS`, `SELECTED`, `NO_MATCH`, `CONFIRMED`, etc.) controlling routing
+- **`UserIntent`** — Literal of intent values (`LOG_FOOD`, `QUERY_FOOD_INFO`, `QUERY_DAILY_STATS`, `CHITCHAT`, `LOG_PERSONAL_STATS`); set once per turn by the parser.
+- **`PipelineStage`** — Literal of stage values (`PENDING`, `SELECTED`, `NO_MATCH`, `AMBIGUOUS`, `AWAITING_CONFIRMATION`, `CONFIRMED`, `REJECTED`, `LOGGED`); overwritten by intermediate nodes.
+- **`GraphAction`** — DEPRECATED union of both. Kept for one release for back-compat. See ADR-0005.
+
+> [!note] Intent vs Stage (ADR-0005)
+> `user_intent` is the user's original ask; `pipeline_stage` is the current node's view of progress. They are independent — every intent (LOG_FOOD, QUERY_FOOD_INFO, etc.) can be at any compatible stage. Pre-refactor, both were stored in a single `last_action` field that nodes overwrote, which made "what did the user originally ask?" unanswerable late in the graph. The split solves that.
 
 ## Rules
 

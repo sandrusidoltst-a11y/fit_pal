@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, List, Literal, Optional, TypedDict
+from typing import Annotated, List, Literal, Optional, TypedDict, get_args
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
@@ -71,6 +71,63 @@ GraphAction = Literal[
     "REJECTED",
     "LOG_PERSONAL_STATS",
 ]
+# DEPRECATED: GraphAction conflates user intent with pipeline stage. Use
+# UserIntent and PipelineStage below. Kept for one release so paused HITL
+# checkpoints (whose stored state holds `last_action: GraphAction`) resume
+# safely. Removal tracked in brain/TASKS.md. See ADR-0005.
+
+
+UserIntent = Literal[
+    "LOG_FOOD",
+    "QUERY_FOOD_INFO",
+    "QUERY_DAILY_STATS",
+    "CHITCHAT",
+    "LOG_PERSONAL_STATS",
+]
+"""What the user originally asked for. Set once by ``input_parser_node``;
+immutable for the turn. See ADR-0005."""
+
+
+PipelineStage = Literal[
+    "PENDING",
+    "SELECTED",
+    "NO_MATCH",
+    "AMBIGUOUS",
+    "AWAITING_CONFIRMATION",
+    "CONFIRMED",
+    "REJECTED",
+    "LOGGED",
+]
+"""Where the graph is in processing the user's intent. Overwritten freely by
+intermediate nodes (``selection_node``, ``calculate_macros_node``,
+``confirmation_node``, ``commit_node``, ``personal_stats_node``). Initialized
+to ``PENDING`` by ``input_parser_node``. See ADR-0005."""
+
+
+# Legacy fallback helpers — REMOVE WITH last_action (tracked in brain/TASKS.md).
+# Used by routers and response_node during the deprecation window so paused
+# HITL threads whose checkpoints predate ADR-0005 still route correctly.
+_INTENT_VALUES = set(get_args(UserIntent))
+_STAGE_VALUES = set(get_args(PipelineStage))
+
+
+def intent_from_legacy(last_action: Optional[str]) -> Optional[str]:
+    """Map legacy ``last_action`` → ``user_intent`` for pre-refactor checkpoints.
+
+    Returns the value if it's a known ``UserIntent``, else ``None``. Stage
+    values like ``"CONFIRMED"`` return ``None`` — they don't map cleanly to
+    an originating intent (the caller falls back to minimal context).
+    """
+    if last_action and last_action in _INTENT_VALUES:
+        return last_action
+    return None
+
+
+def stage_from_legacy(last_action: Optional[str]) -> Optional[str]:
+    """Map legacy ``last_action`` → ``pipeline_stage`` for pre-refactor checkpoints."""
+    if last_action and last_action in _STAGE_VALUES:
+        return last_action
+    return None
 
 
 class ProcessingResult(PendingFoodItem):
@@ -168,7 +225,14 @@ class AgentState(TypedDict):
         log_food: Per-action sub-state for LOG_FOOD (consumed_at, meal_type).
         query_stats: Per-action sub-state for QUERY_DAILY_STATS
             (target_date | start_date+end_date).
-        last_action: The last action type determined by input parser.
+        last_action: DEPRECATED — see ADR-0005. Conflates user intent with
+            pipeline stage. Use ``user_intent`` and ``pipeline_stage`` instead.
+            Kept for one release for paused-HITL checkpoint compatibility.
+        user_intent: What the user originally asked for. Set once by
+            ``input_parser_node``; immutable for the turn.
+        pipeline_stage: Where the graph is in processing the user's intent.
+            Overwritten by intermediate nodes. Initialized to ``PENDING`` by
+            the parser.
         search_results: Food search results for agent selection node.
         selected_food_id: Selected food ID from agent selection node.
         processing_results: Feedback results for multi-item processing.
@@ -180,7 +244,9 @@ class AgentState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
     query_logs: List[QueriedLog]
-    last_action: GraphAction
+    last_action: GraphAction  # DEPRECATED — see ADR-0005
+    user_intent: UserIntent
+    pipeline_stage: PipelineStage
     search_results: List[SearchResult]
     selected_food_id: Optional[str]
     processing_results: List["ProcessingResult"]

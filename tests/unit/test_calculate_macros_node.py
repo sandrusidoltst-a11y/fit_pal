@@ -112,6 +112,7 @@ class TestCalculateMacrosDBPath:
         assert len(result["processing_results"]) == 1
         assert result["processing_results"][0]["status"] == "FAILED"
         assert result["last_action"] == "NO_MATCH"
+        assert result["pipeline_stage"] == "NO_MATCH"
         assert "pending_confirmations" not in result
 
     async def test_db_path_unit_mismatch_error(self, basic_state, mock_calculate_macros):
@@ -136,6 +137,7 @@ class TestCalculateMacrosDBPath:
         assert result["processing_results"][0]["status"] == "FAILED"
         assert "Unit mismatch" in result["processing_results"][0]["message"]
         assert result["last_action"] == "NO_MATCH"
+        assert result["pipeline_stage"] == "NO_MATCH"
 
     async def test_db_path_passes_count_and_unit_to_tool(
         self, basic_state, mock_calculate_macros
@@ -323,6 +325,8 @@ class TestCalculateMacrosEstimationPath:
             ],
             "selected_food_id": None,
             "last_action": "NO_MATCH",
+            "user_intent": "LOG_FOOD",
+            "pipeline_stage": "NO_MATCH",
         })
 
         patcher, _ = _patch_estimation_llm(

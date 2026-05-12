@@ -67,6 +67,8 @@ class TestInputParserLogFood:
             result = await input_parser_node(basic_state)
 
             assert result["last_action"] == "LOG_FOOD"
+            assert result["user_intent"] == "LOG_FOOD"
+            assert result["pipeline_stage"] == "PENDING"
             items = result.get("pending_food_items", [])
             assert len(items) == 1
             assert "chicken" in items[0]["food_name"].lower()
@@ -126,6 +128,8 @@ class TestInputParserLogFood:
             result = await input_parser_node(basic_state)
 
             assert result["last_action"] == "LOG_FOOD"
+            assert result["user_intent"] == "LOG_FOOD"
+            assert result["pipeline_stage"] == "PENDING"
             items = result.get("pending_food_items", [])
             assert len(items) >= 3
             food_names = [i["food_name"].lower() for i in items]
@@ -154,6 +158,8 @@ class TestInputParserOtherActions:
             result = await input_parser_node(basic_state)
 
             assert result["last_action"] == "CHITCHAT"
+            assert result["user_intent"] == "CHITCHAT"
+            assert result["pipeline_stage"] == "PENDING"
             assert len(result.get("pending_food_items", [])) == 0
 
     async def test_nonsense_input(self, basic_state):
@@ -173,6 +179,7 @@ class TestInputParserOtherActions:
             result = await input_parser_node(basic_state)
 
             assert result["last_action"] == "CHITCHAT"
+            assert result["user_intent"] == "CHITCHAT"
 
     async def test_query_daily_stats(self, basic_state):
         """
@@ -191,6 +198,8 @@ class TestInputParserOtherActions:
             result = await input_parser_node(basic_state)
 
             assert result["last_action"] == "QUERY_DAILY_STATS"
+            assert result["user_intent"] == "QUERY_DAILY_STATS"
+            assert result["pipeline_stage"] == "PENDING"
             assert len(result.get("pending_food_items", [])) == 0
 
     async def test_query_food_info(self, basic_state):
@@ -210,4 +219,6 @@ class TestInputParserOtherActions:
             result = await input_parser_node(basic_state)
 
             assert result["last_action"] == "QUERY_FOOD_INFO"
+            assert result["user_intent"] == "QUERY_FOOD_INFO"
+            assert result["pipeline_stage"] == "PENDING"
             assert len(result.get("pending_food_items", [])) == 0

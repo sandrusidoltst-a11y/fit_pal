@@ -99,5 +99,6 @@ async def commit_node(state: AgentState, runtime: Runtime[ContextSchema]) -> dic
     return {
         "pending_confirmations": [],
         "last_action": "LOGGED",
+        "pipeline_stage": "LOGGED",
         "processing_results": processing_results,
     }

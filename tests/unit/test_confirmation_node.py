@@ -251,6 +251,7 @@ class TestConfirmationNodeConfirm:
         assert isinstance(result, Command)
         assert result.goto == "commit"
         assert result.update["last_action"] == "CONFIRMED"
+        assert result.update["pipeline_stage"] == "CONFIRMED"
 
 
 class TestConfirmationNodeReject:
@@ -273,6 +274,7 @@ class TestConfirmationNodeReject:
         assert isinstance(result, Command)
         assert result.goto == "load_daily_context"
         assert result.update["last_action"] == "REJECTED"
+        assert result.update["pipeline_stage"] == "REJECTED"
         assert len(result.update["processing_results"]) == 2
         assert all(r["status"] == "FAILED" for r in result.update["processing_results"])
 

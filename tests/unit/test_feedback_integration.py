@@ -50,6 +50,8 @@ class TestFullFlowIntegration:
                     {"food_name": "Apple", "original_text": "apple", "amount": 1, "unit": "unit"}
                 ],
                 "last_action": "LOG_FOOD",
+                "user_intent": "LOG_FOOD",
+                "pipeline_stage": "PENDING",
                 "processing_results": []
             }
 
@@ -61,7 +63,8 @@ class TestFullFlowIntegration:
             # 3. Selection returns choice
             mock_select.return_value = {
                 "selected_food_id": "food-uuid-1",
-                "last_action": "SELECTED"
+                "last_action": "SELECTED",
+                "pipeline_stage": "SELECTED",
             }
 
             # 4. Calculate macros returns preview (no DB write)
@@ -79,6 +82,7 @@ class TestFullFlowIntegration:
                     "food_id": "food-uuid-1",
                 }],
                 "last_action": "AWAITING_CONFIRMATION",
+                "pipeline_stage": "AWAITING_CONFIRMATION",
                 "selected_food_id": None,
             }
 
@@ -98,6 +102,7 @@ class TestFullFlowIntegration:
                         "food_id": "food-uuid-1",
                     }],
                     "last_action": "CONFIRMED",
+                    "pipeline_stage": "CONFIRMED",
                 }
             )
 
@@ -115,7 +120,8 @@ class TestFullFlowIntegration:
                         "source": "database",
                     }
                 ],
-                "last_action": "LOGGED"
+                "last_action": "LOGGED",
+                "pipeline_stage": "LOGGED",
             }
 
             # Build the graph with an in-memory checkpointer for testing

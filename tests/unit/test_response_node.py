@@ -18,13 +18,39 @@ from tests.conftest import TEST_RUNTIME_A, TEST_USER_A
 # ---------------------------------------------------------------------------
 
 def _make_state(**overrides):
-    """Build a minimal AgentState dict with sensible defaults."""
+    """Build a minimal AgentState dict with sensible defaults.
+
+    Existing tests pass ``last_action`` with values that may be either an
+    intent (``LOG_FOOD``, ``QUERY_DAILY_STATS``, ``CHITCHAT``) or a stage
+    (``LOGGED``, ``FAILED``, ``NO_MATCH``, ``CONFIRMED``, ...). Post-ADR-0005,
+    ``_build_context`` dispatches on ``user_intent``. To keep the existing 27
+    assertions on ``parsed["last_action"]`` working without per-test edits,
+    auto-derive ``user_intent`` from the legacy value when it's an intent;
+    otherwise default to ``LOG_FOOD`` (every existing test that passes a
+    stage value is simulating a LOG flow that reached that stage).
+    """
+    from src.agents.state import intent_from_legacy, stage_from_legacy
+
+    legacy = overrides.get("last_action", "LOGGED")
+    default_intent = intent_from_legacy(legacy)
+    if default_intent is None and legacy:
+        # Non-empty legacy value that isn't an intent → it's a stage
+        # (LOGGED/FAILED/CONFIRMED/…) — the originating intent for these
+        # tests is LOG_FOOD. Empty legacy stays "" (the test is checking
+        # the minimal-context path).
+        default_intent = "LOG_FOOD"
+    elif default_intent is None:
+        default_intent = ""
+    default_stage = stage_from_legacy(legacy) or ""
+
     state = {
         "messages": [HumanMessage(content="I ate 200g chicken")],
         "pending_food_items": [],
         "log_food": {"consumed_at": datetime(2026, 2, 20, 12, 0)},
         "query_stats": {},
-        "last_action": "LOGGED",
+        "last_action": legacy,
+        "user_intent": overrides.get("user_intent", default_intent),
+        "pipeline_stage": overrides.get("pipeline_stage", default_stage),
         "search_results": [],
         "selected_food_id": None,
         "processing_results": [],
