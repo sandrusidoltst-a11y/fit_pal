@@ -21,18 +21,24 @@ Determine the user's primary goal and select the appropriate `action`:
       - English: "today", "yesterday", "last Tuesday", a specific date.
       - Hebrew: `"היום"` → target_date = today, `"אתמול"` → target_date = today-1, specific weekdays (`"ביום שני"`, `"בשבת"`).
       - Do NOT set `start_date`/`end_date` for single days.
-    - If a multi-day range is mentioned, set `start_date` AND `end_date` (leave `target_date` null). Range phrases:
-      - English: "last 3 days", "this week", "this month", "past week".
-      - Hebrew: `"השבוע"` / `"השבוע הזה"` / `"השבוע הנוכחי"` → this week (Sunday → today, Israel-local). `"השבוע האחרון"` / `"השבוע שעבר"` → last 7 days inclusive of today (today-6 → today). `"החודש"` / `"החודש הזה"` → this month (1st of current month → today). `"החודש האחרון"` / `"החודש שעבר"` → last 30 days inclusive of today (today-29 → today). `"3 ימים אחרונים"` → last 3 days (today-2 → today).
-    - Date ranges are **inclusive of today**. Example: if today is March 29, "last 3 days" / `"3 ימים אחרונים"` means `start_date: 2026-03-27`, `end_date: 2026-03-29`. Same for `"השבוע האחרון"` → `start_date: 2026-03-23`, `end_date: 2026-03-29`.
+    - If a multi-day range is mentioned, set `start_date` AND `end_date` (leave `target_date` null). Two range families:
+      - **Current period — INCLUDES today** (no "last/past/אחרון" qualifier):
+        - English: "this week", "this month".
+        - Hebrew: `"השבוע"` / `"השבוע הזה"` / `"השבוע הנוכחי"` → this week (Sunday → today, Israel-local). `"החודש"` / `"החודש הזה"` → this month (1st of current month → today).
+      - **Past period — EXCLUDES today, rolling N days ending yesterday** (uses "last/past/אחרון"):
+        - English: "last 3 days", "last week", "past week", "last month", "past month".
+        - Hebrew: `"3 ימים אחרונים"` → 3 prior days (today-3 → today-1). `"השבוע האחרון"` / `"השבוע שעבר"` → 7 prior days (today-7 → today-1). `"החודש האחרון"` / `"החודש שעבר"` → 30 prior days (today-30 → today-1).
     - Default: If no date or range is specified, leave all three (`target_date`, `start_date`, `end_date`) null.
-    - **Worked examples** (today = 2026-05-08, a Thursday):
-      - User: `"מה אכלתי השבוע"` → action=QUERY_DAILY_STATS, **`start_date: 2026-05-04`** (Sunday, week start), **`end_date: 2026-05-08`** (today), `target_date: null`. The word `"השבוע"` IS a range qualifier — never leave dates null when a range word is present.
-      - User: `"מה אכלתי אתמול"` → action=QUERY_DAILY_STATS, `target_date: 2026-05-07`, dates null.
-      - User: `"מה אכלתי היום"` → action=QUERY_DAILY_STATS, `target_date: 2026-05-08`, range dates null.
-      - User: `"מה אכלתי החודש"` → action=QUERY_DAILY_STATS, **`start_date: 2026-05-01`**, **`end_date: 2026-05-08`**, `target_date: null`.
+    - **Worked examples** (today = 2026-05-16, a Saturday):
+      - User: `"מה אכלתי השבוע"` (this week, includes today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-10`** (Sunday, week start), **`end_date: 2026-05-16`** (today), `target_date: null`.
+      - User: `"מה אכלתי בשבוע האחרון"` (last week, EXCLUDES today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-09`**, **`end_date: 2026-05-15`** (yesterday), `target_date: null`.
+      - User: `"סטטיסטיקות של 3 ימים אחרונים"` (last 3 days, EXCLUDES today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-13`**, **`end_date: 2026-05-15`**, `target_date: null`.
+      - User: `"מה אכלתי החודש"` (this month, includes today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-01`**, **`end_date: 2026-05-16`**, `target_date: null`.
+      - User: `"מה אכלתי בחודש האחרון"` (last month, EXCLUDES today) → action=QUERY_DAILY_STATS, **`start_date: 2026-04-16`**, **`end_date: 2026-05-15`**, `target_date: null`.
+      - User: `"מה אכלתי אתמול"` → action=QUERY_DAILY_STATS, `target_date: 2026-05-15`, dates null.
+      - User: `"מה אכלתי היום"` → action=QUERY_DAILY_STATS, `target_date: 2026-05-16`, range dates null.
       - User: `"כמה חלבון אכלתי"` (no date) → action=QUERY_DAILY_STATS, all three null.
-    - **Critical**: any range word (`"השבוע"`, `"החודש"`, `"השבוע האחרון"`, `"החודש האחרון"`, English equivalents) MUST produce `start_date` + `end_date`. Returning all-null on a range query is a bug; the downstream node has no way to query the right rows.
+    - **Critical**: any range word (`"השבוע"`, `"החודש"`, `"השבוע האחרון"`, `"החודש האחרון"`, English equivalents) MUST produce `start_date` + `end_date`. Returning all-null on a range query is a bug; the downstream node has no way to query the right rows. "אחרון/last/past" phrases NEVER include today — end_date must be yesterday, not today.
 - **LOG_PERSONAL_STATS**: The user is reporting a body measurement (weight, body fat).
   - Examples: "I weigh 74kg", "My weight is 74 kilos", "Body fat is 15%", "שוקל 74", "אחוז שומן 15"
   - Do NOT confuse with food logging — this is about the user's body, not food.

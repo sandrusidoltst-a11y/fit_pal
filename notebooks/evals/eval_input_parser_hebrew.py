@@ -271,7 +271,7 @@ EXAMPLES: list[dict] = [
         "item_count": 0,
         "consumed_at": None,
         "start_date": "RELATIVE_3_DAYS_AGO",
-        "end_date": "TODAY",
+        "end_date": "YESTERDAY",
         "category": "temporal",
     },
     # --- CHITCHAT ---
@@ -292,7 +292,7 @@ EXAMPLES: list[dict] = [
         "item_count": 0,
         "consumed_at": None,
         "start_date": "RELATIVE_7_DAYS_AGO",
-        "end_date": "TODAY",
+        "end_date": "YESTERDAY",
         "category": "temporal",
     },
     # --- QUERY_DAILY_STATS: Specific macro question over range ---
@@ -303,7 +303,7 @@ EXAMPLES: list[dict] = [
         "item_count": 0,
         "consumed_at": None,
         "start_date": "RELATIVE_7_DAYS_AGO",
-        "end_date": "TODAY",
+        "end_date": "YESTERDAY",
         "category": "temporal",
     },
     # ==========================================================================
