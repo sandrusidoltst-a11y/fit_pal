@@ -50,7 +50,7 @@ class TestPersonalStatsNodeWeight:
         mock_log_personal_stat.ainvoke.assert_called_once_with(
             {"stat_type": "weight", "value": 74.0, "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
-        assert result["last_action"] == "LOGGED"
+        assert result["pipeline_stage"] == "LOGGED"
         assert len(result["processing_results"]) == 1
         assert result["processing_results"][0]["status"] == "LOGGED"
         assert "74.0kg" in result["processing_results"][0]["message"]
@@ -88,7 +88,7 @@ class TestPersonalStatsNodeBodyFat:
         mock_log_personal_stat.ainvoke.assert_called_once_with(
             {"stat_type": "body_fat", "value": 15.0, "user_id": "fbeeb45f-d728-4c7c-9e6d-7b9b41685da7"}
         )
-        assert result["last_action"] == "LOGGED"
+        assert result["pipeline_stage"] == "LOGGED"
         assert len(result["processing_results"]) == 1
         assert "15.0%" in result["processing_results"][0]["message"]
 

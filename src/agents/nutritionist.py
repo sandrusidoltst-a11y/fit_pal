@@ -20,27 +20,31 @@ async def define_graph(**kwargs):
     workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState, context_schema=ContextSchema)
 
     def route_parser(state: AgentState):
-        action = state.get("last_action")
-        if action in ["LOG_FOOD", "QUERY_FOOD_INFO"]:
+        intent = state.get("user_intent")
+        if intent in ["LOG_FOOD", "QUERY_FOOD_INFO"]:
             return "food_search"
-        elif action == "QUERY_DAILY_STATS":
+        elif intent == "QUERY_DAILY_STATS":
             return "stats_lookup"
-        elif action == "LOG_PERSONAL_STATS":
+        elif intent == "LOG_PERSONAL_STATS":
             return "personal_stats"
         return "load_daily_context"
 
     def route_after_selection(state: AgentState):
         """Route to calculate_macros for both DB matches and off-menu estimation."""
-        action = state.get("last_action")
-        if action in ["SELECTED", "NO_MATCH"]:
+        stage = state.get("pipeline_stage")
+        if stage in ["SELECTED", "NO_MATCH"]:
             return "calculate_macros"
         return "load_daily_context"
 
     def route_after_calculate_macros(state: AgentState):
-        """Loop back if more items pending, else show batch for confirmation."""
+        """Loop back if more items pending; QUERY_FOOD_INFO skips commit, else confirm."""
         if state.get("pending_food_items", []):
             return "food_search"  # Process next item
-        return "confirmation"  # All items calculated, show batch
+        if state.get("user_intent") == "QUERY_FOOD_INFO":
+            # User asked a nutrition question — skip confirmation + commit and
+            # answer with the looked-up macros. See ADR-0005.
+            return "load_daily_context"
+        return "confirmation"  # LOG_FOOD path
 
     workflow.add_node("input_parser", input_parser_node)
     workflow.add_node("food_search", food_search_node)
@@ -83,6 +87,7 @@ async def define_graph(**kwargs):
         {
             "food_search": "food_search",
             "confirmation": "confirmation",
+            "load_daily_context": "load_daily_context",  # QUERY_FOOD_INFO path
         },
     )
 

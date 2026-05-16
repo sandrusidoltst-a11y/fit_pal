@@ -134,7 +134,7 @@ class TestAgentSelectionFeedback:
 
         result = await agent_selection_node(basic_state)
 
-        assert result["last_action"] == "NO_MATCH"
+        assert result["pipeline_stage"] == "NO_MATCH"
         assert "processing_results" not in result
 
     async def test_selection_failure_llm_selected_no_id(self, basic_state):
@@ -165,5 +165,5 @@ class TestAgentSelectionFeedback:
 
             result = await agent_selection_node(basic_state)
 
-            assert result["last_action"] == "NO_MATCH"
+            assert result["pipeline_stage"] == "NO_MATCH"
             assert "processing_results" not in result

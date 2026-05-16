@@ -146,7 +146,7 @@ async def confirmation_node(
         if decision.action == "confirm":
             update: dict = {
                 "pending_confirmations": batch,
-                "last_action": "CONFIRMED",
+                "pipeline_stage": "CONFIRMED",
             }
             if accumulated_edit_errors:
                 update["processing_results"] = (
@@ -174,7 +174,7 @@ async def confirmation_node(
             return Command(
                 goto="load_daily_context",
                 update={
-                    "last_action": "REJECTED",
+                    "pipeline_stage": "REJECTED",
                     "pending_confirmations": [],
                     "processing_results": state.get("processing_results", [])
                     + accumulated_edit_errors

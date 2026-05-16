@@ -75,6 +75,6 @@ async def personal_stats_node(state: AgentState, runtime: Runtime[ContextSchema]
     })
 
     return {
-        "last_action": "LOGGED",
+        "pipeline_stage": "LOGGED",
         "processing_results": processing_results,
     }

@@ -57,20 +57,31 @@ class QueriedLog(TypedDict):
     serving_amount_g: Optional[float]
 
 
-GraphAction = Literal[
+UserIntent = Literal[
     "LOG_FOOD",
     "QUERY_FOOD_INFO",
     "QUERY_DAILY_STATS",
     "CHITCHAT",
+    "LOG_PERSONAL_STATS",
+]
+"""What the user originally asked for. Set once by ``input_parser_node``;
+immutable for the turn. See ADR-0005."""
+
+
+PipelineStage = Literal[
+    "PENDING",
     "SELECTED",
     "NO_MATCH",
     "AMBIGUOUS",
-    "LOGGED",
     "AWAITING_CONFIRMATION",
     "CONFIRMED",
     "REJECTED",
-    "LOG_PERSONAL_STATS",
+    "LOGGED",
 ]
+"""Where the graph is in processing the user's intent. Overwritten freely by
+intermediate nodes (``selection_node``, ``calculate_macros_node``,
+``confirmation_node``, ``commit_node``, ``personal_stats_node``). Initialized
+to ``PENDING`` by ``input_parser_node``. See ADR-0005."""
 
 
 class ProcessingResult(PendingFoodItem):
@@ -88,14 +99,14 @@ class ProcessingResult(PendingFoodItem):
 
 
 class LogFoodSubState(TypedDict, total=False):
-    """Per-action sub-state — meaningful when last_action is LOG_FOOD/CONFIRMED/LOGGED."""
+    """Per-action sub-state — meaningful when user_intent is LOG_FOOD."""
 
     consumed_at: Optional[datetime]
     meal_type: Optional[str]
 
 
 class QueryStatsSubState(TypedDict, total=False):
-    """Per-action sub-state — meaningful when last_action is QUERY_DAILY_STATS.
+    """Per-action sub-state — meaningful when user_intent is QUERY_DAILY_STATS.
 
     target_date and (start_date, end_date) are mutually exclusive — enforced
     by QueryStatsEvent's model_validator at the LLM-output boundary.
@@ -168,7 +179,11 @@ class AgentState(TypedDict):
         log_food: Per-action sub-state for LOG_FOOD (consumed_at, meal_type).
         query_stats: Per-action sub-state for QUERY_DAILY_STATS
             (target_date | start_date+end_date).
-        last_action: The last action type determined by input parser.
+        user_intent: What the user originally asked for. Set once by
+            ``input_parser_node``; immutable for the turn.
+        pipeline_stage: Where the graph is in processing the user's intent.
+            Overwritten by intermediate nodes. Initialized to ``PENDING`` by
+            the parser.
         search_results: Food search results for agent selection node.
         selected_food_id: Selected food ID from agent selection node.
         processing_results: Feedback results for multi-item processing.
@@ -180,7 +195,8 @@ class AgentState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
     query_logs: List[QueriedLog]
-    last_action: GraphAction
+    user_intent: UserIntent
+    pipeline_stage: PipelineStage
     search_results: List[SearchResult]
     selected_food_id: Optional[str]
     processing_results: List["ProcessingResult"]

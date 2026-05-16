@@ -451,7 +451,7 @@ async def run_input_parser(inputs: dict) -> dict:
     log_food = result.get("log_food") or {}
     query_stats = result.get("query_stats") or {}
     return {
-        "action": result["last_action"],
+        "action": result["user_intent"],
         "items": result["pending_food_items"],
         "item_count": len(result["pending_food_items"]),
         "consumed_at": str(log_food["consumed_at"]) if log_food.get("consumed_at") else None,

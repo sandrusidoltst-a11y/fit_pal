@@ -106,3 +106,13 @@ Tasks, PRs, plan docs, other ADRs.
 - **Detail**: [full record](0004-schema-to-state-translation-ownership.md)
 - **Conversation**: [[brain/conversations_beckups/2026-05-06_schema-to-state-translation-ownership]] *(to be backed up)*
 - **Related**: `docs/plans/discriminated-action-state-refactor.md`; `docs/patterns/state-schemas.md`; `docs/patterns/llm-config.md`; `src/schemas/input_schema.py`; `src/agents/state.py`; `src/agents/nodes/input_node.py`; `src/agents/nodes/personal_stats_node.py`
+
+### ADR-0005: Split `last_action` into `user_intent` + `pipeline_stage`
+
+- **Status**: Accepted (2026-05-11) · revisit if `pipeline_stage` value set grows past ~10 or a drift incident ships
+- **Area**: state, routing
+- **One-liner**: `AgentState.last_action` is split into `user_intent` (set once by parser, immutable per turn) and `pipeline_stage` (overwritten freely by intermediate nodes); `last_action`, `GraphAction`, and the legacy-fallback helpers were removed in the same PR after review-time validation showed the back-compat layer never fires in practice. Closes the QUERY_FOOD_INFO silent-commit risk in the same PR.
+- **Trade-off**: A one-time minimal-context render for HITL threads paused across the deploy (the food still commits; only the response polish is affected), in exchange for a clean discriminator that survives the full pipeline, an explicit routing fix for QUERY_FOOD_INFO, and no deprecation tail to clean up later.
+- **Detail**: [full record](0005-split-user-intent-from-pipeline-stage.md)
+- **Conversation**: [[brain/conversations_beckups/2026-05-11_split-user-intent-from-pipeline-stage]] *(to be backed up)*
+- **Related**: ADR-0004 (substate pattern this extends); `docs/plans/split-user-intent-from-pipeline-stage.md`; `brain/planning/query-food-info-routing-latent-bug.md`; `src/agents/state.py`; `src/agents/nutritionist.py`; `src/agents/nodes/input_node.py`; `src/agents/nodes/response_node.py`; `prompts/response_generator.md`; `tests/unit/test_intent_stage_invariants.py`; `tests/graph_api/test_graph_flows.py`

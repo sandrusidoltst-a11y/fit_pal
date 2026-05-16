@@ -24,7 +24,8 @@ def _make_state(**overrides):
         "pending_food_items": [],
         "log_food": {"consumed_at": datetime(2026, 2, 20, 12, 0)},
         "query_stats": {},
-        "last_action": "LOGGED",
+        "user_intent": "LOG_FOOD",
+        "pipeline_stage": "LOGGED",
         "search_results": [],
         "selected_food_id": None,
         "processing_results": [],
@@ -39,7 +40,7 @@ def _make_state(**overrides):
 # ---------------------------------------------------------------------------
 
 class TestBuildContext:
-    """Verify selective context construction based on last_action."""
+    """Verify selective context construction based on user_intent."""
 
     def test_logged_action_includes_processing_results(self):
         """LOGGED action should include processing_results in context."""
@@ -53,13 +54,13 @@ class TestBuildContext:
                 "message": "Logged chicken (330kcal)",
             }
         ]
-        state = _make_state(last_action="LOGGED", processing_results=results)
+        state = _make_state(pipeline_stage="LOGGED", processing_results=results)
 
         ctx = _build_context(state)
         import json
         parsed = json.loads(ctx)
 
-        assert parsed["last_action"] == "LOGGED"
+        assert parsed["pipeline_stage"] == "LOGGED"
         assert len(parsed["processing_results"]) == 1
         assert parsed["processing_results"][0]["status"] == "LOGGED"
         # consumed_at injects on LOG-family actions (gated, no longer unconditional).
@@ -78,24 +79,24 @@ class TestBuildContext:
                 "message": "No search results found for xyz",
             }
         ]
-        state = _make_state(last_action="FAILED", processing_results=results)
+        state = _make_state(pipeline_stage="LOGGED", processing_results=results)
 
         ctx = _build_context(state)
         import json
         parsed = json.loads(ctx)
 
-        assert parsed["last_action"] == "FAILED"
+        # processing_results carries the FAILED status — that's the real semantic check.
         assert parsed["processing_results"][0]["status"] == "FAILED"
 
     def test_no_match_includes_processing_results(self):
         """NO_MATCH action should include processing_results."""
-        state = _make_state(last_action="NO_MATCH", processing_results=[])
+        state = _make_state(pipeline_stage="NO_MATCH", processing_results=[])
 
         ctx = _build_context(state)
         import json
         parsed = json.loads(ctx)
 
-        assert parsed["last_action"] == "NO_MATCH"
+        assert parsed["pipeline_stage"] == "NO_MATCH"
         assert "processing_results" in parsed
 
     def test_query_stats_includes_query_logs(self):
@@ -115,7 +116,8 @@ class TestBuildContext:
             }
         ]
         state = _make_state(
-            last_action="QUERY_DAILY_STATS",
+            user_intent="QUERY_DAILY_STATS",
+            pipeline_stage="",
             query_logs=logs,
             query_stats={
                 "start_date": date(2026, 2, 18),
@@ -127,7 +129,7 @@ class TestBuildContext:
         import json
         parsed = json.loads(ctx)
 
-        assert parsed["last_action"] == "QUERY_DAILY_STATS"
+        assert parsed["user_intent"] == "QUERY_DAILY_STATS"
         assert len(parsed["query_logs"]) == 1
         assert parsed["start_date"] == "2026-02-18"
         assert parsed["end_date"] == "2026-02-20"
@@ -135,27 +137,27 @@ class TestBuildContext:
 
     def test_response_chitchat(self):
         """CHITCHAT action should produce a minimal context — no date or logging fields."""
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="")
 
         ctx = _build_context(state)
         import json
         parsed = json.loads(ctx)
 
-        assert parsed["last_action"] == "CHITCHAT"
+        assert parsed["user_intent"] == "CHITCHAT"
         # Action-gated: consumed_at only injects on LOG-family actions.
         assert "consumed_at" not in parsed
         assert "processing_results" not in parsed
         assert "query_logs" not in parsed
 
-    def test_empty_last_action(self):
-        """Empty/missing last_action should produce minimal context."""
-        state = _make_state(last_action="")
+    def test_empty_user_intent(self):
+        """Empty/missing user_intent should produce minimal context."""
+        state = _make_state(user_intent="", pipeline_stage="")
 
         ctx = _build_context(state)
         import json
         parsed = json.loads(ctx)
 
-        assert parsed["last_action"] == ""
+        assert parsed["user_intent"] == ""
         assert "processing_results" not in parsed
 
 
@@ -420,7 +422,7 @@ class TestResponseNode:
                 "message": "Logged chicken (330kcal)",
             }
         ]
-        state = _make_state(last_action="LOGGED", processing_results=results)
+        state = _make_state(pipeline_stage="LOGGED", processing_results=results)
 
         output = await response_node(state, TEST_RUNTIME_A)
 
@@ -458,7 +460,8 @@ class TestResponseNode:
             }
         ]
         state = _make_state(
-            last_action="QUERY_DAILY_STATS",
+            user_intent="QUERY_DAILY_STATS",
+            pipeline_stage="",
             query_logs=logs,
             messages=[HumanMessage(content="What did I eat today?")],
         )
@@ -494,7 +497,7 @@ class TestResponseNode:
                 "message": "No search results found for xyz",
             }
         ]
-        state = _make_state(last_action="NO_MATCH", processing_results=results)
+        state = _make_state(user_intent="LOG_FOOD", pipeline_stage="NO_MATCH", processing_results=results)
 
         output = await response_node(state, TEST_RUNTIME_A)
 
@@ -510,7 +513,7 @@ class TestResponseNode:
         mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
-        state = _make_state(messages=[], last_action="CHITCHAT")
+        state = _make_state(messages=[], user_intent="CHITCHAT", pipeline_stage="")
 
         output = await response_node(state, TEST_RUNTIME_A)
 
@@ -533,7 +536,7 @@ class TestResponseNode:
             AIMessage(content="Processing..."),
             HumanMessage(content="Also 100g chicken"),
         ]
-        state = _make_state(messages=history, last_action="LOGGED")
+        state = _make_state(messages=history, pipeline_stage="LOGGED")
 
         await response_node(state, TEST_RUNTIME_A)
 
@@ -552,7 +555,7 @@ class TestResponseNode:
         mock_llm.ainvoke = AsyncMock(return_value=mock_ai_msg)
         mock_get_llm.return_value = mock_llm
 
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="")
 
         output = await response_node(state, TEST_RUNTIME_A)
 
@@ -568,7 +571,7 @@ class TestResponseNode:
         mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="ok"))
         mock_get_llm.return_value = mock_llm
 
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="")
         await response_node(state, TEST_RUNTIME_A)
 
         call_args = mock_llm.ainvoke.call_args[0][0]
@@ -590,7 +593,7 @@ class TestResponseNode:
             user_profile=profile_with_plan,
         )
 
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="")
         await response_node(state, runtime)
 
         call_args = mock_llm.ainvoke.call_args[0][0]
@@ -617,7 +620,7 @@ class TestResponseNode:
             user_profile=profile_no_plan,
         )
 
-        state = _make_state(last_action="CHITCHAT")
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="")
         await response_node(state, runtime)
 
         call_args = mock_llm.ainvoke.call_args[0][0]
@@ -651,7 +654,7 @@ class TestResponseNode:
             user_profile=DEFAULT_DEV_PROFILE.copy(),
         )
 
-        state = _make_state(last_action="CHITCHAT", daily_log_today=logs)
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="", daily_log_today=logs)
         await response_node(state, runtime)
 
         call_args = mock_llm.ainvoke.call_args[0][0]
@@ -682,7 +685,7 @@ class TestResponseNode:
             user_profile=DEFAULT_DEV_PROFILE.copy(),
         )
 
-        state = _make_state(last_action="CHITCHAT", daily_log_today=[])
+        state = _make_state(user_intent="CHITCHAT", pipeline_stage="", daily_log_today=[])
         await response_node(state, runtime)
 
         call_args = mock_llm.ainvoke.call_args[0][0]

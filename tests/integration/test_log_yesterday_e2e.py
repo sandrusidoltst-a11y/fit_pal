@@ -75,7 +75,8 @@ async def test_commit_uses_log_food_consumed_at_when_set(async_test_db_session):
         "processing_results": [],
         "daily_log_today": [],
         "query_logs": [],
-        "last_action": "CONFIRMED",
+        "user_intent": "LOG_FOOD",
+        "pipeline_stage": "CONFIRMED",
         "search_results": [],
         "selected_food_id": None,
     }

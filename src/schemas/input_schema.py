@@ -105,7 +105,7 @@ _EventUnion = Union[
 ]
 
 
-class UserIntent(BaseModel):
+class UserIntentEvent(BaseModel):
     """Top-level wrapper for the per-action union.
 
     OpenAI's strict structured-output requires the top-level schema to be

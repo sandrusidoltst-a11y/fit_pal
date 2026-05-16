@@ -151,17 +151,23 @@ def _serialize_date(obj):
 
 
 def _build_context(state: AgentState) -> str:
-    """Build a selective JSON context string based on last_action.
+    """Build a selective JSON context string based on user_intent.
 
-    Only includes state fields relevant to the current action
-    to keep the LLM context window lean and focused.
+    Dispatches on ``user_intent`` (the user's original ask) for the flow
+    grouping and uses ``pipeline_stage`` for stage-specific rendering within
+    that flow. See ADR-0005.
     """
-    last_action = state.get("last_action", "")
-    context: dict = {"last_action": last_action}
+    intent = state.get("user_intent", "")
+    stage = state.get("pipeline_stage", "")
 
-    if last_action in ("LOG_FOOD", "LOGGED", "FAILED", "NO_MATCH", "SELECTED", "CONFIRMED", "REJECTED"):
-        # Food logging flow — include per-item processing results and the
-        # consumed_at the user gave (for "logged at..." phrasing).
+    context: dict = {
+        "user_intent": intent,
+        "pipeline_stage": stage,
+    }
+
+    if intent in ("LOG_FOOD", "LOG_PERSONAL_STATS"):
+        # Logging flow (food or body stats) — include per-item processing
+        # results and the consumed_at the user gave (for "logged at..." phrasing).
         log_food = state.get("log_food", {})
         consumed_at = log_food.get("consumed_at")
         if consumed_at:
@@ -170,15 +176,29 @@ def _build_context(state: AgentState) -> str:
                 if isinstance(consumed_at, datetime)
                 else str(consumed_at)
             )
+        context["processing_results"] = state.get("processing_results", [])
 
-        processing_results = state.get("processing_results", [])
-        context["processing_results"] = processing_results
+    elif intent == "QUERY_FOOD_INFO":
+        # Nutrition Q&A — surface the DB-looked-up (or LLM-estimated) macros
+        # so the LLM answers with grounded values, not a guess.
+        queried = state.get("pending_confirmations", [])
+        context["queried_foods"] = [
+            {
+                "name_en": item.get("name_en"),
+                "name_he": item.get("name_he"),
+                "amount_g": item.get("amount_g"),
+                "calories": item.get("calories"),
+                "protein": item.get("protein"),
+                "carbs": item.get("carbs"),
+                "fat": item.get("fat"),
+                "source": item.get("source"),  # "database" or "estimated"
+            }
+            for item in queried
+        ]
 
-    elif last_action == "QUERY_DAILY_STATS":
+    elif intent == "QUERY_DAILY_STATS":
         # Stats query flow — include raw daily log report
-        query_logs = state.get("query_logs", [])
-        context["query_logs"] = query_logs
-
+        context["query_logs"] = state.get("query_logs", [])
         # Include the date hints the user gave (single day or range).
         query_stats = state.get("query_stats", {})
         target_date = query_stats.get("target_date")
@@ -201,7 +221,7 @@ def _build_context(state: AgentState) -> str:
                 end_date.isoformat() if isinstance(end_date, date) else str(end_date)
             )
 
-    # For CHITCHAT or other actions, context stays minimal (just last_action).
+    # For CHITCHAT or unresolved intent, context stays minimal.
 
     return json.dumps(context, indent=2, default=_serialize_date)
 
