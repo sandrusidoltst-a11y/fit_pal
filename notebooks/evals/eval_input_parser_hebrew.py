@@ -98,7 +98,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "אכלתי כוס אורז",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "אורז", "count": 158, "unit": "g"}],
+        "items": [{"food_name": "אורז", "count": 1, "unit": "cup"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -380,11 +380,11 @@ EXAMPLES: list[dict] = [
         "start_date": None,
         "end_date": None,
     },
-    # --- B4: Half cup of rice — rice NOT in table, convert to grams ---
+    # --- B4: Half cup of rice — keep cup unit, emit half-cup grams as safety net ---
     {
         "question": "חצי כוס אורז",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "אורז", "count": 79, "unit": "g"}],
+        "items": [{"food_name": "אורז", "count": 0.5, "unit": "cup"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,

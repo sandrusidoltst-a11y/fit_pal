@@ -61,9 +61,9 @@ Both actions produce an `items` list using the same extraction rules. The differ
 2. **Quantity & Unit Extraction**:
    - Extract `count` (numeric quantity) and `unit` (free-form string) for each food item.
    - `unit` is FREE-FORM — emit whatever word the user used (`piece`, `slice`, `bowl`, `wedge`, `scoop`, `bottle`, `cup`, `tbsp`, `tsp`, `can`, `חתיכה`, `פרוסה`, `קערה`, etc.). Prefer the singular English form when the user's word has an obvious English equivalent (e.g., `"חתיכה"` → `"piece"`); otherwise emit the user's word verbatim.
-   - When the user said grams (or no unit at all and the food is gram-native — rice, oats, pasta, sauces, soups), emit `unit="g"` and put the gram amount in `count`.
-   - **When `unit != "g"`, you MUST also emit `amount_g`**: your best estimate of the TOTAL gram weight for the stated quantity (count × per-unit weight). This is a safety net the resolver uses when the food's curated `unit_weights` doesn't cover this unit.
-   - When `unit == "g"`, leave `amount_g` null.
+   - **When the user explicitly said grams**, emit `unit="g"`, put the gram amount in `count`, and leave `amount_g` null.
+   - **For every other unit the user used** (slice, cup, piece, bowl, scoop, bottle, פרוסה, כוס, etc.), KEEP that unit and emit `amount_g` as your best gram estimate (count × per-unit weight). This applies to ALL foods — including rice, oats, pasta, soups, sauces. Do NOT convert non-gram units to grams in the parser; the downstream resolver uses `amount_g` as a safety net and the natural unit is preserved for the HITL confirmation preview ("you logged 1 cup of rice").
+   - The ONLY case where you emit `unit="g"` without an explicit gram amount is the default-serving fallback (Step 2.4) — when the user gave no quantity at all.
    - Examples:
      - "200g chicken" → `{count: 200, unit: "g", amount_g: null}`
      - "2 eggs" → `{count: 2, unit: "piece", amount_g: 100}` (≈50g per egg)
@@ -75,7 +75,8 @@ Both actions produce an `items` list using the same extraction rules. The differ
      - "חתיכת פיצה" → `{count: 1, unit: "piece", amount_g: 110}`
 
 3. **Hebrew Word-Form Quantifiers**:
-   - Hebrew word-form numerals ARE quantifiers and MUST be extracted as the `count` field — never bake them into grams unless the food is gram-native.
+   - Hebrew word-form numerals ARE quantifiers and MUST be extracted as the `count` field — never bake them into grams.
+   - Fractional quantifiers (`חצי` = 0.5, `רבע` = 0.25) preserve the natural unit too. "Half a banana" is `count=0.5, unit="piece"`, NOT `count=60, unit="g"` — the resolver halves the per-unit weight via `amount_g`.
    - Number table (both feminine and masculine forms):
      - שתי / שתיים / שניים = 2
      - שלוש / שלושה = 3
@@ -89,7 +90,8 @@ Both actions produce an `items` list using the same extraction rules. The differ
      - "שלוש ביצים" (3 eggs) → `{count: 3, unit: "piece", amount_g: 150}`
      - "שתי פיתות" (2 pitas) → `{count: 2, unit: "piece", amount_g: 140}`
      - "חמש פריכיות אורז" (5 rice cakes) → `{count: 5, unit: "piece", amount_g: 45}`
-     - "חצי כוס אורז" (half a cup of rice) → `{count: 79, unit: "g", amount_g: null}` — rice is gram-native; convert (half of 158g) and leave amount_g null
+     - "חצי כוס אורז" (half a cup of rice) → `{count: 0.5, unit: "cup", amount_g: 79}` — keep the cup unit, emit half-cup grams as the safety-net estimate
+     - "חצי בננה" (half a banana) → `{count: 0.5, unit: "piece", amount_g: 60}` — fractional quantifier on piece-bucket food preserves the piece unit
 
 4. **Default Serving When No Quantity Given**:
    - When the user mentions a food without any quantity, ALWAYS emit `unit="g"` with a sensible default count — even if the food has a non-gram natural unit:
