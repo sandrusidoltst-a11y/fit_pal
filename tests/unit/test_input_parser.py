@@ -66,7 +66,6 @@ class TestInputParserLogFood:
             basic_state["messages"] = [HumanMessage(content="I had 200g of chicken breast")]
             result = await input_parser_node(basic_state)
 
-            assert result["last_action"] == "LOG_FOOD"
             assert result["user_intent"] == "LOG_FOOD"
             assert result["pipeline_stage"] == "PENDING"
             items = result.get("pending_food_items", [])
@@ -127,7 +126,6 @@ class TestInputParserLogFood:
             basic_state["messages"] = [HumanMessage(content="I had pasta with cheese and a tomato")]
             result = await input_parser_node(basic_state)
 
-            assert result["last_action"] == "LOG_FOOD"
             assert result["user_intent"] == "LOG_FOOD"
             assert result["pipeline_stage"] == "PENDING"
             items = result.get("pending_food_items", [])
@@ -157,7 +155,6 @@ class TestInputParserOtherActions:
             basic_state["messages"] = [HumanMessage(content="Hello, how are you?")]
             result = await input_parser_node(basic_state)
 
-            assert result["last_action"] == "CHITCHAT"
             assert result["user_intent"] == "CHITCHAT"
             assert result["pipeline_stage"] == "PENDING"
             assert len(result.get("pending_food_items", [])) == 0
@@ -178,7 +175,6 @@ class TestInputParserOtherActions:
             basic_state["messages"] = [HumanMessage(content="asdfasdf")]
             result = await input_parser_node(basic_state)
 
-            assert result["last_action"] == "CHITCHAT"
             assert result["user_intent"] == "CHITCHAT"
 
     async def test_query_daily_stats(self, basic_state):
@@ -197,7 +193,6 @@ class TestInputParserOtherActions:
             basic_state["messages"] = [HumanMessage(content="How much protein have I eaten today?")]
             result = await input_parser_node(basic_state)
 
-            assert result["last_action"] == "QUERY_DAILY_STATS"
             assert result["user_intent"] == "QUERY_DAILY_STATS"
             assert result["pipeline_stage"] == "PENDING"
             assert len(result.get("pending_food_items", [])) == 0
@@ -218,7 +213,6 @@ class TestInputParserOtherActions:
             basic_state["messages"] = [HumanMessage(content="How many calories in an apple?")]
             result = await input_parser_node(basic_state)
 
-            assert result["last_action"] == "QUERY_FOOD_INFO"
             assert result["user_intent"] == "QUERY_FOOD_INFO"
             assert result["pipeline_stage"] == "PENDING"
             assert len(result.get("pending_food_items", [])) == 0

@@ -30,7 +30,7 @@ Split `last_action` into two `Literal` fields on `AgentState`:
 
 The two value sets are **disjoint** by construction — tested in `tests/unit/test_state_consistency.py::TestIntentStageDisjoint`.
 
-`last_action: GraphAction` is **kept** for one release as a deprecated parallel field. Every writer dual-writes (the old `last_action` value plus the new field). Readers (routers, `response_node._build_context`) read the new field with a legacy fallback (`intent_from_legacy` / `stage_from_legacy` in `src/agents/state.py`) that maps `last_action` back when the new fields are absent. This protects in-flight HITL-paused conversations whose Postgres checkpoints predate the refactor.
+The original plan kept `last_action: GraphAction` as a dual-written deprecated parallel field for one release to protect paused HITL checkpoints. **On review of PR #32, that back-compat layer was reassessed and removed in a follow-up commit on the same branch** — the resume path (`confirmation_node`'s `interrupt()` continuation) doesn't read the new fields, and pre-refactor checkpoints store stage values in `last_action` that `intent_from_legacy` returns `None` for anyway. The legacy fallback never fired in practice. See Alternatives §C for the original framing.
 
 Naming: the pre-existing Pydantic class `UserIntent` (the structured-output wrapper) was renamed to `UserIntentEvent`, freeing the `UserIntent` name for the new Literal. The rename follows ADR-0004's `Event` suffix convention.
 
@@ -54,7 +54,7 @@ Discriminate by which sub-state TypedDict has values: `log_food` populated → i
 
 Just delete `last_action`. Force-resolve paused HITL threads at deploy time, or accept that in-flight users get an error on resume.
 
-**Rejected because** paused HITL threads at deploy time would read state with an unknown shape. The cost of one release of dual-write is small (one extra field per node return); the cost of broken HITL resumes for users in the middle of a confirmation is real-user friction we don't need to take.
+**Originally rejected** because of perceived paused-HITL risk. **Reconsidered during PR #32 review and accepted** — see the Decision section. The resume path doesn't depend on the new fields; pre-refactor checkpoints don't map cleanly to the new shape via the legacy fallback anyway. The dual-write + legacy helpers were removed in a follow-up commit on the same branch before merge.
 
 ### D. Two separate PRs — refactor first, QUERY_FOOD_INFO fix second
 
@@ -73,15 +73,12 @@ Land the behavior-neutral refactor alone, watch logs for ~2 weeks, then land the
 
 ### What this makes harder
 
-- **Two fields to keep consistent during deprecation.** Every writer dual-writes; future contributors might forget. Mitigation: `tests/unit/test_intent_stage_invariants.py` covers transitions and immutability; the test_state_consistency.py disjoint test catches Literal drift.
-- **`_build_context` edge case on pre-refactor checkpoints.** If a paused HITL thread's checkpoint has `last_action="LOGGED"` (a stage, not an intent), the legacy fallback returns `intent=None` and `_build_context` renders a minimal context block. The user sees a generic "logged" response rather than one that names the food. Acceptable — affects only ~30 min of paused threads at deploy time; resolves on the next fresh message.
-- **JSON context block is ~3 lines longer.** `user_intent`, `pipeline_stage`, AND `last_action` all emitted to the prompt. Negligible token cost; goes away when `last_action` is removed.
+- **`_build_context` rendering on pre-refactor checkpoints (one-time at deploy).** A paused HITL thread whose checkpoint predates this PR will have no `user_intent` / `pipeline_stage` keys on resume. `_build_context` falls into the minimal-context path; the user sees a generic "logged" response rather than one that names the food. Acceptable — affects ~30 min of paused threads at deploy time; the food still commits and the bot still replies; subsequent messages render normally.
 
 ### What we are committing to
 
 - **`user_intent` is immutable per turn.** Once `input_parser_node` writes it, no other node may overwrite it. New writer nodes added to the graph must not include `user_intent` in their return dict.
-- **`pipeline_stage` is the only stage signal.** `last_action` is a deprecated alias for one release; new code should not read it.
-- **Removal of `last_action` is a tracked task** (`brain/TASKS.md` Maintenance). The follow-up cleanup drops the field, the dual-writes, the legacy-fallback helpers, and the back-compat reads in routers and `_build_context`.
+- **`pipeline_stage` is the only stage signal.** No back-compat alias; new code reads `pipeline_stage` directly.
 
 ## Revisit trigger
 

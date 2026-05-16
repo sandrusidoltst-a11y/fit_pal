@@ -10,13 +10,7 @@ from src.agents.nodes.response_node import response_node
 from src.agents.nodes.selection_node import agent_selection_node
 from src.agents.nodes.personal_stats_node import personal_stats_node
 from src.agents.nodes.stats_node import stats_lookup_node
-from src.agents.state import (
-    AgentState,
-    InputState,
-    OutputState,
-    intent_from_legacy,
-    stage_from_legacy,
-)
+from src.agents.state import AgentState, InputState, OutputState
 from src.context import ContextSchema
 
 
@@ -26,7 +20,7 @@ async def define_graph(**kwargs):
     workflow = StateGraph(state_schema=AgentState, input_schema=InputState, output_schema=OutputState, context_schema=ContextSchema)
 
     def route_parser(state: AgentState):
-        intent = state.get("user_intent") or intent_from_legacy(state.get("last_action"))
+        intent = state.get("user_intent")
         if intent in ["LOG_FOOD", "QUERY_FOOD_INFO"]:
             return "food_search"
         elif intent == "QUERY_DAILY_STATS":
@@ -37,7 +31,7 @@ async def define_graph(**kwargs):
 
     def route_after_selection(state: AgentState):
         """Route to calculate_macros for both DB matches and off-menu estimation."""
-        stage = state.get("pipeline_stage") or stage_from_legacy(state.get("last_action"))
+        stage = state.get("pipeline_stage")
         if stage in ["SELECTED", "NO_MATCH"]:
             return "calculate_macros"
         return "load_daily_context"
@@ -46,8 +40,7 @@ async def define_graph(**kwargs):
         """Loop back if more items pending; QUERY_FOOD_INFO skips commit, else confirm."""
         if state.get("pending_food_items", []):
             return "food_search"  # Process next item
-        intent = state.get("user_intent") or intent_from_legacy(state.get("last_action"))
-        if intent == "QUERY_FOOD_INFO":
+        if state.get("user_intent") == "QUERY_FOOD_INFO":
             # User asked a nutrition question — skip confirmation + commit and
             # answer with the looked-up macros. See ADR-0005.
             return "load_daily_context"

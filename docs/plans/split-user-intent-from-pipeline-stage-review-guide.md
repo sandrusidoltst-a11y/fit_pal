@@ -1,5 +1,8 @@
 # PR Reading Guide — split `last_action` into `user_intent` + `pipeline_stage`
 
+> [!note] Update 2026-05-12
+> This guide was written for the first commit on this branch, which kept `last_action` as a dual-written deprecated alias for one release. On reassessment during review, the back-compat layer was found to never fire in practice and was removed in a follow-up commit on the same branch. **Ignore any mention below of "dual-write", "legacy fallback", `intent_from_legacy` / `stage_from_legacy`, or `last_action` writes** — those references describe the intermediate state and not the final diff. The new state shape is `user_intent` + `pipeline_stage` only; `last_action` and `GraphAction` are gone. See `commit_logs/2026-05-12_08-33-08_remove-last-action-deprecation.md` for the removal commit.
+
 This PR is 30 files large but conceptually simple if you read it in the right order. The change has one keystone (the new state shape), one writer that creates it, several readers that consume it, and a tail of tests and docs. Reading top-down by file path will be slow; this order takes ~15 minutes.
 
 ## Start here (intent)

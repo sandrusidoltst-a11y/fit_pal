@@ -91,7 +91,6 @@ class TestCommitNodeSuccess:
         assert mock_log_food_entry.ainvoke.call_count == 2
         assert len(result["processing_results"]) == 2
         assert all(r["status"] == "LOGGED" for r in result["processing_results"])
-        assert result["last_action"] == "LOGGED"
         assert result["pipeline_stage"] == "LOGGED"
         # food_name in ProcessingResult should carry the English name
         assert result["processing_results"][0]["food_name"] == "chicken"

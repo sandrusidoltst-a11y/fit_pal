@@ -49,7 +49,6 @@ def basic_state():
         "query_logs": [],
         "log_food": {},
         "query_stats": {},
-        "last_action": "",
         "user_intent": "",
         "pipeline_stage": "",
         "search_results": [],

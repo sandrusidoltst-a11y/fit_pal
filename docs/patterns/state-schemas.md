@@ -2,12 +2,12 @@
 
 ## What It Is
 
-Three-tier TypedDict schema: `InputState` (public in) → `AgentState` (internal) → `OutputState` (public out). Only `messages` is exposed externally; all internal fields (`pending_food_items`, `last_action`, `pending_confirmations`, etc.) stay hidden from callers.
+Three-tier TypedDict schema: `InputState` (public in) → `AgentState` (internal) → `OutputState` (public out). Only `messages` is exposed externally; all internal fields (`pending_food_items`, `user_intent`, `pipeline_stage`, `pending_confirmations`, etc.) stay hidden from callers.
 
 ## Why This Pattern
 
 - **Clean Studio UX** — `InputState` with only `messages` renders a standard chat interface in LangSmith Studio, not a full state form with every internal field
-- **Encapsulation** — internal routing fields (`last_action`, `selected_food_id`) never leak to external callers (bot, tests, Studio)
+- **Encapsulation** — internal routing fields (`user_intent`, `pipeline_stage`, `selected_food_id`) never leak to external callers (bot, tests, Studio)
 - **add_messages reducer** — nodes return `{"messages": [ai_msg]}` and the reducer appends (not replaces), giving thread-based conversation memory for free
 - **Minimal coupling** — callers only know about `messages`, so internal state can evolve without breaking the public API
 
@@ -53,7 +53,6 @@ Superset of InputState/OutputState. All node-to-node data lives here:
 | `daily_log_report` | `List[QueriedLog]` | Raw logs from DB for stats/reporting |
 | `user_intent` | `UserIntent` | What the user originally asked for. Set once by `input_parser_node`; immutable for the turn. See ADR-0005. |
 | `pipeline_stage` | `PipelineStage` | Where the graph is in processing the user's intent. Overwritten freely by intermediate nodes; initialized to `PENDING` by the parser. See ADR-0005. |
-| `last_action` | `GraphAction` | **DEPRECATED** — conflates intent and stage. Kept for one release so paused HITL checkpoints resume safely. Removal tracked in TASKS.md. See ADR-0005. |
 | `consumed_at` | `Optional[datetime]` | Timestamp for food logging |
 | `start_date` / `end_date` | `Optional[date]` | Date range for stats queries |
 
@@ -100,8 +99,6 @@ All defined in `src/agents/state.py` as TypedDicts:
 - **`QueriedLog`** — raw daily log from DB for reporting
 - **`UserIntent`** — Literal of intent values (`LOG_FOOD`, `QUERY_FOOD_INFO`, `QUERY_DAILY_STATS`, `CHITCHAT`, `LOG_PERSONAL_STATS`); set once per turn by the parser.
 - **`PipelineStage`** — Literal of stage values (`PENDING`, `SELECTED`, `NO_MATCH`, `AMBIGUOUS`, `AWAITING_CONFIRMATION`, `CONFIRMED`, `REJECTED`, `LOGGED`); overwritten by intermediate nodes.
-- **`GraphAction`** — DEPRECATED union of both. Kept for one release for back-compat. See ADR-0005.
-
 > [!note] Intent vs Stage (ADR-0005)
 > `user_intent` is the user's original ask; `pipeline_stage` is the current node's view of progress. They are independent — every intent (LOG_FOOD, QUERY_FOOD_INFO, etc.) can be at any compatible stage. Pre-refactor, both were stored in a single `last_action` field that nodes overwrote, which made "what did the user originally ask?" unanswerable late in the graph. The split solves that.
 

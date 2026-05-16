@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, List, Literal, Optional, TypedDict, get_args
+from typing import Annotated, List, Literal, Optional, TypedDict
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
@@ -57,26 +57,6 @@ class QueriedLog(TypedDict):
     serving_amount_g: Optional[float]
 
 
-GraphAction = Literal[
-    "LOG_FOOD",
-    "QUERY_FOOD_INFO",
-    "QUERY_DAILY_STATS",
-    "CHITCHAT",
-    "SELECTED",
-    "NO_MATCH",
-    "AMBIGUOUS",
-    "LOGGED",
-    "AWAITING_CONFIRMATION",
-    "CONFIRMED",
-    "REJECTED",
-    "LOG_PERSONAL_STATS",
-]
-# DEPRECATED: GraphAction conflates user intent with pipeline stage. Use
-# UserIntent and PipelineStage below. Kept for one release so paused HITL
-# checkpoints (whose stored state holds `last_action: GraphAction`) resume
-# safely. Removal tracked in brain/TASKS.md. See ADR-0005.
-
-
 UserIntent = Literal[
     "LOG_FOOD",
     "QUERY_FOOD_INFO",
@@ -104,32 +84,6 @@ intermediate nodes (``selection_node``, ``calculate_macros_node``,
 to ``PENDING`` by ``input_parser_node``. See ADR-0005."""
 
 
-# Legacy fallback helpers — REMOVE WITH last_action (tracked in brain/TASKS.md).
-# Used by routers and response_node during the deprecation window so paused
-# HITL threads whose checkpoints predate ADR-0005 still route correctly.
-_INTENT_VALUES = set(get_args(UserIntent))
-_STAGE_VALUES = set(get_args(PipelineStage))
-
-
-def intent_from_legacy(last_action: Optional[str]) -> Optional[str]:
-    """Map legacy ``last_action`` → ``user_intent`` for pre-refactor checkpoints.
-
-    Returns the value if it's a known ``UserIntent``, else ``None``. Stage
-    values like ``"CONFIRMED"`` return ``None`` — they don't map cleanly to
-    an originating intent (the caller falls back to minimal context).
-    """
-    if last_action and last_action in _INTENT_VALUES:
-        return last_action
-    return None
-
-
-def stage_from_legacy(last_action: Optional[str]) -> Optional[str]:
-    """Map legacy ``last_action`` → ``pipeline_stage`` for pre-refactor checkpoints."""
-    if last_action and last_action in _STAGE_VALUES:
-        return last_action
-    return None
-
-
 class ProcessingResult(PendingFoodItem):
     """Result of processing a single food item.
 
@@ -145,14 +99,14 @@ class ProcessingResult(PendingFoodItem):
 
 
 class LogFoodSubState(TypedDict, total=False):
-    """Per-action sub-state — meaningful when last_action is LOG_FOOD/CONFIRMED/LOGGED."""
+    """Per-action sub-state — meaningful when user_intent is LOG_FOOD."""
 
     consumed_at: Optional[datetime]
     meal_type: Optional[str]
 
 
 class QueryStatsSubState(TypedDict, total=False):
-    """Per-action sub-state — meaningful when last_action is QUERY_DAILY_STATS.
+    """Per-action sub-state — meaningful when user_intent is QUERY_DAILY_STATS.
 
     target_date and (start_date, end_date) are mutually exclusive — enforced
     by QueryStatsEvent's model_validator at the LLM-output boundary.
@@ -225,9 +179,6 @@ class AgentState(TypedDict):
         log_food: Per-action sub-state for LOG_FOOD (consumed_at, meal_type).
         query_stats: Per-action sub-state for QUERY_DAILY_STATS
             (target_date | start_date+end_date).
-        last_action: DEPRECATED — see ADR-0005. Conflates user intent with
-            pipeline stage. Use ``user_intent`` and ``pipeline_stage`` instead.
-            Kept for one release for paused-HITL checkpoint compatibility.
         user_intent: What the user originally asked for. Set once by
             ``input_parser_node``; immutable for the turn.
         pipeline_stage: Where the graph is in processing the user's intent.
@@ -244,7 +195,6 @@ class AgentState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
     pending_food_items: List[PendingFoodItem]
     query_logs: List[QueriedLog]
-    last_action: GraphAction  # DEPRECATED — see ADR-0005
     user_intent: UserIntent
     pipeline_stage: PipelineStage
     search_results: List[SearchResult]

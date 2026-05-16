@@ -153,22 +153,16 @@ def _serialize_date(obj):
 def _build_context(state: AgentState) -> str:
     """Build a selective JSON context string based on user_intent.
 
-    Dispatches on ``user_intent`` (the user's original ask) rather than on
-    ``last_action`` (which conflates intent with pipeline stage). Pre-refactor
-    checkpoints that only have ``last_action`` set are handled via the legacy
-    fallback. ``last_action`` is still emitted in the context for one release
-    so the response prompt has a compatibility belt. See ADR-0005.
+    Dispatches on ``user_intent`` (the user's original ask) for the flow
+    grouping and uses ``pipeline_stage`` for stage-specific rendering within
+    that flow. See ADR-0005.
     """
-    from src.agents.state import intent_from_legacy, stage_from_legacy
-
-    intent = state.get("user_intent") or intent_from_legacy(state.get("last_action")) or ""
-    stage = state.get("pipeline_stage") or stage_from_legacy(state.get("last_action")) or ""
-    last_action = state.get("last_action", "")
+    intent = state.get("user_intent", "")
+    stage = state.get("pipeline_stage", "")
 
     context: dict = {
         "user_intent": intent,
         "pipeline_stage": stage,
-        "last_action": last_action,  # DEPRECATED — see ADR-0005
     }
 
     if intent in ("LOG_FOOD", "LOG_PERSONAL_STATS"):

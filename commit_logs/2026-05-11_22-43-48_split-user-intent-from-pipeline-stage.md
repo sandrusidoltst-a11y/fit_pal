@@ -1,5 +1,7 @@
 # refactor: split `last_action` into `user_intent` + `pipeline_stage`; route `QUERY_FOOD_INFO` past commit
 
+> **Update 2026-05-12:** On review, the `last_action` deprecation window described below was removed in a follow-up commit on the same branch. The dual-write, the legacy-fallback helpers (`intent_from_legacy` / `stage_from_legacy`), and the `GraphAction` Literal are gone. The follow-up commit log explains why the back-compat layer was unnecessary. See `commit_logs/2026-05-12_08-33-08_remove-last-action-deprecation.md`.
+
 ## Why
 
 `AgentState.last_action` was a single `Literal` field doing two unrelated jobs:

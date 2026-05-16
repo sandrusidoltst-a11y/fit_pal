@@ -2,14 +2,10 @@
 Unit tests for ADR-0005 invariants — user_intent vs pipeline_stage.
 
 Scope:
-    Verify three contracts the refactor introduces:
+    Verify two contracts the refactor introduces:
     1. user_intent is set once by input_parser_node and is not overwritten by
        any downstream node.
     2. pipeline_stage transitions through the expected values as nodes run.
-    3. The legacy-fallback path (state has only last_action, no user_intent /
-       pipeline_stage) routes correctly via intent_from_legacy /
-       stage_from_legacy. Covers pre-refactor checkpoints resumed after
-       deploy.
 
 LLM Usage:
     MOCKED — no live LLM calls. Tools are mocked at the node module boundary
@@ -21,7 +17,6 @@ from langchain_core.messages import HumanMessage
 
 from src.agents.nodes.input_node import input_parser_node
 from src.agents.nodes.selection_node import agent_selection_node
-from src.agents.state import intent_from_legacy, stage_from_legacy
 from src.schemas.input_schema import (
     ActionType,
     LogFoodEvent,
@@ -85,8 +80,6 @@ class TestUserIntentImmutability:
 
         assert result["user_intent"] == "QUERY_FOOD_INFO"
         assert result["pipeline_stage"] == "PENDING"
-        # last_action also dual-written for back-compat:
-        assert result["last_action"] == "QUERY_FOOD_INFO"
 
 
 class TestPipelineStageTransitions:
@@ -122,42 +115,3 @@ class TestPipelineStageTransitions:
         ]
         result = await agent_selection_node(basic_state)
         assert result["pipeline_stage"] == "SELECTED"
-
-
-class TestLegacyCheckpointFallback:
-    """Pre-refactor state dicts (only last_action, no user_intent/pipeline_stage)
-    must still route correctly via the legacy-fallback helpers."""
-
-    def test_intent_from_legacy_maps_intent_values(self):
-        """Intent values pass through; stage values return None."""
-        assert intent_from_legacy("LOG_FOOD") == "LOG_FOOD"
-        assert intent_from_legacy("QUERY_FOOD_INFO") == "QUERY_FOOD_INFO"
-        assert intent_from_legacy("CHITCHAT") == "CHITCHAT"
-        assert intent_from_legacy("CONFIRMED") is None
-        assert intent_from_legacy("LOGGED") is None
-        assert intent_from_legacy("") is None
-        assert intent_from_legacy(None) is None
-
-    def test_stage_from_legacy_maps_stage_values(self):
-        """Stage values pass through; intent values return None."""
-        assert stage_from_legacy("SELECTED") == "SELECTED"
-        assert stage_from_legacy("CONFIRMED") == "CONFIRMED"
-        assert stage_from_legacy("LOGGED") == "LOGGED"
-        assert stage_from_legacy("LOG_FOOD") is None
-        assert stage_from_legacy("CHITCHAT") is None
-        assert stage_from_legacy("") is None
-        assert stage_from_legacy(None) is None
-
-    def test_intent_and_stage_legacy_are_mutually_exclusive(self):
-        """No legacy value resolves to both intent AND stage."""
-        for value in (
-            "LOG_FOOD", "QUERY_FOOD_INFO", "QUERY_DAILY_STATS", "CHITCHAT", "LOG_PERSONAL_STATS",
-            "PENDING", "SELECTED", "NO_MATCH", "AMBIGUOUS",
-            "AWAITING_CONFIRMATION", "CONFIRMED", "REJECTED", "LOGGED",
-        ):
-            intent = intent_from_legacy(value)
-            stage = stage_from_legacy(value)
-            assert not (intent and stage), (
-                f"Value {value!r} resolves to both intent ({intent!r}) and "
-                f"stage ({stage!r}) — UserIntent and PipelineStage must be disjoint."
-            )

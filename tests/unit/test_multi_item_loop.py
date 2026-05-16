@@ -56,7 +56,6 @@ class TestMultiItemLoopDraining:
 
         assert len(result["pending_food_items"]) == 1
         assert result["pending_food_items"][0]["food_name"] == "rice"
-        assert result["last_action"] == "AWAITING_CONFIRMATION"
         assert result["pipeline_stage"] == "AWAITING_CONFIRMATION"
         assert len(result["pending_confirmations"]) == 1
         assert result["pending_confirmations"][0]["name_en"] == "Test Food"
@@ -77,7 +76,6 @@ class TestMultiItemLoopDraining:
         result = await calculate_macros_node(basic_state, TEST_RUNTIME_A)
 
         assert len(result["pending_food_items"]) == 0
-        assert result["last_action"] == "AWAITING_CONFIRMATION"
         assert result["pipeline_stage"] == "AWAITING_CONFIRMATION"
         assert len(result["pending_confirmations"]) == 1
 
@@ -149,7 +147,6 @@ class TestMultiItemLoopEdgeCases:
             {"food_name": "rice", "count": 200.0, "unit": "g", "original_text": "200g rice"},
             {"food_name": "broccoli", "count": 150.0, "unit": "g", "original_text": "150g broccoli"},
         ]
-        basic_state["last_action"] = "LOG_FOOD"
         basic_state["user_intent"] = "LOG_FOOD"
         basic_state["pipeline_stage"] = "PENDING"
 

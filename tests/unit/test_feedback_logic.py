@@ -134,7 +134,6 @@ class TestAgentSelectionFeedback:
 
         result = await agent_selection_node(basic_state)
 
-        assert result["last_action"] == "NO_MATCH"
         assert result["pipeline_stage"] == "NO_MATCH"
         assert "processing_results" not in result
 
@@ -166,6 +165,5 @@ class TestAgentSelectionFeedback:
 
             result = await agent_selection_node(basic_state)
 
-            assert result["last_action"] == "NO_MATCH"
             assert result["pipeline_stage"] == "NO_MATCH"
             assert "processing_results" not in result

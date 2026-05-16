@@ -35,7 +35,6 @@ async def agent_selection_node(state: AgentState) -> dict:
     if not search_results:
         return {
             "selected_food_id": None,
-            "last_action": "NO_MATCH",
             "pipeline_stage": "NO_MATCH",
         }
 
@@ -43,7 +42,6 @@ async def agent_selection_node(state: AgentState) -> dict:
     if len(search_results) == 1:
         return {
             "selected_food_id": search_results[0]["id"],
-            "last_action": "SELECTED",
             "pipeline_stage": "SELECTED",
         }
 
@@ -80,7 +78,6 @@ async def agent_selection_node(state: AgentState) -> dict:
         logger.warning("LLM returned SELECTED without food_id, treating as NO_MATCH")
         return {
             "selected_food_id": None,
-            "last_action": "NO_MATCH",
             "pipeline_stage": "NO_MATCH",
         }
 
@@ -88,12 +85,10 @@ async def agent_selection_node(state: AgentState) -> dict:
         logger.warning("LLM returned AMBIGUOUS (not supported in MVP), treating as NO_MATCH")
         return {
             "selected_food_id": None,
-            "last_action": "NO_MATCH",
             "pipeline_stage": "NO_MATCH",
         }
 
     return {
         "selected_food_id": result.food_id,
-        "last_action": result.status.value,
         "pipeline_stage": result.status.value,
     }

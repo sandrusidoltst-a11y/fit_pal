@@ -91,7 +91,6 @@ async def input_parser_node(state: AgentState):
 
     return {
         "pending_food_items": items,
-        "last_action": result.action.value,        # DEPRECATED — see ADR-0005
         "user_intent": result.action.value,        # set once per turn
         "pipeline_stage": "PENDING",               # reset at turn start
         "processing_results": [],
