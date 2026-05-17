@@ -61,9 +61,10 @@ Both actions produce an `items` list using the same extraction rules. The differ
 2. **Quantity & Unit Extraction**:
    - Extract `count` (numeric quantity) and `unit` (free-form string) for each food item.
    - `unit` is FREE-FORM — emit whatever word the user used (`piece`, `slice`, `bowl`, `wedge`, `scoop`, `bottle`, `cup`, `tbsp`, `tsp`, `can`, `חתיכה`, `פרוסה`, `קערה`, etc.). Prefer the singular English form when the user's word has an obvious English equivalent (e.g., `"חתיכה"` → `"piece"`); otherwise emit the user's word verbatim.
+   - **Canonical unit vocabulary**: when the user used an explicit unit, prefer one of the catalog's canonical unit keys when an obvious equivalent exists: `g`, `piece`, `slice`, `cup`, `tbsp`, `tsp`, `bowl`, `scoop`, `container`, `bottle`, `can`, `serving`. If the user's word doesn't match any of these, emit it verbatim — the catalog's `unit_synonyms` may still resolve it.
    - **When the user explicitly said grams**, emit `unit="g"`, put the gram amount in `count`, and leave `amount_g` null.
    - **For every other unit the user used** (slice, cup, piece, bowl, scoop, bottle, פרוסה, כוס, etc.), KEEP that unit and emit `amount_g` as your best gram estimate (count × per-unit weight). This applies to ALL foods — including rice, oats, pasta, soups, sauces. Do NOT convert non-gram units to grams in the parser; the downstream resolver uses `amount_g` as a safety net and the natural unit is preserved for the HITL confirmation preview ("you logged 1 cup of rice").
-   - The ONLY case where you emit `unit="g"` without an explicit gram amount is the default-serving fallback (Step 2.4) — when the user gave no quantity at all.
+   - **REQUIRED — `amount_g` whenever `unit != "g"`**: this includes `unit="serving"` from the default-serving rule (Step 2.4). Emit your best gram estimate for the stated quantity. NEVER null when unit is non-gram. The resolver uses this as the safety net when the catalog doesn't have your unit registered for the food, AND it is the primary source of truth for foods not yet in the catalog (estimation path). Dropping `amount_g` on a non-gram unit silently degrades downstream gram math.
    - Examples:
      - "200g chicken" → `{count: 200, unit: "g", amount_g: null}`
      - "2 eggs" → `{count: 2, unit: "piece", amount_g: 100}` (≈50g per egg)
@@ -94,23 +95,20 @@ Both actions produce an `items` list using the same extraction rules. The differ
      - "חצי בננה" (half a banana) → `{count: 0.5, unit: "piece", amount_g: 60}` — fractional quantifier on piece-bucket food preserves the piece unit
 
 4. **Default Serving When No Quantity Given**:
-   - When the user mentions a food without any quantity, ALWAYS emit `unit="g"` with a sensible default count — even if the food has a non-gram natural unit:
-     - Beverages (coffee, tea, juice): `count=240, unit="g"` (one cup equivalent)
-     - Protein foods (chicken, fish, meat, egg, tofu, etc.): `count=100, unit="g"`
-     - Whole fruit (banana, apple, orange): `count=120, unit="g"`
-     - Anything else: a reasonable per-serving weight for that food in grams.
-   - Why grams as default: when the user is non-specific, a non-gram guess is risky — it can fail the downstream resolver if the unit doesn't match the food's registered natural unit. Grams always resolve safely.
-   - Never return `count=0` or `count=1` with `unit="g"`.
+   - When the user mentions a food without any quantity, ALWAYS emit `{count: 1, unit: "serving", amount_g: <your best gram estimate for a typical serving of this food>}`. One rule, one shape, no categories.
+   - The downstream resolver uses the food catalog's registered `serving` weight when available, otherwise falls back to your `amount_g`. By emitting `unit="serving"` you defer to the catalog's curated truth; by emitting `amount_g` you give the resolver a safe fallback for foods the catalog hasn't curated yet (or hasn't seen at all — the estimation path).
    - Examples:
-     - "I had chicken" → `{count: 100, unit: "g"}` (no quantity → grams default)
-     - "ate an egg" → `{count: 100, unit: "g"}` (no explicit count → grams default, even though egg is in piece-bucket)
-     - "drank coffee" → `{count: 240, unit: "g"}`
+     - "I had chicken" → `{food_name: "chicken", count: 1, unit: "serving", amount_g: 150}`
+     - "ate an egg" → `{food_name: "egg", count: 1, unit: "serving", amount_g: 50}`
+     - "drank coffee" → `{food_name: "coffee", count: 1, unit: "serving", amount_g: 240}`
+     - "מעדן חלבון" → `{food_name: "מעדן חלבון", count: 1, unit: "serving", amount_g: 130}`
+     - "שתיתי שייק חלבון" → `{food_name: "שייק חלבון", count: 1, unit: "serving", amount_g: 300}`
 
 5. **Multi-Item Quantity Scoping**:
    - When multiple items appear in one message, each item gets ONLY its own explicitly stated quantity.
    - Do NOT borrow a quantity from a neighboring item.
    - If an item has no quantity, apply the default-serving rule (Step 2.4) — do not inherit a number from another item in the same message.
-   - Example: "log a banana and 100g rice" → Banana: `{count: 120, unit: "g"}` (default), Rice: `{count: 100, unit: "g"}` (explicit). NOT Banana: `{count: 100, unit: "g"}`.
+   - Example: "log a banana and 100g rice" → Banana: `{count: 1, unit: "serving", amount_g: 120}` (default-serving rule), Rice: `{count: 100, unit: "g", amount_g: null}` (explicit grams). NOT Banana: `{count: 100, unit: "g"}`.
 
 6. **Canonical Food Naming**:
    - Emit `food_name` in clean canonical form, in the SAME LANGUAGE the user used. Do not translate.

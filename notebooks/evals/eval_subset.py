@@ -29,6 +29,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 # Reuse the canonical examples + evaluator functions from the main eval file
 from notebooks.evals.eval_input_parser_hebrew import (  # noqa: E402
     EXAMPLES,
+    amount_g_present_when_non_gram,
     correct_action,
     correct_dates,
     correct_item_count,
@@ -52,6 +53,7 @@ SYNC_EVALUATORS = [
     correct_action,
     correct_item_count,
     correct_serving,
+    amount_g_present_when_non_gram,
     correct_dates,
     no_consumed_at_on_query,
     no_query_dates_on_log_food,

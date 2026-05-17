@@ -64,6 +64,22 @@ class TestResolveAmountG:
         assert resolve_amount_g(food, "g", 50.0) == 50.0
         assert resolve_amount_g(food, "bowl", 1.0, llm_estimated_amount_g=300.0) == 300.0
 
+    def test_serving_registered_in_unit_weights_wins(self):
+        """Catalog's serving weight overrides the parser's amount_g estimate."""
+        food = _food(unit_weights={"serving": 130.0}, name_en="Protein Pudding")
+        assert resolve_amount_g(food, "serving", 1.0, llm_estimated_amount_g=100.0) == 130.0
+
+    def test_serving_not_registered_falls_back_to_amount_g(self):
+        """When the catalog has no serving key, the parser's amount_g wins."""
+        food = _food(unit_weights={"piece": 50.0}, name_en="New Food")
+        assert resolve_amount_g(food, "serving", 1.0, llm_estimated_amount_g=150.0) == 150.0
+
+    def test_serving_not_registered_no_amount_g_uses_last_resort(self, caplog):
+        """Neither catalog nor amount_g → last-resort fallback (count as grams)."""
+        food = _food(unit_weights={}, name_en="New Food")
+        with caplog.at_level(logging.WARNING):
+            assert resolve_amount_g(food, "serving", 1.0) == 1.0
+
 
 class TestComputeServings:
     def test_none_when_serving_amount_g_is_none(self):

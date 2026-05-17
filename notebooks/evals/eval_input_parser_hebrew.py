@@ -53,7 +53,7 @@ EXAMPLES: list[dict] = [
         "question": "תרשום בננה ו-100 גרם אורז",
         "action": "LOG_FOOD",
         "items": [
-            {"food_name": "בננה", "count": 120, "unit": "g"},
+            {"food_name": "בננה", "count": 1, "unit": "serving"},
             {"food_name": "אורז", "count": 100, "unit": "g"},
         ],
         "item_count": 2,
@@ -75,7 +75,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "קפה",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "קפה", "count": 240, "unit": "g"}],
+        "items": [{"food_name": "קפה", "count": 1, "unit": "serving"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -86,8 +86,8 @@ EXAMPLES: list[dict] = [
         "question": "פסטה עם גבינה לצהריים",
         "action": "LOG_FOOD",
         "items": [
-            {"food_name": "פסטה", "count": 200, "unit": "g"},
-            {"food_name": "גבינה", "count": 30, "unit": "g"},
+            {"food_name": "פסטה", "count": 1, "unit": "serving"},
+            {"food_name": "גבינה", "count": 1, "unit": "serving"},
         ],
         "item_count": 2,
         "consumed_at": None,
@@ -118,7 +118,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "שתיתי שייק חלבון אחרי אימון",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "שייק חלבון", "count": 300, "unit": "g"}],
+        "items": [{"food_name": "שייק חלבון", "count": 1, "unit": "serving"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -139,7 +139,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "אכלתי בננה אתמול",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "בננה", "count": 120, "unit": "g"}],
+        "items": [{"food_name": "בננה", "count": 1, "unit": "serving"}],
         "item_count": 1,
         "consumed_at": "YESTERDAY_NOON",
         "start_date": None,
@@ -237,7 +237,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "כמה חלבון יש בביצה?",
         "action": "QUERY_FOOD_INFO",
-        "items": [{"food_name": "ביצה", "count": 100, "unit": "g"}],
+        "items": [{"food_name": "ביצה", "count": 1, "unit": "serving"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -247,7 +247,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "כמה קלוריות יש בבננה?",
         "action": "QUERY_FOOD_INFO",
-        "items": [{"food_name": "בננה", "count": 120, "unit": "g"}],
+        "items": [{"food_name": "בננה", "count": 1, "unit": "serving"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -344,7 +344,7 @@ EXAMPLES: list[dict] = [
     {
         "question": "מעדן חלבון",
         "action": "LOG_FOOD",
-        "items": [{"food_name": "מעדן חלבון", "count": 130, "unit": "g"}],
+        "items": [{"food_name": "מעדן חלבון", "count": 1, "unit": "serving"}],
         "item_count": 1,
         "consumed_at": None,
         "start_date": None,
@@ -409,7 +409,7 @@ EXAMPLES: list[dict] = [
         "action": "LOG_FOOD",
         "items": [
             {"food_name": "גבינה צהובה", "count": 2, "unit": "slice"},
-            {"food_name": "מעדן חלבון", "count": 130, "unit": "g"},
+            {"food_name": "מעדן חלבון", "count": 1, "unit": "serving"},
         ],
         "item_count": 2,
         "consumed_at": None,
@@ -425,6 +425,20 @@ EXAMPLES: list[dict] = [
         "consumed_at": None,
         "start_date": None,
         "end_date": None,
+    },
+    # --- LOG_FOOD: No-count, food NOT in catalog (estimation-path documentation) ---
+    # Parser shape only — eval doesn't invoke the resolver. Shows the
+    # universal `unit='serving'` directive applies whether or not the food
+    # is curated. amount_g_present_when_non_gram guards the safety net.
+    {
+        "question": "שתיתי קולה דיאט",
+        "action": "LOG_FOOD",
+        "items": [{"food_name": "קולה דיאט", "count": 1, "unit": "serving"}],
+        "item_count": 1,
+        "consumed_at": None,
+        "start_date": None,
+        "end_date": None,
+        "category": "estimation_path_no_count",
     },
 ]
 
@@ -576,6 +590,41 @@ def no_consumed_at_on_query(outputs: dict, reference_outputs: dict) -> bool:
     if outputs.get("action") != "QUERY_DAILY_STATS":
         return True
     return outputs.get("consumed_at") is None
+
+
+def amount_g_present_when_non_gram(outputs: dict, reference_outputs: dict) -> dict:
+    """Fail if any item with unit != 'g' is missing a numeric amount_g.
+
+    With the no-count → unit='serving' design, amount_g is load-bearing
+    for both the resolver fallback (when catalog doesn't have the unit)
+    and the estimation path (when the food isn't in the catalog at all).
+    A null amount_g on a non-gram unit silently degrades downstream gram math.
+    """
+    items = outputs.get("items", [])
+    non_gram_items = [it for it in items if it.get("unit") != "g"]
+    if not non_gram_items:
+        return {
+            "key": "amount_g_present_when_non_gram",
+            "score": 1.0,
+            "comment": "No non-gram items",
+        }
+    bad = [
+        it for it in non_gram_items
+        if not isinstance(it.get("amount_g"), (int, float))
+    ]
+    score = (len(non_gram_items) - len(bad)) / len(non_gram_items)
+    comment = (
+        "; ".join(
+            f"{it.get('food_name', '?')}: unit={it.get('unit')} amount_g={it.get('amount_g')}"
+            for it in bad
+        )
+        or "all non-gram items have amount_g"
+    )
+    return {
+        "key": "amount_g_present_when_non_gram",
+        "score": score,
+        "comment": comment,
+    }
 
 
 def correct_dates(outputs: dict, reference_outputs: dict) -> bool:
@@ -764,6 +813,7 @@ async def main() -> None:
             correct_action,
             correct_item_count,
             correct_serving,
+            amount_g_present_when_non_gram,
             correct_dates,
             no_query_dates_on_log_food,
             no_consumed_at_on_query,
