@@ -62,7 +62,6 @@ fit_pal/
 │   ├── i18n/                      # Bot/agent message localization (en.yaml, he.yaml; selected via BOT_LANGUAGE env var)
 │   ├── scripts/
 │   │   ├── ingest_simple_db.py    # ETL script (CSV -> Supabase Postgres)
-│   │   ├── print_trace.py         # LangSmith thread trace viewer (by thread_id)
 │   │   └── set_plan.py            # Coach CLI: upload nutrition plan per user
 │   ├── schemas/
 │   │   ├── input_schema.py        # UserIntent schema
@@ -247,6 +246,7 @@ PYTHONIOENCODING=utf-8 uv run langgraph build -t dolevsan/fitpal-server:latest -
 | [.claude/skills/use-railway/SKILL.md](.claude/skills/use-railway/SKILL.md) | Skill | Railway infrastructure operations (deploy, configure, troubleshoot) | When working with Railway deployment, services, or environment variables |
 | [.claude/skills/eval-debugger/SKILL.md](.claude/skills/eval-debugger/SKILL.md) | Skill | Debug eval failures from LangSmith experiments, generate diagnostic reports | After running evals, when failures need investigation |
 | [.claude/skills/eval-setup/SKILL.md](.claude/skills/eval-setup/SKILL.md) | Skill | Create single-step evaluation notebooks for graph nodes | When creating a new eval for a node |
+| `langsmith-trace` (user-level skill) | Skill | **Canonical way to investigate LangSmith traces** — fetch threads/runs, inspect node spans, export full trace data | Whenever you need to inspect a specific thread_id or trace_id, debug a prod conversation, or audit response_node context |
 | [.claude/skills/focus/SKILL.md](.claude/skills/focus/SKILL.md) | Skill | Plan focused work sessions, recommend prioritized tasks | When starting a session or deciding what to work on next |
 | [.claude/skills/skill-creator/SKILL.md](.claude/skills/skill-creator/SKILL.md) | Skill | Create, modify, and benchmark skills | When building or improving a skill |
 | [.claude/skills/obsidian-markdown/SKILL.md](.claude/skills/obsidian-markdown/SKILL.md) | Skill | Obsidian-flavored Markdown (wikilinks, callouts, embeds) | When creating or editing Obsidian notes |

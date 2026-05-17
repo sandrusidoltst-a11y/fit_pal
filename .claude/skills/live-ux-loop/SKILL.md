@@ -292,8 +292,6 @@ The thread_id you got from `client.threads.create()` at scenario start is the sa
 
 **Trigger the `langsmith-trace` skill** for trace fetching. It already knows the CLI, env setup, the `thread get` vs `trace get` distinction, and exporting full trace data. Don't reimplement those mechanics here — invoke the skill with the thread_id and let it return the data.
 
-For human-readable rendering when you need to skim a single thread, `src/scripts/print_trace.py` is the repo-local viewer. Use it as a fallback or when you want compact output for a finding writeup.
-
 ### Step 3: Verify DB state — mandatory, via Supabase MCP
 
 This step is **not optional**. Every scenario produces some claim about persistence ("logged 100g chicken", "no entries today", "weight updated to 74kg"), and a bot can sound right while writing the wrong thing — or claim nothing happened while a row landed anyway. The DB is the only source of truth.
