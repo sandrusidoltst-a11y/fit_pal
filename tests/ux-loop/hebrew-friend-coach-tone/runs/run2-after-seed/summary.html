@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>UX Loop — run2-after-seed Summary (updated)</title>
+<style>
+  :root {
+    --bg: #0f1116;
+    --panel: #161922;
+    --border: #262a36;
+    --text: #e7e9ee;
+    --muted: #8a93a6;
+    --green: #4ade80;
+    --red: #f87171;
+    --orange: #fb923c;
+    --yellow: #fbbf24;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+    --code-bg: #0b0d12;
+  }
+  body {
+    margin: 0;
+    padding: 32px 48px 96px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--bg);
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { font-size: 17px; margin: 20px 0 8px; }
+  .meta { color: var(--muted); margin-bottom: 24px; font-size: 13px; }
+  .meta code { background: var(--code-bg); padding: 2px 6px; border-radius: 3px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; text-align: left; }
+  th { background: var(--panel); font-weight: 600; }
+  td.pass { color: var(--green); font-weight: 600; }
+  td.fail { color: var(--red); font-weight: 600; }
+  td.partial { color: var(--yellow); font-weight: 600; }
+  td.resolved { color: var(--purple); font-weight: 600; }
+  td.na { color: var(--muted); }
+
+  .finding {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 14px 0;
+  }
+  .finding.resolved { border-left: 4px solid var(--purple); }
+  .finding.open { border-left: 4px solid var(--red); }
+  .finding.deferred { border-left: 4px solid var(--orange); }
+  .finding h3 { margin-top: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .sev-high { background: var(--red); color: #fff; }
+  .sev-med  { background: var(--orange); color: #fff; }
+  .sev-low  { background: var(--yellow); color: #1a1a1a; }
+  .bucket { background: var(--code-bg); color: var(--blue); border: 1px solid var(--border); }
+  .status-resolved { background: var(--purple); color: #fff; }
+  .status-open     { background: var(--red);    color: #fff; }
+  .status-deferred { background: var(--orange); color: #fff; }
+
+  .snippet {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 8px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .he {
+    direction: rtl;
+    text-align: right;
+    font-family: "SF Hebrew", "Arial Hebrew", "Heebo", sans-serif;
+    font-size: 14px;
+  }
+  .label-fail   { color: var(--red);    font-weight: 600; margin-right: 6px; }
+  .label-pass   { color: var(--green);  font-weight: 600; margin-right: 6px; }
+  .label-note   { color: var(--muted);  font-weight: 600; margin-right: 6px; }
+  .label-before { color: var(--orange); font-weight: 600; margin-right: 6px; }
+  .label-after  { color: var(--purple); font-weight: 600; margin-right: 6px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0; }
+  .grid > div { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; }
+  .grid .title { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .decision { background: #1c1f2b; border: 1px solid var(--blue); border-radius: 6px; padding: 14px 20px; margin-top: 20px; }
+  .decision h3 { margin-top: 0; color: var(--blue); }
+  .decision li { margin: 6px 0; }
+  .recommend { color: var(--green); font-weight: 600; }
+
+  .banner {
+    background: linear-gradient(135deg, rgba(167,139,250,0.15), rgba(96,165,250,0.10));
+    border: 1px solid var(--purple);
+    border-radius: 6px;
+    padding: 14px 20px;
+    margin: 16px 0 24px;
+  }
+  .banner h3 { margin-top: 0; color: var(--purple); }
+
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>UX Loop — <code>hebrew-friend-coach-tone</code></h1>
+<div class="meta">
+  Run: <code>run2-after-seed</code> · Updated 2026-05-24 (post-investigation) ·
+  Branch: <code>ux-loop/hebrew-friend-coach-tone-2026-05-24</code> ·
+  Dev user seeded with Clean Bulk Plan (12,127 chars) + 5 days of historical logs (21 rows; anomaly Wed 5/20)
+</div>
+
+<div class="banner">
+  <h3>🎯 Headline update — F1 + F2 RESOLVED via test infra fix</h3>
+  <p>Tracing the actual LLM call revealed that the bot was being fed a one-line <b>fake plan summary</b> (<code>Daily targets: 1600 kcal, 120g protein, 150g carbs, 50g fat.</code>) — the <code>DEFAULT_DEV_PROFILE</code> fallback from <code>src/context.py:20</code>. The 12,127-char real plan was never reaching the LLM because the test script wasn't passing <code>user_profile</code> in the runtime context (the bot gateway does this; the test was missing it). Once the real profile was injected, both F1 (plan target reading) and F2 (tight-confirmation default) dropped to zero failures across N=5 reruns.</p>
+</div>
+
+<h2>Headline</h2>
+
+<table>
+  <tr><th>Dimension</th><th>Status</th><th>Notes</th></tr>
+  <tr><td>tone</td><td class="pass">✅ pass</td><td>Persona + slang landed</td></tr>
+  <tr><td>address-term</td><td class="pass">✅ pass</td><td>One <span class="he">אחי</span> per reply max, no off-list terms</td></tr>
+  <tr><td>language-consistency</td><td class="pass">✅ pass</td><td>No English leaks</td></tr>
+  <tr><td>time-awareness</td><td class="pass">✅ pass</td><td>Hour + bucket + pacing all there (S4)</td></tr>
+  <tr><td>plan-reference (F1)</td><td class="resolved">🟣 RESOLVED</td><td>Was fed a fake plan. With real profile in context, 5/5 runs cite "7 protein servings", "6 carb servings (training)"</td></tr>
+  <tr><td>tight-confirmation-default (F2)</td><td class="resolved">🟣 RESOLVED</td><td>Was 3/5 tight in V1 (fake plan). Now 5/5 tight with real plan injected.</td></tr>
+  <tr><td>weekly-synthesis-shape (F3)</td><td class="fail">❌ OPEN — pipeline handoff</td><td>Bot can't see historical logs even though DB has 19 rows. Unrelated to the F1 fix.</td></tr>
+  <tr><td>plan-deviation-flag (F4)</td><td class="fail">❌ OPEN — predicted baseline gap</td><td>No <span class="he">"לא מהתפריט"</span> on <span class="he">לאפה שווארמה</span>. Prompt has no plan-deviation rule.</td></tr>
+  <tr><td>scenario 5 (F5)</td><td class="partial">⚠ deferred</td><td>Scenario can't trigger UNIT_MISMATCH because parser estimation absorbs cup-on-eggs. Scenario rewrite needed.</td></tr>
+</table>
+
+<h2>The diagnosis trail</h2>
+
+<ol>
+  <li><b>Initial finding (N=1):</b> Bot says wrong plan targets — "120g protein / 150g carbs" instead of "140g / 250–300g".</li>
+  <li><b>User's question:</b> "Is this really plan-reading or just LLM variance?"</li>
+  <li><b>Variance test (V1, N=5):</b> 4/5 runs gave the same wrong "6 protein / 3 carb" target. PERSISTENT, not variance. Looked like a real prompt bug.</li>
+  <li><b>Trace inspection:</b> fetched the actual <code>ChatOpenAI</code> input. SystemMessage contained:
+    <div class="snippet">## User Nutrition Plan
+Daily targets: 1600 kcal, 120g protein, 150g carbs, 50g fat.</div>
+    — NOT the 12,127-char real plan we'd stored.
+  </li>
+  <li><b>Source of the fake summary:</b> hardcoded at <code>src/context.py:20</code> in <code>DEFAULT_DEV_PROFILE</code>. Activates whenever <code>context.user_profile</code> is missing.</li>
+  <li><b>Architectural realization:</b> the graph doesn't load user_profile from DB. The <i>caller</i> does (the bot gateway in production). Our test script only passed <code>user_id</code>, never <code>user_profile</code> — so the fallback kicked in silently.</li>
+  <li><b>Fix:</b> updated the test to fetch user_profile from DB and include it in the context, matching <code>bot/gateway.py:_load_user_profile</code>.</li>
+  <li><b>Verification (V2, N=5):</b> all five S4 runs now cite the correct plan targets; all five S2 runs return tight default. Both F1 and F2 close.</li>
+</ol>
+
+<h2>Findings</h2>
+
+<!-- F1 RESOLVED -->
+<div class="finding resolved">
+  <h3>F1 — Plan target reading <span class="badge status-resolved">RESOLVED</span> <span class="badge sev-high">was HIGH</span> <span class="badge bucket">test infra</span></h3>
+  <p><b>What it actually was:</b> the LLM was being fed <code>DEFAULT_DEV_PROFILE</code>'s hardcoded fake plan (1600 kcal / 120g P / 150g C). The real 12,127-char plan was in the DB but never made it into the context, because our test script didn't pass <code>user_profile</code>.</p>
+
+  <h4>Before fix (V1 — fake plan injected, N=5)</h4>
+  <div class="grid">
+    <div>
+      <div class="title">Run #1 (FAIL)</div>
+      <div class="snippet he"><span class="label-before">V1:</span> אחי, כרגע 2:11 אחה״צ — סגרת 4.4 מנות חלבון מתוך <b>6</b> ו-2.8 מנות פחמימה מתוך <b>3</b>...</div>
+    </div>
+    <div>
+      <div class="title">Run #4 (FAIL)</div>
+      <div class="snippet he"><span class="label-before">V1:</span> אחי, כרגע 17:11 ואתה על 4.4 מנות חלבון מתוך <b>6</b> ו-2.8 מנות פחמימות מתוך <b>3</b>...</div>
+    </div>
+  </div>
+  <p>4/5 runs reliably said "6 / 3" (because 120g / 20 = 6, 150g / 50 = 3).</p>
+
+  <h4>After fix (V2 — real plan injected, N=5)</h4>
+  <div class="grid">
+    <div>
+      <div class="title">Run #2 (PASS)</div>
+      <div class="snippet he"><span class="label-after">V2:</span> כרגע 15:25, ואתה על 15.4 מנות חלבון מתוך <b>7</b> ו-2.8 מנות פחמימה מתוך <b>6</b>...</div>
+    </div>
+    <div>
+      <div class="title">Run #4 (PASS, training-day aware)</div>
+      <div class="snippet he"><span class="label-after">V2:</span> ...זה <b>יום אימון</b>, אז אם יש עוד אוכל היום, תן עדיפות לפחמימה אחרי אימון ולא סתם עוד חלבון.</div>
+    </div>
+  </div>
+  <p>5/5 runs cite the correct plan targets <b>and</b> correctly identify training day → use 6 carb target instead of 5. The bot can read the plan markdown perfectly when it's actually given one.</p>
+
+  <p class="meta">Side observation worth filing separately: the bot stayed silent on rest-of-day prescriptions in some V2 runs but slipped one in (#4 — "תן עדיפות לפחמימה אחרי אימון"). Borderline; not blocking.</p>
+</div>
+
+<!-- F2 RESOLVED -->
+<div class="finding resolved">
+  <h3>F2 — Tight-confirmation default <span class="badge status-resolved">RESOLVED</span> <span class="badge sev-high">was HIGH</span> <span class="badge bucket">test infra (downstream of F1)</span></h3>
+  <p><b>What it actually was:</b> with the fake plan saying "120g protein", the model's math was ambiguous about whether 80% triggers fired, leading to inconsistent budget-line behavior. Once the real plan was injected, the model could correctly evaluate that no trigger fired, and stayed silent.</p>
+
+  <div class="grid">
+    <div>
+      <div class="title">V1 (fake plan, N=5) — 3/5 tight</div>
+      <div class="snippet">
+        <div class="he">✅ סגור, עודכן.</div>
+        <div class="he">❌ עודכן, אחי. כבר סגרת 8.8 מנות חלבון ו-2.8 מנות פחמימה היום.</div>
+        <div class="he">❌ עודכן, אחי. חלבון כבר על 11 מנות מתוך 6, ופחמימות 2.8 מתוך 3.0.</div>
+        <div class="he">✅ סגור, עודכן.</div>
+        <div class="he">✅ עודכן.</div>
+      </div>
+    </div>
+    <div>
+      <div class="title">V2 (real plan, N=5) — 5/5 tight</div>
+      <div class="snippet">
+        <div class="he">✅ עודכן.</div>
+        <div class="he">✅ עודכן.</div>
+        <div class="he">✅ עודכן.</div>
+        <div class="he">✅ סגור.</div>
+        <div class="he">✅ עודכן.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- F3 OPEN -->
+<div class="finding open">
+  <h3>F3 — Weekly query ignores historical logs <span class="badge status-open">OPEN</span> <span class="badge sev-high">HIGH</span> <span class="badge bucket">pipeline → handoff</span></h3>
+  <p>Unchanged by the F1 fix. User asks <span class="he">"מה אכלתי השבוע?"</span>, bot claims <span class="he">"אין לי נתונים על שאר השבוע"</span> while DB has 19 historical rows. Likely <code>stats_node</code> / <code>query_food_logs</code> isn't being invoked, or the parser routes <span class="he">השבוע</span> to a today-only query.</p>
+  <p><b>Goes to handoff record</b> — code-side fix.</p>
+</div>
+
+<!-- F4 OPEN -->
+<div class="finding open">
+  <h3>F4 — Plan-deviation flag missing <span class="badge status-open">OPEN</span> <span class="badge sev-med">MED</span> <span class="badge bucket">reasoning</span></h3>
+  <p>Predicted baseline failure documented in <code>scenarios.md</code>. Bot doesn't say <span class="he">"לא מהתפריט"</span> on <span class="he">לאפה שווארמה</span>. The prompt has no plan-deviation rule yet.</p>
+  <p><b>Suggested fix:</b> add <code>## Plan deviation</code> section to <code>prompts/response_generator.md</code> + a worked example in <code>## Conversation Examples</code>. Could land as an in-loop prompt commit.</p>
+</div>
+
+<!-- F5 deferred -->
+<div class="finding deferred">
+  <h3>F5 — Scenario 5 still can't trigger UNIT_MISMATCH <span class="badge status-deferred">DEFERRED</span> <span class="badge sev-low">LOW</span> <span class="badge bucket">scenario drafting</span></h3>
+  <p>Updated to <span class="he">"כוס ביצים"</span>, but parser estimation absorbed it (estimated 240g for "1 cup"). Need a food in catalog with empty <code>unit_weights</code> + no <span class="he">כוס</span> synonym. Future scenario revision.</p>
+</div>
+
+<h2>Architectural finding worth capturing</h2>
+
+<div class="finding">
+  <h3>The graph doesn't load user_profile — the caller does</h3>
+  <p>Discovered while diagnosing F1: <code>ContextSchema</code> in <code>src/context.py</code> defines <code>user_profile</code> as a field the <b>caller</b> must populate. In production, <code>bot/gateway.py</code> loads the profile from Supabase and includes it in the HTTP body's <code>context.user_profile</code>. The graph itself does not fetch user_profile.</p>
+
+  <p>This creates an asymmetry with <code>daily_log_today</code>, which IS loaded inside the graph by a node called <code>load_daily_context</code>. The asymmetry creates a silent footgun for any non-gateway caller (tests, Studio, future CLIs).</p>
+
+  <p><b>Possible future improvement:</b> add a <code>load_user_profile</code> node to the graph mirroring <code>load_daily_context</code>. Tests, Studio, gateway — all simpler. The <code>DEFAULT_DEV_PROFILE</code> fallback could then become "no profile" (explicit) instead of a fake summary (silent wrong).</p>
+  <p class="meta">Out of scope for this loop. Worth an ADR conversation.</p>
+</div>
+
+<h2>State accumulation caveat</h2>
+
+<p>Today (5/24) currently has 12+ chicken/shawarma logs because each S2 run commits another row. The bot's "15.4 protein servings" figure in V2 reflects that accumulated state, not a math error. Clean up before run3 or use per-test isolation.</p>
+
+<h2>Decision</h2>
+
+<div class="decision">
+  <h3>Next moves</h3>
+  <ul>
+    <li><b>1. Commit the test fix.</b> Patch <code>run_scenarios.py</code> to load user_profile from DB. Currently lives in <code>$CLAUDE_JOB_DIR</code> only.</li>
+    <li><b>2. Clean today's DB.</b> Delete the accumulated 5/24 chicken/shawarma rows so run3 starts clean.</li>
+    <li><b>3. Write F3 handoff.</b> Capture pipeline-bucket finding for a follow-up session.</li>
+    <li><b>4. F4 in-loop fix (optional).</b> Add <code>## Plan deviation</code> section to the prompt, add example, re-test S3.</li>
+    <li><b>5. PR the run folder + handoffs + (optionally) F4 prompt fix.</b></li>
+  </ul>
+  <p class="meta">Or stop here, file F3 + F4 as handoffs, PR the diagnostic findings, tackle prompt iteration in a follow-up session.</p>
+</div>
+
+</body>
+</html>
