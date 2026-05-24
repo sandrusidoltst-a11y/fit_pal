@@ -57,12 +57,14 @@ Dimensions referenced below are defined in `expectations.md` in the same folder.
 ---
 
 ## Scenario: unit mismatch — coach-voice retry
-**Goal:** when a log fails with "Unit mismatch:", the bot should produce a friendly coach-voice retry pointing at a workable unit (grams or a natural unit), not a robotic technical string.
+**Goal:** when a log fails with "Unit mismatch:", the bot should produce a friendly coach-voice retry pointing at a workable unit (a natural unit for the food, or grams), not a robotic technical string.
 **Dimensions:** tone, language-consistency, address-term
 
-1. User: "אכלתי כוס אחת של חזה עוף"
-   Probes for: bot's final reply should suggest a sensible unit ("תזרוק לי משקל בגרמים" or "כמה פרוסות"), use coach voice (אחי), and NOT include English error language or a literal "Unit mismatch:" string. Should not be apologetic or robotic.
+1. User: "אכלתי כוס ביצים"
+   Probes for: `ביצה`'s catalog `unit_weights` is `{"piece": 50}` only — no `כוס` mapping, so this MUST trigger UNIT_MISMATCH (verified vs catalog 2026-05-24). Bot's final reply should suggest a sensible unit ("כמה ביצים אכלת" or "תזרוק לי משקל בגרמים"), use coach voice (אחי / גבר / etc.), and NOT include English error language or a literal "Unit mismatch:" string. Should not be apologetic or robotic.
    *(expect: final)*
+
+*Background — why this food: PR #30 added `כוס`/`cup` mapping to `unit_weights` for chicken breast, so the earlier `כוס חזה עוף` test no longer triggers the UNIT_MISMATCH path. `ביצה` and similar discrete-piece foods still don't have cup mappings and won't, so they're stable picks for this scenario.*
 
 ---
 
