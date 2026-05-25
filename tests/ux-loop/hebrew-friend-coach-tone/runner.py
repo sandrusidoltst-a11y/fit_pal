@@ -58,8 +58,17 @@ SCENARIOS = [
         "turns": [{"text": "מה מצבי להיום?", "expect": "final"}],
     },
     {
-        "id": 5, "slug": "unit-mismatch-coach-retry",
-        "turns": [{"text": "אכלתי כוס ביצים", "expect": "final"}],
+        "id": 5, "slug": "weird-unit-hitl-correction",
+        # Single turn with a multi-step resume:
+        #  1. user sends "אכלתי כוס ביצים" → HITL preview (safety-net estimate, משוערך)
+        #  2. user corrects via natural-language resume → confirmation_node parses
+        #     as edit → re-interrupts with the corrected item
+        #  3. user confirms with "כן" → commit + response
+        "turns": [{
+            "text": "אכלתי כוס ביצים",
+            "expect": "interrupt",
+            "resume": ["לא, התכוונתי 2 ביצים", "כן"],
+        }],
     },
     {
         "id": 6, "slug": "food-info-qna",
@@ -139,22 +148,30 @@ async def run_scenario(client, ctx: dict, scen: dict) -> dict:
             turn_log["ai_reply"] = _last_ai(final)
         transcript["turns"].append(turn_log)
 
+        # `resume` may be a single string (one HITL turn) or a list of strings
+        # (multi-step HITL flow, e.g. correction-then-confirm). Each resume is
+        # sent in sequence; we check for a new interrupt between each.
         if turn.get("resume") and interrupt_value:
-            resume_text = turn["resume"]
-            async for chunk in client.runs.stream(
-                thread_id, "fitpal",
-                command={"resume": resume_text},
-                context=ctx, stream_mode="values",
-            ):
-                if chunk.event == "values":
-                    final = chunk.data
-            after = await _get_interrupt(client, thread_id)
-            transcript["turns"].append({
-                "resume": resume_text,
-                "got": "interrupt" if after else "final",
-                "interrupt_value": after if after else None,
-                "ai_reply": _last_ai(final) if not after else None,
-            })
+            resumes = turn["resume"]
+            if isinstance(resumes, str):
+                resumes = [resumes]
+            for resume_text in resumes:
+                async for chunk in client.runs.stream(
+                    thread_id, "fitpal",
+                    command={"resume": resume_text},
+                    context=ctx, stream_mode="values",
+                ):
+                    if chunk.event == "values":
+                        final = chunk.data
+                after = await _get_interrupt(client, thread_id)
+                transcript["turns"].append({
+                    "resume": resume_text,
+                    "got": "interrupt" if after else "final",
+                    "interrupt_value": after if after else None,
+                    "ai_reply": _last_ai(final) if not after else None,
+                })
+                if not after:
+                    break  # flow finished — extra resumes would error
 
     return transcript
 

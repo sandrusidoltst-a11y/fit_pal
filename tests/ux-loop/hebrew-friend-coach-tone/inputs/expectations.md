@@ -340,6 +340,36 @@ Scoring rubric, regression thresholds, and runtime behavioral rules for the `heb
 
 ---
 
+### weird-unit-hitl-correction
+**What:** when the user gives an input with a semantically-mismatched unit (e.g. `"כוס ביצים"`, `"קילו פלפל"`), the bot does NOT fail or raise a unit-mismatch error. Instead it surfaces the parser's safety-net gram estimate inside the HITL preview, marked as estimated (`(משוערך)`), so the user can correct it in the same turn via natural language.
+
+**Why this dimension exists:** by design (see `prompts/response_generator.md` Hard rules §6 and `prompts/input_parser.md` "REQUIRED — `amount_g`..."), there is no separate `UNIT_MISMATCH` failure path. The parser always emits a best-guess gram total for non-gram units, and HITL is the universal correction mechanism. This dimension verifies that contract holds end-to-end.
+
+**How to evaluate:** turn-by-turn checklist for a 3-turn flow (user input → HITL preview → user correction → HITL preview corrected). All four checks must hold for pass.
+
+**Checklist:**
+1. **Turn 1 (input):** bot returns an `interrupt` (HITL preview), not a `final` reply. The interrupt's `items[0].description` includes `(משוערך)` or equivalent estimated-marker AND a gram total (some number ending in `g`).
+2. **Turn 1 (no error spam):** the HITL preview does NOT contain English error language (`"Unit mismatch:"`, `"unsupported unit"`, `"error"`) or apologize for failing to log.
+3. **Turn 2 (user correction):** user replies in natural Hebrew correcting the input (e.g. `"לא, התכוונתי 2 ביצים"`). Bot returns an `interrupt` again (new HITL preview) with the corrected item — the gram total reflects the correction (`2 ביצים` → ~100g, not the previous ~240g).
+4. **Turn 3 (confirm):** user says `"כן"`. Bot returns `final` with a tight-confirmation reply matching `tight-confirmation-default` (bare `"עודכן"` / `"סגור"` is the pass shape; budget line only if a numeric trigger fires).
+
+**Examples (pass — turn 1 interrupt shape):**
+- `item: ביצים — 1 כוס (240.0g) (משוערך)` ← gram estimate present, marked estimated, no apology
+- `item: פלפל — 1 קילו (1000.0g) (משוערך)` ← gram estimate present, no error
+
+**Examples (fail — turn 1):**
+- `item: ביצים — error: Unit mismatch: cannot resolve 'cup' for eggs` (English error)
+- `final: "אני לא יודע לרשום כוס ביצים, נסה שוב"` (bot bailed out instead of HITL preview)
+- `interrupt: items=[]` (parser dropped the item entirely)
+
+**Examples (fail — turn 2):**
+- Bot returns `final` instead of a corrected HITL preview (lost the correction)
+- Corrected HITL preview still shows the old gram total
+
+**Output:** `pass` / `fail` + which turn + which checklist item failed.
+
+---
+
 ## Regression thresholds
 
 **Open gap:** as of 2026-05-24 there is no LangSmith eval that exercises `response_node` output. The closest existing eval is `eval_input_parser_hebrew` (covers the parser, not the response generator).

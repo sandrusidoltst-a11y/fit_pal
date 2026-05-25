@@ -56,15 +56,19 @@ Dimensions referenced below are defined in `expectations.md` in the same folder.
 
 ---
 
-## Scenario: unit mismatch — coach-voice retry
-**Goal:** when a log fails with "Unit mismatch:", the bot should produce a friendly coach-voice retry pointing at a workable unit (a natural unit for the food, or grams), not a robotic technical string.
-**Dimensions:** tone, language-consistency, address-term
+## Scenario: weird-unit input — safety-net estimate + HITL correction
+**Goal:** when the user gives a semantically-mismatched unit (`כוס ביצים`), the bot does NOT fail. The parser emits a best-guess gram total via the `amount_g` safety net; the bot HITL-previews that estimate marked `(משוערך)`; the user corrects it via natural language; the bot reconfirms.
+**Dimensions:** weird-unit-hitl-correction, tone, language-consistency
 
 1. User: "אכלתי כוס ביצים"
-   Probes for: `ביצה`'s catalog `unit_weights` is `{"piece": 50}` only — no `כוס` mapping, so this MUST trigger UNIT_MISMATCH (verified vs catalog 2026-05-24). Bot's final reply should suggest a sensible unit ("כמה ביצים אכלת" or "תזרוק לי משקל בגרמים"), use coach voice (אחי / גבר / etc.), and NOT include English error language or a literal "Unit mismatch:" string. Should not be apologetic or robotic.
-   *(expect: final)*
+   Probes for: `ביצה` has `unit_weights={"piece": 50}` (no `כוס` mapping, verified vs catalog 2026-05-24). Parser-side, `prompts/input_parser.md` requires `amount_g` for any non-gram unit, so the parser emits something like `{count: 1, unit: "cup", amount_g: 240}`. Bot should return a HITL `interrupt` whose item description shows the gram estimate plus `(משוערך)` — NOT a `final` reply, NOT an English `"Unit mismatch:"` error, NOT an apology.
+   *(expect: interrupt)*
 
-*Background — why this food: PR #30 added `כוס`/`cup` mapping to `unit_weights` for chicken breast, so the earlier `כוס חזה עוף` test no longer triggers the UNIT_MISMATCH path. `ביצה` and similar discrete-piece foods still don't have cup mappings and won't, so they're stable picks for this scenario.*
+2. User (correction in natural Hebrew): "לא, התכוונתי 2 ביצים"
+   Probes for: bot re-parses the corrected input as `2 piece` of egg → catalog hit → ~100g (2 × 50g). Returns another HITL `interrupt` with the corrected item shape. Verifies the safety-net / HITL flow IS the correction mechanism (no separate retry routing needed).
+   *(expect: interrupt, then resume: "כן")*
+
+*Background — why this design and not a "Unit mismatch:" failure path: as of 2026-05-24 the response prompt previously referenced a `"Unit mismatch:"` error string, but that string is never emitted by any code path. The resolver chain in `src/services/food_service.py:resolve_amount_g` has a `llm_estimated_amount_g` step that always succeeds when the parser fills `amount_g` (which it always does by contract). The architectural decision is: never block on a unit resolution failure — surface the safety-net estimate via HITL and let the user correct in conversation. This scenario tests that contract. The dead `UNIT_MISMATCH` references were removed from `prompts/response_generator.md` (lines 24 + Hard rule §6) in the same change that landed this scenario.*
 
 ---
 

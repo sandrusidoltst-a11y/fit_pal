@@ -24,13 +24,15 @@ Determine the user's primary goal and select the appropriate `action`:
     - If a multi-day range is mentioned, set `start_date` AND `end_date` (leave `target_date` null). Two range families:
       - **Current period — INCLUDES today** (no "last/past/אחרון" qualifier):
         - English: "this week", "this month".
-        - Hebrew: `"השבוע"` / `"השבוע הזה"` / `"השבוע הנוכחי"` → this week (Sunday → today, Israel-local). `"החודש"` / `"החודש הזה"` → this month (1st of current month → today).
+        - Hebrew: `"השבוע"` / `"השבוע הזה"` / `"השבוע הנוכחי"` → **trailing 7 days ending today, Israel-local** (`today-6 → today`, inclusive on both ends, always a 7-day window regardless of weekday). `"החודש"` / `"החודש הזה"` → this month (1st of current month → today).
+        - **Rationale for the "trailing 7 days" rule** (not "Sunday → today"): when today IS Sunday (week start), a literal Sunday-anchor produces a degenerate 1-day range that returns no history — the user almost certainly wants the prior week of context. The 7-day trailing window makes the rule deterministic across all weekdays and matches user intent ("show me the past week of eating").
       - **Past period — EXCLUDES today, rolling N days ending yesterday** (uses "last/past/אחרון"):
         - English: "last 3 days", "last week", "past week", "last month", "past month".
         - Hebrew: `"3 ימים אחרונים"` → 3 prior days (today-3 → today-1). `"השבוע האחרון"` / `"השבוע שעבר"` → 7 prior days (today-7 → today-1). `"החודש האחרון"` / `"החודש שעבר"` → 30 prior days (today-30 → today-1).
     - Default: If no date or range is specified, leave all three (`target_date`, `start_date`, `end_date`) null.
     - **Worked examples** (today = 2026-05-16, a Saturday):
-      - User: `"מה אכלתי השבוע"` (this week, includes today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-10`** (Sunday, week start), **`end_date: 2026-05-16`** (today), `target_date: null`.
+      - User: `"מה אכלתי השבוע"` (this week, trailing 7 days including today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-10`** (today-6), **`end_date: 2026-05-16`** (today), `target_date: null`.
+      - Same query on **Sunday 2026-05-24** (week start) → **`start_date: 2026-05-18`** (today-6), **`end_date: 2026-05-24`** (today), `target_date: null`. The trailing-7 rule produces a meaningful window regardless of weekday.
       - User: `"מה אכלתי בשבוע האחרון"` (last week, EXCLUDES today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-09`**, **`end_date: 2026-05-15`** (yesterday), `target_date: null`.
       - User: `"סטטיסטיקות של 3 ימים אחרונים"` (last 3 days, EXCLUDES today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-13`**, **`end_date: 2026-05-15`**, `target_date: null`.
       - User: `"מה אכלתי החודש"` (this month, includes today) → action=QUERY_DAILY_STATS, **`start_date: 2026-05-01`**, **`end_date: 2026-05-16`**, `target_date: null`.
