@@ -1,0 +1,41 @@
+{
+  "id": 3,
+  "slug": "off-menu-plan-deviation",
+  "thread_id": "3696c34c-f2d8-41bd-b3af-32d1554d24a6",
+  "turns": [
+    {
+      "user": "דפקתי עכשיו לאפה שווארמה",
+      "expected": "interrupt",
+      "got": "interrupt",
+      "interrupt_value": {
+        "question": "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:",
+        "items": [
+          {
+            "index": 0,
+            "description": "לאפה שווארמה — 1 serving (350.0g) (משוערך)",
+            "calories": 824.99,
+            "protein": 38.99,
+            "carbs": 71.02,
+            "fat": 43.02,
+            "source": "estimated",
+            "servings": null,
+            "category": "carb"
+          }
+        ],
+        "consumed_at": "2026-05-24",
+        "totals": {
+          "calories": 825.0,
+          "protein": 39.0,
+          "carbs": 71.0,
+          "fat": 43.0
+        }
+      }
+    },
+    {
+      "resume": "כן",
+      "got": "final",
+      "interrupt_value": null,
+      "ai_reply": "עודכן. לאפה שווארמה זה לא מהתפריט שלך — חלבון שמן עם פחמימה ביחד."
+    }
+  ]
+}

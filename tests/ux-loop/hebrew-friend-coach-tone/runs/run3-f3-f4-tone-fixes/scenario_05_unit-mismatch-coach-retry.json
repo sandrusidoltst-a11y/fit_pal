@@ -1,0 +1,35 @@
+{
+  "id": 5,
+  "slug": "unit-mismatch-coach-retry",
+  "thread_id": "0a9de55d-d05c-41c7-895a-2052469a5852",
+  "turns": [
+    {
+      "user": "אכלתי כוס ביצים",
+      "expected": "final",
+      "got": "interrupt",
+      "interrupt_value": {
+        "question": "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:",
+        "items": [
+          {
+            "index": 0,
+            "description": "ביצים — 1 כוס (240.0g) (משוערך)",
+            "calories": 342.0,
+            "protein": 30.2,
+            "carbs": 1.7,
+            "fat": 22.8,
+            "source": "estimated",
+            "servings": null,
+            "category": "protein"
+          }
+        ],
+        "consumed_at": null,
+        "totals": {
+          "calories": 342.0,
+          "protein": 30.2,
+          "carbs": 1.7,
+          "fat": 22.8
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": 6,
+  "slug": "food-info-qna",
+  "thread_id": "d37ce9ee-d0fc-4caa-a756-a62b3d5ab61b",
+  "turns": [
+    {
+      "user": "תגיד, כמה פחמימה יש באורז?",
+      "expected": "final",
+      "got": "final",
+      "ai_reply": "ב-100 גרם אורז מבושל יש בערך 28 גרם פחמימה."
+    }
+  ]
+}

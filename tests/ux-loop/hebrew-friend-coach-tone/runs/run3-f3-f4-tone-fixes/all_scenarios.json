@@ -1,0 +1,171 @@
+[
+  {
+    "id": 1,
+    "slug": "empty-day-greeting",
+    "thread_id": "0036d724-1441-4056-8fe6-120e52927fbc",
+    "turns": [
+      {
+        "user": "היי",
+        "expected": "final",
+        "got": "final",
+        "ai_reply": "היי אחי. היום אתה על 7 מנות חלבון ו-6 מנות פחמימה, וכבר עברת הרבה מעל היעד — כרגע עדיף לעצור פה ולא להוסיף עוד."
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "slug": "normal-log-tight-confirmation",
+    "thread_id": "bf06ff01-6dda-4c56-b07e-0c8a65aafd9e",
+    "turns": [
+      {
+        "user": "אכלתי 200 גרם עוף",
+        "expected": "interrupt",
+        "got": "interrupt",
+        "interrupt_value": {
+          "question": "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:",
+          "items": [
+            {
+              "index": 0,
+              "description": "חזה עוף — 200.0g",
+              "calories": 240.0,
+              "protein": 44.0,
+              "carbs": 0.0,
+              "fat": 5.2,
+              "source": "database",
+              "servings": 2.0,
+              "category": "protein"
+            }
+          ],
+          "consumed_at": null,
+          "totals": {
+            "calories": 240.0,
+            "protein": 44.0,
+            "carbs": 0.0,
+            "fat": 5.2
+          }
+        }
+      },
+      {
+        "resume": "כן",
+        "got": "final",
+        "interrupt_value": null,
+        "ai_reply": "סגור, עודכן."
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "slug": "off-menu-plan-deviation",
+    "thread_id": "3696c34c-f2d8-41bd-b3af-32d1554d24a6",
+    "turns": [
+      {
+        "user": "דפקתי עכשיו לאפה שווארמה",
+        "expected": "interrupt",
+        "got": "interrupt",
+        "interrupt_value": {
+          "question": "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:",
+          "items": [
+            {
+              "index": 0,
+              "description": "לאפה שווארמה — 1 serving (350.0g) (משוערך)",
+              "calories": 824.99,
+              "protein": 38.99,
+              "carbs": 71.02,
+              "fat": 43.02,
+              "source": "estimated",
+              "servings": null,
+              "category": "carb"
+            }
+          ],
+          "consumed_at": "2026-05-24",
+          "totals": {
+            "calories": 825.0,
+            "protein": 39.0,
+            "carbs": 71.0,
+            "fat": 43.0
+          }
+        }
+      },
+      {
+        "resume": "כן",
+        "got": "final",
+        "interrupt_value": null,
+        "ai_reply": "עודכן. לאפה שווארמה זה לא מהתפריט שלך — חלבון שמן עם פחמימה ביחד."
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "slug": "daily-stats-time-pacing",
+    "thread_id": "c49b1ed8-512c-4ad8-bb93-2c7f94d2bd9f",
+    "turns": [
+      {
+        "user": "מה מצבי להיום?",
+        "expected": "final",
+        "got": "final",
+        "ai_reply": "Aחי, כרגע 22:13 וסגרת 28.3 מנות חלבון ו-20.1 מנות פחמימה. אתה הרבה מעל היעד להיום — 7 חלבון ו-6 פחמימה — אז אין מה לדחוף עוד היום."
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "slug": "unit-mismatch-coach-retry",
+    "thread_id": "0a9de55d-d05c-41c7-895a-2052469a5852",
+    "turns": [
+      {
+        "user": "אכלתי כוס ביצים",
+        "expected": "final",
+        "got": "interrupt",
+        "interrupt_value": {
+          "question": "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:",
+          "items": [
+            {
+              "index": 0,
+              "description": "ביצים — 1 כוס (240.0g) (משוערך)",
+              "calories": 342.0,
+              "protein": 30.2,
+              "carbs": 1.7,
+              "fat": 22.8,
+              "source": "estimated",
+              "servings": null,
+              "category": "protein"
+            }
+          ],
+          "consumed_at": null,
+          "totals": {
+            "calories": 342.0,
+            "protein": 30.2,
+            "carbs": 1.7,
+            "fat": 22.8
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "slug": "food-info-qna",
+    "thread_id": "d37ce9ee-d0fc-4caa-a756-a62b3d5ab61b",
+    "turns": [
+      {
+        "user": "תגיד, כמה פחמימה יש באורז?",
+        "expected": "final",
+        "got": "final",
+        "ai_reply": "ב-100 גרם אורז מבושל יש בערך 28 גרם פחמימה."
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "slug": "weekly-synthesis",
+    "thread_id": "6daecfbd-3291-432b-b021-66d936abce05",
+    "turns": [
+      {
+        "user": "מה אכלתי השבוע?",
+        "expected": "final",
+        "got": "final",
+        "ai_reply": "אחי, השבוע אכלת:\n- **2026-05-19**\n  - 300 גרם חזה עוף מבושל\n  - 250 גרם אורז מבושל\n  - בננה\n  - 100 גרם קוטג' 5%\n- **2026-05-20**\n  - 100 גרם סלמון מבושל\n  - 50 גרם אורז מבושל\n  - תפוח\n- **2026-05-21**\n  - 250 גרם חזה הודו מבושל\n  - 200 גרם פסטה מבושלת\n  - 200 גרם קוטג' 5%\n  - 100 גרם אורז מבושל\n- **2026-05-22**\n  - 200 גרם חזה עוף מבושל\n  - 150 גרם אורז מבושל\n  - 300 גרם קוטג' 5%\n  - תפוח\n  - 50 גרם פסטה מבושלת\n- **2026-05-23**\n  - 250 גרם חזה עוף מבושל\n  - 200 גרם אורז מבושל\n  - בננה\n  - 300 גרם קוטג' 5%\n  - 100 גרם פסטה מבושלת\n- **2026-05-24**\n  - לאפה שווארמה\n  - 5 כדורי פלאפל\n  - 2 משולשי פיצה\n  - בורקס גבינה\n  - 3 נקניקיות\n  - מנת צ'יפס\n  - שניצל\n  - 200 גרם חזה עוף\n  - 180 גרם אורז\n  - טוסט סלמון ×3\n  - לאפה שווארמה ×4\n  - 5 כדורי פלאפל\n  - 2 משולשי פיצה\n  - בורקס גבינה\n  - 3 נקניקיות\n  - מנת צ'יפס\n  - שניצל\n  - 200 גרם חזה עוף\n  - 180 גרם אורז\n\nסגירה: חלבון היה גבוה וברור ברוב הימים, אבל היום של 2026-05-24 היה מאוד עמוס ואקראי ביחס לתפריט."
+      }
+    ]
+  }
+]

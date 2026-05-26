@@ -1,0 +1,41 @@
+{
+  "id": 2,
+  "slug": "normal-log-tight-confirmation",
+  "thread_id": "bf06ff01-6dda-4c56-b07e-0c8a65aafd9e",
+  "turns": [
+    {
+      "user": "אכלתי 200 גרם עוף",
+      "expected": "interrupt",
+      "got": "interrupt",
+      "interrupt_value": {
+        "question": "רגע, בוא נוודא שתפסתי נכון לפני שאני שומר:",
+        "items": [
+          {
+            "index": 0,
+            "description": "חזה עוף — 200.0g",
+            "calories": 240.0,
+            "protein": 44.0,
+            "carbs": 0.0,
+            "fat": 5.2,
+            "source": "database",
+            "servings": 2.0,
+            "category": "protein"
+          }
+        ],
+        "consumed_at": null,
+        "totals": {
+          "calories": 240.0,
+          "protein": 44.0,
+          "carbs": 0.0,
+          "fat": 5.2
+        }
+      }
+    },
+    {
+      "resume": "כן",
+      "got": "final",
+      "interrupt_value": null,
+      "ai_reply": "סגור, עודכן."
+    }
+  ]
+}

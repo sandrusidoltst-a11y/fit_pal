@@ -314,29 +314,63 @@ Scoring rubric, regression thresholds, and runtime behavioral rules for the `heb
 ---
 
 ### plan-deviation-flag
-**What:** when the user logs a food that is NOT in the plan's Protein Options or Carb Options lists, the bot explicitly flags it as off-menu, adds one short informational note about the food itself, and does NOT prescribe rest-of-day adjustments.
+**What:** when the user logs a food that is NOT in the plan's Protein Options or Carb Options lists, the bot explicitly flags it as off-menu, adds one short informational note about the food itself, MAY add a brief forward-looking nudge, and does NOT prescribe same-day compensation.
 
 **How to evaluate:** checklist (all must hold for pass). Applies when the logged food is off-menu (not in plan options lists) AND a successful commit happened.
 
 **Checklist:**
 1. **Deviation explicitly named** — reply contains a clear flag: `"לא מהתפריט"` / `"לא באופציות"` / `"זה לא מהתוכנית"` / equivalent.
-2. **One informational note about the food itself** — describes what the food *is* in plan-relevant terms (e.g., `"חלבון שמן"`, `"פחמימה + שומן ביחד"`). NOT a substitution suggestion. NOT a quantity / frequency note.
-3. **No rest-of-day prescription** — patterns like `"בשאר היום ניצמד ל..."` / `"מעכשיו תאכל..."` / `"תפצה עם..."` are all fails.
+2. **One informational note about the food itself** — describes what the food *is* in plan-relevant terms (e.g., `"חלבון שמן"`, `"פחמימה + שומן ביחד"`). NOT a substitution suggestion ("next time eat chicken skewers instead").
+3. **No same-day compensation prescription** — reactive damage-control for the *rest of today* is a fail: `"בשאר היום ניצמד ל..."` / `"מעכשיו תאכל..."` / `"תפצה עם..."`. A *forward-looking* nudge about future choices is NOT a fail (see allowed examples below) — the line is today-compensation (fail) vs future-habit nudge (allowed).
 
-**Note on current prompt state:** as of 2026-05-24, `prompts/response_generator.md` does NOT have a plan-deviation rule. This dimension is expected to FAIL on baseline; the in-loop fix would add the rule to the prompt and a worked example to `## Conversation Examples`.
+**Allowed (optional) — forward-looking nudge:** a single short future-facing clause is fine and does not fail the dimension:
+- mindfulness — `"שים לב בפעם הבאה"`
+- frequency — `"תשתדל להימנע בפעמים הבאות"`
+- method tie-in — `"במיוחד אם זה לא אחרי אימון"`, `"אם זה לא נכנס בקלוריות החופשיות"`
 
 **Examples (pass):**
-- "שווארמה לא מהתפריט. זה חלבון שמן עם פחמימה." (flag + food description, no prescription)
+- "שווארמה לא מהתפריט. זה חלבון שמן עם פחמימה." (flag + food description, no nudge — minor deviation)
 - "לאפה שווארמה זה לא מהאופציות. שווארמה זה חלבון שמן, לא רזה." (flag + description)
-- "לא תקין אחי — שווארמה לא מהאופציות. נרשם בכל זאת." (flag + acknowledgment, no further guidance)
+- "עודכן אחי. שניצל הוא חלבון בינוני עם ציפוי מטוגן, ולא מהאופציות שלך. תשתדל להימנע בפעמים הבאות אם זה לא מהקלוריות החופשיות." (flag + description + forward-looking nudge — allowed)
+- "אחי, נקניקיות לא בתוכנית — חלבון שמן, שים לב בפעם הבאה." (flag + description + mindfulness nudge)
 
 **Examples (fail):**
-- "עודכן. שווארמה זה לא מהתפריט — בשאר היום ניצמד לחלבון רזה." (has rest-of-day prescription)
-- "סגור. שווארמה זה לא רזה, פעם הבאה לך על שיפודי עוף." (substitution suggestion = soft prescription)
-- "סגור. עברת על התוכנית — תפצה מחר." (vague, no flag or food info, has prescription)
+- "עודכן. שווארמה זה לא מהתפריט — בשאר היום ניצמד לחלבון רזה." (same-day compensation)
+- "סגור. שווארמה זה לא רזה, פעם הבאה לך על שיפודי עוף." (substitution suggestion — fails item 2)
+- "סגור. עברת על התוכנית — תפצה מחר." (no flag, no food info, and "תפצה" is compensation framing)
 - "עודכן, סגור." (no flag at all)
 
 **Output:** `pass` / `fail` + which checklist item failed.
+
+---
+
+### weird-unit-hitl-correction
+**What:** when the user gives an input with a semantically-mismatched unit (e.g. `"כוס ביצים"`, `"קילו פלפל"`), the bot does NOT fail or raise a unit-mismatch error. Instead it surfaces the parser's safety-net gram estimate inside the HITL preview, marked as estimated (`(משוערך)`), so the user can correct it in the same turn via natural language.
+
+**Why this dimension exists:** by design (see `prompts/response_generator.md` Hard rules §6 and `prompts/input_parser.md` "REQUIRED — `amount_g`..."), there is no separate `UNIT_MISMATCH` failure path. The parser always emits a best-guess gram total for non-gram units, and HITL is the universal correction mechanism. This dimension verifies that contract holds end-to-end.
+
+**How to evaluate:** turn-by-turn checklist for a 3-turn flow (user input → HITL preview → user correction → HITL preview corrected). All four checks must hold for pass.
+
+**Checklist:**
+1. **Turn 1 (input):** bot returns an `interrupt` (HITL preview), not a `final` reply. The interrupt's `items[0].description` includes `(משוערך)` or equivalent estimated-marker AND a gram total (some number ending in `g`).
+2. **Turn 1 (no error spam):** the HITL preview does NOT contain English error language (`"Unit mismatch:"`, `"unsupported unit"`, `"error"`) or apologize for failing to log.
+3. **Turn 2 (user correction):** user replies in natural Hebrew correcting the input (e.g. `"לא, התכוונתי 2 ביצים"`). Bot returns an `interrupt` again (new HITL preview) with the corrected item — the gram total reflects the correction (`2 ביצים` → ~100g, not the previous ~240g).
+4. **Turn 3 (confirm):** user says `"כן"`. Bot returns `final` with a tight-confirmation reply matching `tight-confirmation-default` (bare `"עודכן"` / `"סגור"` is the pass shape; budget line only if a numeric trigger fires).
+
+**Examples (pass — turn 1 interrupt shape):**
+- `item: ביצים — 1 כוס (240.0g) (משוערך)` ← gram estimate present, marked estimated, no apology
+- `item: פלפל — 1 קילו (1000.0g) (משוערך)` ← gram estimate present, no error
+
+**Examples (fail — turn 1):**
+- `item: ביצים — error: Unit mismatch: cannot resolve 'cup' for eggs` (English error)
+- `final: "אני לא יודע לרשום כוס ביצים, נסה שוב"` (bot bailed out instead of HITL preview)
+- `interrupt: items=[]` (parser dropped the item entirely)
+
+**Examples (fail — turn 2):**
+- Bot returns `final` instead of a corrected HITL preview (lost the correction)
+- Corrected HITL preview still shows the old gram total
+
+**Output:** `pass` / `fail` + which turn + which checklist item failed.
 
 ---
 

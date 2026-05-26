@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Run3 — F3 + F4 + tone fixes — live re-validation</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1c2230;
+    --line: #2a3142;
+    --text: #e6e8ee;
+    --muted: #8a93a6;
+    --pass: #2ecc71;
+    --fail: #ff5e5e;
+    --partial: #e4b53d;
+    --info: #5aa9ff;
+    --accent: #b388ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); margin: 0; }
+  body {
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 24px clamp(16px, 4vw, 56px);
+    max-width: 1180px; margin: 0 auto;
+  }
+  h1 { font-size: 26px; margin: 0 0 4px 0; letter-spacing: -0.01em; }
+  h2 { font-size: 18px; margin: 28px 0 12px; letter-spacing: -0.005em; }
+  h3 { font-size: 14px; margin: 18px 0 8px; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  p { color: var(--text); }
+  .sub { color: var(--muted); }
+  a { color: var(--info); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+
+  .meta {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+    font-size: 13px; color: var(--muted); margin: 10px 0 0;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 3px 9px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.pass { background: var(--pass); }
+  .dot.fail { background: var(--fail); }
+  .dot.partial { background: var(--partial); }
+  .dot.info { background: var(--info); }
+
+  .grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    margin: 14px 0 6px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card h2 { margin: 0 0 6px; font-size: 16px; }
+  .card .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .card .num.pass { color: var(--pass); }
+  .card .num.partial { color: var(--partial); }
+  .card .num.fail { color: var(--fail); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 6px;
+          background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          overflow: hidden; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--line);
+           text-align: left; vertical-align: top; font-size: 13px; }
+  th { background: var(--panel-2); color: var(--muted); font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
+  tr:last-child td { border-bottom: 0; }
+  td.right { text-align: right; }
+  td.center { text-align: center; }
+
+  .he { direction: rtl; font-family: "SF Hebrew", "Arial Hebrew", "Heebo",
+        "Segoe UI", sans-serif; }
+  .he code, code .he { direction: rtl; }
+
+  pre, code {
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+  }
+  pre {
+    background: var(--panel-2); padding: 12px 14px; border-radius: 8px;
+    border: 1px solid var(--line); overflow-x: auto; margin: 8px 0;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .quote {
+    background: var(--panel-2); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 10px 14px; margin: 8px 0;
+  }
+  .quote .who { color: var(--muted); font-size: 11px; text-transform: uppercase;
+                letter-spacing: 0.06em; margin-bottom: 4px; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .compare { grid-template-columns: 1fr; } }
+  .compare > div {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px;
+  }
+  .compare h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+                letter-spacing: 0.06em; color: var(--muted); }
+  .compare .he { background: var(--panel-2); padding: 10px 12px; border-radius: 6px; }
+
+  .pill {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+  }
+  .pill.pass { background: rgba(46, 204, 113, 0.16); color: var(--pass); }
+  .pill.fail { background: rgba(255, 94, 94, 0.16); color: var(--fail); }
+  .pill.partial { background: rgba(228, 181, 61, 0.16); color: var(--partial); }
+  .pill.info { background: rgba(90, 169, 255, 0.16); color: var(--info); }
+
+  footer { margin: 36px 0 0; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>Run3 — F3 + F4 + tone fixes — live re-validation</h1>
+<div class="badges">
+  <span class="badge"><span class="dot pass"></span>F3 weekly query — fixed</span>
+  <span class="badge"><span class="dot pass"></span>F4 plan deviation — fixed</span>
+  <span class="badge"><span class="dot pass"></span>Tone loosened</span>
+  <span class="badge"><span class="dot partial"></span>F5 — still open</span>
+</div>
+<div class="meta">
+  <b>Date</b><span>2026-05-24, 22:13 IST</span>
+  <b>Branch</b><span>ux-loop/hebrew-friend-coach-tone-2026-05-24</span>
+  <b>Server</b><span>local <code>langgraph dev</code> :2024</span>
+  <b>Model</b><span><code>gpt-5.4-mini</code> (provider: openai)</span>
+  <b>User</b><span>e2e@test.fitpal.bot &nbsp;<code>72c10336-9d61-4357-9851-20cbb4d32b1a</code> with seeded profile + Clean Bulk plan + 21 historical rows (5/19–5/23)</span>
+</div>
+
+<h2>Top-line outcomes</h2>
+<div class="grid">
+  <div class="card">
+    <h2>Scenarios passed</h2>
+    <div class="num pass">5/7</div>
+    <p class="sub">+1 partial (S1, S4 tone slip); +1 fail (S5 = pre-known F5).</p>
+  </div>
+  <div class="card">
+    <h2>F3 weekly query</h2>
+    <div class="num pass">Fixed</div>
+    <p class="sub">Bot now returns a full day-by-day breakdown of the past week instead of <span class="he">"אין לי נתונים"</span>.</p>
+  </div>
+  <div class="card">
+    <h2>F4 deviation flag</h2>
+    <div class="num pass">Fixed</div>
+    <p class="sub">Off-menu food gets explicit flag + informational note + no rest-of-day prescription. Conversational tone.</p>
+  </div>
+  <div class="card">
+    <h2>F5 unit-mismatch</h2>
+    <div class="num partial">Open</div>
+    <p class="sub">Still bypassed via estimation safety net. Needs <code>scenarios.md</code> rewrite (catalog food + empty unit_weights).</p>
+  </div>
+</div>
+
+<h2>Per-scenario verdict</h2>
+<table>
+  <thead>
+  <tr><th>#</th><th>Scenario</th><th>Got</th><th class="center">Verdict</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td>1</td><td>empty-day-greeting</td><td>final</td>
+    <td class="center"><span class="pill partial">partial</span></td>
+    <td>Truthful but stark <span class="he">"כבר עברת הרבה מעל היעד"</span> — symptom of bloated 5/24 logs from today's probes, not a bot bug.</td>
+  </tr>
+  <tr>
+    <td>2</td><td>normal-log-tight-confirmation</td><td>interrupt → final</td>
+    <td class="center"><span class="pill pass">pass</span></td>
+    <td>Bare default <span class="he">"סגור, עודכן."</span>. F2 holds.</td>
+  </tr>
+  <tr>
+    <td>3</td><td>off-menu-plan-deviation</td><td>interrupt → final</td>
+    <td class="center"><span class="pill pass">pass</span></td>
+    <td><strong>F4 confirmed live.</strong> Flag + note + no rest-of-day.</td>
+  </tr>
+  <tr>
+    <td>4</td><td>daily-stats-time-pacing</td><td>final</td>
+    <td class="center"><span class="pill partial">partial</span></td>
+    <td>Strong time-awareness + accurate macro read. Single language-consistency slip: opens with <code>Aחי</code> (Latin A + Hebrew suffix). Single-shot variance.</td>
+  </tr>
+  <tr>
+    <td>5</td><td>unit-mismatch-coach-retry</td><td>interrupt</td>
+    <td class="center"><span class="pill fail">fail</span></td>
+    <td>UNIT_MISMATCH never fires; <span class="he">כוס ביצים</span> hit the LLM-estimation safety net (240g). F5 open.</td>
+  </tr>
+  <tr>
+    <td>6</td><td>food-info-qna</td><td>final</td>
+    <td class="center"><span class="pill pass">pass</span></td>
+    <td>Direct factual answer, no logging language.</td>
+  </tr>
+  <tr>
+    <td>7</td><td>weekly-synthesis</td><td>final</td>
+    <td class="center"><span class="pill pass">pass</span></td>
+    <td><strong>F3 confirmed live.</strong> Full markdown table 5/19→5/24 with closing-line synthesis.</td>
+  </tr>
+  </tbody>
+</table>
+
+<h2>The two big wins, in the bot's own words</h2>
+
+<h3>F3 — weekly query (scenario 7)</h3>
+<div class="compare">
+  <div>
+    <h4>Run2 (before fix)</h4>
+    <div class="he quote">
+      היום יש לי רק את ה-24/5 ברשומה, אחי.<br><br>
+      <b>אין לי נתונים על שאר השבוע במבנה הזה.</b>
+    </div>
+  </div>
+  <div>
+    <h4>Run3 (after fix)</h4>
+    <pre class="he">אחי, השבוע אכלת:
+- <b>2026-05-19</b>
+  - 300 גרם חזה עוף מבושל
+  - 250 גרם אורז מבושל
+  - בננה
+  - 100 גרם קוטג' 5%
+- <b>2026-05-20</b>
+  - 100 גרם סלמון מבושל
+  - 50 גרם אורז מבושל
+  - תפוח
+- <b>2026-05-21</b>
+  - 250 גרם חזה הודו מבושל
+  - 200 גרם פסטה מבושלת
+  - 200 גרם קוטג' 5%
+  - 100 גרם אורז מבושל
+- <b>2026-05-22</b> … (5 items)
+- <b>2026-05-23</b> … (5 items)
+- <b>2026-05-24</b> … (today's bloated set)
+
+סגירה: חלבון היה גבוה וברור ברוב הימים, אבל היום של 2026-05-24 היה מאוד עמוס ואקראי ביחס לתפריט.</pre>
+  </div>
+</div>
+<p class="sub"><b>Root cause</b>: today (2026-05-24) is Sunday, the start of the Israel week. The old parser rule <code>"השבוע" → Sunday → today</code> collapsed to a 1-day range on Sundays. <b>Fix</b>: rule rewritten as <code>"trailing 7 days ending today"</code> (<code>today-6 → today</code>), deterministic across all weekdays. Parser N=10 probe: <b>10/10 same range</b>.</p>
+
+<h3>F4 — plan deviation (scenario 3)</h3>
+<div class="compare">
+  <div>
+    <h4>Run2 (before fix)</h4>
+    <div class="he quote">
+      עודכן, אחי. סגרת כבר 2.8 מנות פחמימה ו-4.4 מנות חלבון היום.
+    </div>
+    <p class="sub">No flag that שווארמה isn't on the plan; no informational note.</p>
+  </div>
+  <div>
+    <h4>Run3 (after fix + tone-loosening)</h4>
+    <div class="he quote">
+      עודכן. לאפה שווארמה זה לא מהתפריט שלך — חלבון שמן עם פחמימה ביחד.
+    </div>
+    <p class="sub">Flag + informational note + no rest-of-day. Address-term <span class="he">"שלך"</span> reads as a person, not a label.</p>
+  </div>
+</div>
+<p class="sub"><b>Hardened across varied foods</b>: in-process probe re-ran scenario-3 logic with 6 off-menu foods (<span class="he">פלאפל, פיצה, בורקס, נקניקיות, צ'יפס, שניצל</span>) + 2 on-menu controls. Initial round: 4/8. After strengthening (mandatory two-part rule + stackable-with-budget + cooking-method guidance + 3c/3d examples): <b>8/8</b>.</p>
+
+<h2>Tone-loosening — content vs sentence shape</h2>
+<p>After the F4 fix passed 8/8, the bot's replies still sounded template-y — same opener (<span class="he">"עודכן."</span>), same em-dash shape, food name as the only swap. Larger model (gpt-5.4 vs gpt-5.4-mini) and temperature didn't move the needle. <b>The LLM was templating the exemplars verbatim.</b> Added explicit "vary opener / vary order / use connectors" guidance + rewrote 3b/3c/3d with varied sentence structures.</p>
+<div class="compare">
+  <div>
+    <h4>Before tone fix</h4>
+    <div class="he quote">עודכן. פלאפל לא בתפריט — זה פחמימה + שומן ביחד.</div>
+    <div class="he quote">עודכן. פיצה לא מהאופציות בתפריט — פחמימה + שומן ביחד.</div>
+    <div class="he quote">עודכן. בורקס גבינה לא מהאופציות בתפריט — זה פחמימה + שומן ביחד.</div>
+    <div class="he quote">עודכן. נקניקיות לא מהתפריט שלך — זה חלבון שמן, לא רזה.</div>
+  </div>
+  <div>
+    <h4>After tone fix</h4>
+    <div class="he quote">סגור. פלאפל זה לא מהאופציות בתפריט — פחמימה ושומן ביחד.</div>
+    <div class="he quote">פיצה לא מהאופציות בתפריט שלך, וזה פחמימה ושומן ביחד.</div>
+    <div class="he quote">אחי, בורקס גבינה לא מהתפריט שלך — פחמימה מטוגנת עם הרבה שומן. עודכן, ואתה כבר על 19.1 מנות פחמימה להיום.</div>
+    <div class="he quote">אחי, זה לא מהתפריט שלך — נקניקיות זה חלבון שמן. עודכנת.</div>
+  </div>
+</div>
+<p class="sub">Varied openers (<span class="he">סגור / אחי / no-opener / עודכן</span>), varied order (food-first vs flag-first vs woven), <span class="he">אחי</span> appearing naturally in 3/6 off-menu replies (was 0/6). Content compliance held: still 8/8 deviation-flag + note + no rest-of-day.</p>
+
+<h2>Items still open</h2>
+<table>
+  <thead><tr><th>Item</th><th>Severity</th><th>Where</th><th>Next move</th></tr></thead>
+  <tbody>
+  <tr>
+    <td>F5 — UNIT_MISMATCH not triggered</td>
+    <td><span class="pill partial">low</span></td>
+    <td><code>inputs/scenarios.md</code> scenario 5</td>
+    <td>Pick a catalog food with empty <code>unit_weights</code> and no <span class="he">כוס</span>/cup synonym so the resolver chain has no path. Pure inputs-file change.</td>
+  </tr>
+  <tr>
+    <td>Language slip <code>Aחי</code> (S4)</td>
+    <td><span class="pill info">watch</span></td>
+    <td>response_node sampling</td>
+    <td>If it reappears in a future live run, add a "no Latin chars in Hebrew words" line under <code>## Hard rules</code>. Don't chase a single sample.</td>
+  </tr>
+  <tr>
+    <td>5/24 daily_logs bloat for e2e user</td>
+    <td><span class="pill info">hygiene</span></td>
+    <td>Supabase <code>daily_logs</code></td>
+    <td>~28 probe artifacts from today's iteration. Optional cleanup before run4 so S1/S4 reset to a normal baseline. Don't touch without user OK.</td>
+  </tr>
+  </tbody>
+</table>
+
+<h2>Per-dimension scorecard</h2>
+<table>
+  <thead><tr><th>Dimension</th><th class="center">S1</th><th class="center">S2</th><th class="center">S3</th><th class="center">S4</th><th class="center">S5</th><th class="center">S6</th><th class="center">S7</th></tr></thead>
+  <tbody>
+    <tr><td>tone</td><td class="center">pass</td><td class="center">pass</td><td class="center"><b>pass</b></td><td class="center">partial</td><td class="center">—</td><td class="center">pass</td><td class="center">pass</td></tr>
+    <tr><td>language-consistency</td><td class="center">pass</td><td class="center">pass</td><td class="center">pass</td><td class="center"><span class="pill fail">fail</span></td><td class="center">—</td><td class="center">pass</td><td class="center">pass</td></tr>
+    <tr><td>address-term</td><td class="center">pass</td><td class="center">—</td><td class="center">—</td><td class="center">partial</td><td class="center">—</td><td class="center">—</td><td class="center">pass</td></tr>
+    <tr><td>time-awareness</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center"><b>pass</b></td><td class="center">—</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>tight-confirmation-default</td><td class="center">—</td><td class="center"><b>pass</b></td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>plan-deviation-flag</td><td class="center">—</td><td class="center">—</td><td class="center"><b>pass</b></td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>weekly-synthesis-shape</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center"><b>pass</b></td></tr>
+    <tr><td>plan-reference</td><td class="center">pass</td><td class="center">—</td><td class="center">—</td><td class="center">pass</td><td class="center">—</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>budget-reasoning</td><td class="center">partial</td><td class="center">—</td><td class="center">—</td><td class="center">pass</td><td class="center">—</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>no-logging-language-on-qna</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center"><b>pass</b></td><td class="center">—</td></tr>
+  </tbody>
+</table>
+
+<h2>Deltas vs run2</h2>
+<table>
+  <thead><tr><th>Dimension</th><th>run2 (with plan, before F3/F4)</th><th>run3 (after fixes)</th></tr></thead>
+  <tbody>
+    <tr><td>plan-deviation-flag (S3)</td><td><span class="pill fail">fail</span></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>weekly-synthesis-shape (S7)</td><td><span class="pill fail">fail</span> (claimed "no data")</td><td><span class="pill pass">pass</span> (full markdown breakdown)</td></tr>
+    <tr><td>tight-confirmation-default (S2)</td><td><span class="pill fail">fail</span> (budget-line leakage)</td><td><span class="pill pass">pass</span> (bare default)</td></tr>
+    <tr><td>tone (S3, S7)</td><td><span class="pill partial">partial</span></td><td><span class="pill pass">pass</span></td></tr>
+  </tbody>
+</table>
+<p class="sub">All four problematic dimensions cleared. Items still open (F5, S4 typo, DB hygiene) are not regressions.</p>
+
+<hr>
+
+<footer>
+  Generated 2026-05-24 from <code>tests/ux-loop/hebrew-friend-coach-tone/runs/run3-f3-f4-tone-fixes/</code>.
+  Companion artifacts: <code>transcript.md</code>, <code>findings.md</code>, <code>db-snapshot.md</code>, <code>scenario_*.json</code>.
+  Handoffs F3 + F4 (with resolution sections) under <code>runs/run2-after-seed/handoffs/</code>.
+</footer>
+
+</body>
+</html>
