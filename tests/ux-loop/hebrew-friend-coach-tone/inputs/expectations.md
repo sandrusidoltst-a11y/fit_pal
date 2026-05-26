@@ -314,26 +314,30 @@ Scoring rubric, regression thresholds, and runtime behavioral rules for the `heb
 ---
 
 ### plan-deviation-flag
-**What:** when the user logs a food that is NOT in the plan's Protein Options or Carb Options lists, the bot explicitly flags it as off-menu, adds one short informational note about the food itself, and does NOT prescribe rest-of-day adjustments.
+**What:** when the user logs a food that is NOT in the plan's Protein Options or Carb Options lists, the bot explicitly flags it as off-menu, adds one short informational note about the food itself, MAY add a brief forward-looking nudge, and does NOT prescribe same-day compensation.
 
 **How to evaluate:** checklist (all must hold for pass). Applies when the logged food is off-menu (not in plan options lists) AND a successful commit happened.
 
 **Checklist:**
 1. **Deviation explicitly named** — reply contains a clear flag: `"לא מהתפריט"` / `"לא באופציות"` / `"זה לא מהתוכנית"` / equivalent.
-2. **One informational note about the food itself** — describes what the food *is* in plan-relevant terms (e.g., `"חלבון שמן"`, `"פחמימה + שומן ביחד"`). NOT a substitution suggestion. NOT a quantity / frequency note.
-3. **No rest-of-day prescription** — patterns like `"בשאר היום ניצמד ל..."` / `"מעכשיו תאכל..."` / `"תפצה עם..."` are all fails.
+2. **One informational note about the food itself** — describes what the food *is* in plan-relevant terms (e.g., `"חלבון שמן"`, `"פחמימה + שומן ביחד"`). NOT a substitution suggestion ("next time eat chicken skewers instead").
+3. **No same-day compensation prescription** — reactive damage-control for the *rest of today* is a fail: `"בשאר היום ניצמד ל..."` / `"מעכשיו תאכל..."` / `"תפצה עם..."`. A *forward-looking* nudge about future choices is NOT a fail (see allowed examples below) — the line is today-compensation (fail) vs future-habit nudge (allowed).
 
-**Note on current prompt state:** as of 2026-05-24, `prompts/response_generator.md` does NOT have a plan-deviation rule. This dimension is expected to FAIL on baseline; the in-loop fix would add the rule to the prompt and a worked example to `## Conversation Examples`.
+**Allowed (optional) — forward-looking nudge:** a single short future-facing clause is fine and does not fail the dimension:
+- mindfulness — `"שים לב בפעם הבאה"`
+- frequency — `"תשתדל להימנע בפעמים הבאות"`
+- method tie-in — `"במיוחד אם זה לא אחרי אימון"`, `"אם זה לא נכנס בקלוריות החופשיות"`
 
 **Examples (pass):**
-- "שווארמה לא מהתפריט. זה חלבון שמן עם פחמימה." (flag + food description, no prescription)
+- "שווארמה לא מהתפריט. זה חלבון שמן עם פחמימה." (flag + food description, no nudge — minor deviation)
 - "לאפה שווארמה זה לא מהאופציות. שווארמה זה חלבון שמן, לא רזה." (flag + description)
-- "לא תקין אחי — שווארמה לא מהאופציות. נרשם בכל זאת." (flag + acknowledgment, no further guidance)
+- "עודכן אחי. שניצל הוא חלבון בינוני עם ציפוי מטוגן, ולא מהאופציות שלך. תשתדל להימנע בפעמים הבאות אם זה לא מהקלוריות החופשיות." (flag + description + forward-looking nudge — allowed)
+- "אחי, נקניקיות לא בתוכנית — חלבון שמן, שים לב בפעם הבאה." (flag + description + mindfulness nudge)
 
 **Examples (fail):**
-- "עודכן. שווארמה זה לא מהתפריט — בשאר היום ניצמד לחלבון רזה." (has rest-of-day prescription)
-- "סגור. שווארמה זה לא רזה, פעם הבאה לך על שיפודי עוף." (substitution suggestion = soft prescription)
-- "סגור. עברת על התוכנית — תפצה מחר." (vague, no flag or food info, has prescription)
+- "עודכן. שווארמה זה לא מהתפריט — בשאר היום ניצמד לחלבון רזה." (same-day compensation)
+- "סגור. שווארמה זה לא רזה, פעם הבאה לך על שיפודי עוף." (substitution suggestion — fails item 2)
+- "סגור. עברת על התוכנית — תפצה מחר." (no flag, no food info, and "תפצה" is compensation framing)
 - "עודכן, סגור." (no flag at all)
 
 **Output:** `pass` / `fail` + which checklist item failed.
