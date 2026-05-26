@@ -11,7 +11,6 @@ import logging
 import os
 
 from supabase import AsyncClient, acreate_client
-from supabase_auth.errors import AuthApiError
 
 logger = logging.getLogger(__name__)
 
@@ -58,62 +57,51 @@ def _server_password(telegram_chat_id: int) -> str:
     ).hexdigest()
 
 
+async def _find_user_by_email(client: AsyncClient, email: str):
+    """Return the auth user with this email, or None.
+
+    Admin-only: paginates the admin list endpoint and never signs in, so the
+    shared client's Authorization header is never overwritten with a user JWT.
+    """
+    page = 1
+    per_page = 200
+    target = email.lower()
+    while True:
+        users = await client.auth.admin.list_users(page=page, per_page=per_page)
+        if not users:
+            return None
+        for user in users:
+            if (user.email or "").lower() == target:
+                return user
+        if len(users) < per_page:
+            return None
+        page += 1
+
+
 async def get_or_create_user(telegram_chat_id: int) -> dict:
     """Get or create a Supabase Auth user for a Telegram chat ID.
 
-    Returns dict with keys: user_id, access_token, refresh_token, is_new.
+    Admin-API only: looks up by synthetic email, creates if missing. Never calls
+    sign_in_with_password, so the shared admin client's Authorization header stays
+    the service key (avoids the expired-user-JWT 403 on admin/users).
+
+    Returns dict with keys: user_id, is_new.
     """
     email = _synthetic_email(telegram_chat_id)
-    password = _server_password(telegram_chat_id)
     client = await _get_client()
 
-    # Try signing in first (existing user)
-    try:
-        response = await client.auth.sign_in_with_password(
-            {"email": email, "password": password}
-        )
-        logger.info("Signed in existing user for chat_id=%s", telegram_chat_id)
-        return {
-            "user_id": response.user.id,
-            "access_token": response.session.access_token,
-            "refresh_token": response.session.refresh_token,
-            "is_new": False,
-        }
-    except AuthApiError:
-        logger.debug("User not found for chat_id=%s, creating new user", telegram_chat_id)
+    existing = await _find_user_by_email(client, email)
+    if existing is not None:
+        logger.info("Found existing user for chat_id=%s", telegram_chat_id)
+        return {"user_id": existing.id, "is_new": False}
 
-    # Create new user via admin API
-    await client.auth.admin.create_user(
+    response = await client.auth.admin.create_user(
         {
             "email": email,
-            "password": password,
+            "password": _server_password(telegram_chat_id),
             "email_confirm": True,
             "user_metadata": {"telegram_chat_id": telegram_chat_id},
         }
     )
-
-    # Sign in to get a session with tokens
-    response = await client.auth.sign_in_with_password(
-        {"email": email, "password": password}
-    )
     logger.info("Created new user for chat_id=%s", telegram_chat_id)
-    return {
-        "user_id": response.user.id,
-        "access_token": response.session.access_token,
-        "refresh_token": response.session.refresh_token,
-        "is_new": True,
-    }
-
-
-async def refresh_session(refresh_token: str) -> dict:
-    """Refresh an expired session using the refresh token.
-
-    Returns dict with keys: access_token, refresh_token.
-    """
-    client = await _get_client()
-    response = await client.auth.refresh_session(refresh_token)
-    logger.info("Refreshed session")
-    return {
-        "access_token": response.session.access_token,
-        "refresh_token": response.session.refresh_token,
-    }
+    return {"user_id": response.user.id, "is_new": True}
