@@ -92,6 +92,29 @@ async def test_create_body_fat_entry(async_test_db_session):
     assert entry.weight_kg is None
 
 
+async def test_photo_url_round_trips(async_test_db_session):
+    """
+    arrange: create a stat entry with a photo_url.
+    act:     fetch via get_latest_stats (serializes the entry).
+    assert:  photo_url is preserved on both the ORM object and the serialized dict.
+    """
+    now = datetime.now(timezone.utc)
+    photo = "https://storage.example/progress/abc.jpg"
+
+    entry = await create_stat_entry(
+        async_test_db_session,
+        user_id=TEST_USER_A,
+        weight_kg=74.0,
+        recorded_at=now,
+        photo_url=photo,
+    )
+    assert entry.photo_url == photo
+
+    latest = await get_latest_stats(async_test_db_session, TEST_USER_A)
+    assert latest is not None
+    assert latest["photo_url"] == photo
+
+
 async def test_get_latest_stats(async_test_db_session):
     """
     arrange: create two weight entries at different times.

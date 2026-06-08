@@ -83,6 +83,10 @@ class UserProfile(Base):
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     gender: Mapped[str] = mapped_column(String, nullable=False)
     nutrition_plan: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Which coach owns this trainee. FK to auth.users lives in Postgres only
+    # (see docs/patterns/schema-management.md). Nullable so a trainee can briefly
+    # exist before assignment; backfilled to DEFAULT_COACH_ID for V1.
+    coach_id: Mapped[Optional[uuid_mod.UUID]] = mapped_column(Uuid, nullable=True, index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -102,6 +106,9 @@ class PersonalStatsLog(Base):
     user_id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, nullable=False, index=True)
     weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     body_fat_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Progress-photo URL (Supabase Storage). Bot-side upload flow ships later;
+    # the dashboard renders this when present.
+    photo_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -140,3 +147,32 @@ class CoachFoodMapping(Base):
     food_item: Mapped["FoodItem"] = relationship("FoodItem", back_populates="coach_mappings")
 
     __table_args__ = (UniqueConstraint("food_id", "coach_id", name="uq_coach_food_mappings_food_coach"),)
+
+
+class MacroTarget(Base):
+    """Structured numeric macro targets per trainee, split by training vs rest day.
+
+    One row per (user_id, day_type). `user_id` is the trainee (FK to auth.users in
+    Postgres only). Compliance math (dashboard) compares a day's logged macros
+    against the matching day_type row.
+    """
+
+    __tablename__ = "macro_targets"
+
+    id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, primary_key=True, default=uuid_mod.uuid4)
+    user_id: Mapped[uuid_mod.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    day_type: Mapped[str] = mapped_column(String, nullable=False)  # CHECK ('training','rest') in Postgres
+    calories: Mapped[float] = mapped_column(Float, nullable=False)
+    protein_g: Mapped[float] = mapped_column(Float, nullable=False)
+    carbs_g: Mapped[float] = mapped_column(Float, nullable=False)
+    fat_g: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (UniqueConstraint("user_id", "day_type", name="uq_macro_targets_user_day_type"),)
