@@ -26,6 +26,7 @@ async def create_stat_entry(
     weight_kg: Optional[float] = None,
     body_fat_pct: Optional[float] = None,
     recorded_at: Optional[datetime] = None,
+    photo_url: Optional[str] = None,
 ) -> PersonalStatsLog:
     """Create and persist a new personal stats log entry.
 
@@ -35,6 +36,7 @@ async def create_stat_entry(
         weight_kg: Body weight in kilograms (optional).
         body_fat_pct: Body fat percentage (optional).
         recorded_at: When the measurement was taken (defaults to now UTC).
+        photo_url: Progress-photo URL (optional; rendered by the dashboard).
 
     Returns:
         The created PersonalStatsLog instance.
@@ -47,6 +49,7 @@ async def create_stat_entry(
         weight_kg=weight_kg,
         body_fat_pct=body_fat_pct,
         recorded_at=recorded_at,
+        photo_url=photo_url,
     )
     session.add(entry)
     await session.commit()
@@ -116,6 +119,7 @@ def _serialize_stat(entry: PersonalStatsLog) -> dict:
         "id": str(entry.id),
         "weight_kg": entry.weight_kg,
         "body_fat_pct": entry.body_fat_pct,
+        "photo_url": entry.photo_url,
         "recorded_at": serialize_timestamp(entry.recorded_at),
     }
 
